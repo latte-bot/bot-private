@@ -1,0 +1,30 @@
+# database
+asyncpg
+
+# config
+python-dotenv
+
+# http
+# requests
+
+# aio-libs
+async_lru
+aiohttp
+
+# discord
+discord.py @ git+https://github.com/Rapptz/discord.py@master
+jishaku @ git+https://github.com/Gorialis/jishaku@master
+
+# encryption
+cryptography
+
+# utils
+chardet
+colorthief
+pillow
+psutil
+pygit2
+typing_extensions
+
+# unsorted
+uvloop; sys_platform != 'win32'
