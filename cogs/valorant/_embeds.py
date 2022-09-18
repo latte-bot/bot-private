@@ -1,16 +1,105 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 
 import discord
-
-# from valorant.models.store import Wallet
+import valorant
+from async_lru import alru_cache
+from discord import Interaction
 from valorant.models import Bundle
 
-# from valorant.weapon import Skin
-# from valorant.spray import Spray
-# from valorant.player_card import PlayerCard
-# from valorant.player_title import PlayerTitle
+from utils.chat_formatting import bold
+from utils.formats import format_relative
+
+from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, ValorantLocale as VLocale
+
+if TYPE_CHECKING:
+    from discord import Client
+
+    from bot import LatteBot
+
+    from ._client import RiotAuth
+
+    ClientBot = Union[Client, LatteBot]
+
+
+class MakeEmbed:
+    def __init__(self, interaction: Interaction) -> None:
+        self.interaction = interaction
+        self.bot: ClientBot = interaction.client
+        self.locale: str = VLocale.from_discord(str(interaction.locale))
+        self.embeds: List[discord.Embed] = []
+
+    @alru_cache(maxsize=5)
+    async def build_store(
+        self,
+        store_front: valorant.StoreFront,
+        riot_acc: RiotAuth,
+        *,
+        locale: Optional[Union[str, VLocale]] = None,
+    ) -> List[discord.Embed]:
+        locale = locale or self.locale
+
+        embeds = [
+            Embed(
+                description=f"Daily store for {bold(riot_acc.display_name)}\n"  # type: ignore
+                f"Resets {format_relative(store_front.store.reset_at)}"
+            )
+        ]
+
+        for skin in store_front.store.skins:
+            emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
+            e = Embed(
+                title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
+                description=f"{PointEmoji.valorant_point} {skin.price}",
+                colour=self.bot.theme.dark,
+            )
+            if skin.display_icon is not None:
+                e.url = skin.display_icon.url
+                e.set_thumbnail(url=skin.display_icon.url)
+            embeds.append(e)
+
+        self.embeds = embeds
+        return embeds
+
+    @alru_cache(maxsize=5)
+    async def build_battlepass(
+        self, contract: valorant.Contracts, riot_acc: RiotAuth, *, locale: Optional[Union[str, VLocale]] = None
+    ) -> List[discord.Embed]:
+
+        locale = locale or self.locale
+
+        btp = contract.get_latest_contract(relation_type=valorant.RelationType.season)
+
+        next_reward = btp.next_tier_reward.reward
+
+        embed = discord.Embed(
+            title=f"Battlepass for {bold(riot_acc.display_name)}",
+            description=f"{bold('NEXT')}: {next_reward.display_name}",
+        )
+        embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale_code(str(locale))}')
+
+        if isinstance(next_reward, valorant.SkinLevel):
+            if next_reward.display_icon is not None:
+                embed.set_thumbnail(url=next_reward.display_icon)
+        elif isinstance(next_reward, valorant.PlayerCard):
+            if next_reward.wide_icon is not None:
+                embed.set_thumbnail(url=next_reward.wide_icon)
+            else:
+                if next_reward.display_icon is not None:
+                    embed.set_thumbnail(url=next_reward.display_icon)
+        else:
+            if not isinstance(next_reward, valorant.PlayerTitle):
+                if next_reward.display_icon is not None:
+                    embed.set_thumbnail(url=next_reward.display_icon)
+
+        if btp.current_tier <= 50:
+            embed.colour = self.bot.theme.purple
+        else:
+            embed.colour = self.bot.theme.gold
+
+        self.embeds = [embed]
+        return [embed]
 
 
 class Embed(discord.Embed):

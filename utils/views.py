@@ -16,6 +16,7 @@ _log = logging.getLogger(__name__)
 def key(interaction: discord.Interaction) -> discord.User:
     return interaction.user
 
+
 class Button(ui.Button):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -95,3 +95,12 @@ SELECT
 FROM
     riot_accounts;
 """
+
+RIOT_ACC_DELETE_BY_GUILD: Final[
+    str
+] = """
+DELETE 
+FROM
+    riot_accounts 
+WHERE
+    guild_id = $1 RETURNING user_id;"""

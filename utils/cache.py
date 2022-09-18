@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 import enum
 import time
-
 from functools import wraps
-from typing import Any, Callable, Coroutine, MutableMapping, TypeVar, Protocol
+from typing import Any, Callable, Coroutine, MutableMapping, Protocol, TypeVar
 
 from lru import LRU
 

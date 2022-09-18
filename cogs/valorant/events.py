@@ -1,38 +1,75 @@
 from __future__ import annotations
 
 import datetime
-import discord
+import json
 import logging
+
+import discord
 from discord.ext import commands, tasks
 
 from ._abc import MixinMeta
 from ._client import RiotAuth
-from ._sql_statements import RIOT_ACC_UPDATE_EXTRAS
+from ._sql_statements import RIOT_ACC_DELETE_BY_GUILD, RIOT_ACC_WITH_UPSERT
 
 _log = logging.getLogger(__name__)
 
+
 class Events(MixinMeta):
     @commands.Cog.listener()
-    async def on_guild_remove(self, guild: discord.Guild) -> None:
-        """Called when LatteBot leaves a guild"""
-        ...
-
-    @commands.Cog.listener()
-    async def on_riot_re_authorized(self, riot_auth: RiotAuth, only_database: bool) -> None:
+    async def on_riot_re_authorized(self, riot_auth: RiotAuth, wait_for: bool) -> None:
         """Called when a user's riot account is updated"""
-        # async with self.bot.pool.acquire() as conn:
-        #     ...  # Update the riot account in the database
 
-        print(f"Riot account reauthorized: {riot_auth}")
-        self.get_riot_account.invalidate(self, user_id=riot_auth.discord_id)  # type: ignore
+        print("on_riot_re_authorized")
 
-        if not only_database:
+        if wait_for:
+
             riot_acc_list = await self.get_riot_account(user_id=riot_auth.discord_id)
             for acc in riot_acc_list:
                 if acc.puuid != riot_auth.puuid:
-                    await acc.re_authorize(only_database=True)
+                    await acc.re_authorize(wait_for=False)
+
+            # wait for re_authorize
+            async with self.bot.pool.acquire() as conn:
+                # Update the riot account in the database
+
+                # single line
+                old_data = self.users[riot_auth.discord_id]
+                new_data = [riot_auth if auth_u.puuid == riot_auth.puuid else auth_u for auth_u in old_data]
+
+                payload = [user_riot_auth.to_dict() for user_riot_auth in new_data]
+
+                dumps_payload = json.dumps(payload)
+
+                # encryption
+                encrypt_payload = self.bot.encryption.encrypt(dumps_payload)
+
+                await conn.execute(
+                    RIOT_ACC_WITH_UPSERT,
+                    riot_auth.discord_id,
+                    riot_auth.guild_id,
+                    encrypt_payload,
+                    riot_auth.date_signed,
+                    riot_auth.discord_id,
+                )
+
+            # invalidate cache
+            self.get_riot_account.invalidate(self, user_id=riot_auth.discord_id)  # type: ignore
 
     @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Called when LatteBot leaves a guild"""
+
+        # DELETE RETURNING
+        async with self.bot.pool.acquire(timeout=180.0) as conn:
+            records = await conn.fetch(RIOT_ACC_DELETE_BY_GUILD, guild.id)
+
+            # remove for cache
+            for record in records:
+                user_id = record["user_id"]
+
+                # invalidate cache
+                self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore
+
     async def on_riot_account_error(self, user_id: int) -> None:
         """Called when a user's riot account is updated"""
         self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, Awaitable, Callable, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Protocol, TypeVar, runtime_checkable
 
 from discord.utils import MISSING
 
@@ -45,7 +45,8 @@ class MixinMeta(ABC):
 
     if TYPE_CHECKING:
         get_riot_account: GetRiotAccount
+        users: Dict[int, List[RiotAuth]] = {}
 
     def __init__(self, *_args):
         self.bot: LatteBot = MISSING
-        self.valorant_client: Client = MISSING
+        self.v_client: Client = MISSING

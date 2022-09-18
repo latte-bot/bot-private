@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 MISSING = discord.utils.MISSING
 
-IGNORE_EXTENSIONS = ['Admin', 'Events', 'Help', 'Jishaku']
+IGNORE_EXTENSIONS = ['Developers', 'Events', 'Help', 'Jishaku']
 
 
 @lru_cache(maxsize=1)
@@ -54,6 +54,8 @@ class CogButton(ui.Button['HelpView']):
     def __init__(self, cog: commands.Cog, *args, **kwargs) -> None:
         self.cog = cog
         emoji = getattr(cog, 'display_emoji', None)
+        if emoji is None:
+            kwargs['label'] = cog.qualified_name
         super().__init__(emoji=emoji, *args, **kwargs)
 
     async def callback(self, interaction: Interaction) -> None:

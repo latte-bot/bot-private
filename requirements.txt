@@ -4,12 +4,8 @@ asyncpg
 # config
 python-dotenv
 
-# http
-# requests
-
 # aio-libs
 async_lru
-aiohttp
 
 # discord
 discord.py @ git+https://github.com/Rapptz/discord.py@master

@@ -100,7 +100,6 @@ class ErrorHandler(commands.Cog):
         else:
             content = "Sorry, but something went wrong! Please try again later..."
             if isinstance(error, CommandInvokeError):
-                # _log.error(error.original)
 
                 traceback_formatted = f"```py\n{traceback.format_exc()}\n```"
 
@@ -132,7 +131,6 @@ class ErrorHandler(commands.Cog):
                     await interface.send_to(self.bot.owner)
                 else:
                     await self.traceback_log.send(embed=embed, file=traceback_fp)
-                    await self.bot.owner.send(embed=embed, file=traceback_fp)
 
         embed = discord.Embed(description=content, color=self.bot.theme.error)
         # timestamp = interaction.created_at

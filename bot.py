@@ -29,7 +29,7 @@ os.environ['JISHAKU_HIDE'] = 'True'
 
 initial_extensions = [
     'cogs.dev',
-    # 'cogs.events',
+    'cogs.events',
     'cogs.errors',
     'cogs.help',
     'cogs.jishaku_',

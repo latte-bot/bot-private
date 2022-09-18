@@ -13,7 +13,7 @@ class ContentTier(Enum):
         return str(self.value)
 
     @classmethod
-    def _from_name(cls, name: str) -> str:
+    def from_name(cls, name: str) -> str:
         value = getattr(cls, name.lower(), None)
         if value is None:
             raise ValueError(f'Invalid content tier: {name}')

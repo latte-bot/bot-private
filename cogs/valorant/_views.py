@@ -145,6 +145,7 @@ class ButtonAccountSwitch(ui.Button['SwitchAccountView']):
                 locale = self.other_view.locale_converter(interaction.locale)
 
                 import time
+
                 start_time = time.time()
 
                 embeds = await self.other_view.get_embeds(acc, locale)
@@ -165,6 +166,7 @@ class FeaturedBundleView(ViewAuthor):
         self.all_embeds: Dict[str, List[discord.Embed]] = {}
         super().__init__(interaction, timeout=600)
         self.build_buttons(bundles)
+        self.selected: bool = False
 
     def build_buttons(self, bundles: List[valorant.Bundle]) -> None:
         for index, bundle in enumerate(bundles, start=1):
@@ -178,12 +180,13 @@ class FeaturedBundleView(ViewAuthor):
             )
 
     async def on_timeout(self) -> None:
-        original_response = await self.interaction.original_response()
-        if original_response:
-            for item in self.children:
-                if isinstance(item, ui.Button):
-                    item.disabled = True
-            await original_response.edit(view=self)
+        if not self.selected:
+            original_response = await self.interaction.original_response()
+            if original_response:
+                for item in self.children:
+                    if isinstance(item, ui.Button):
+                        item.disabled = True
+                await original_response.edit(view=self)
 
 
 class FeaturedBundleButton(ui.Button['FeaturedBundleView']):
@@ -193,7 +196,7 @@ class FeaturedBundleButton(ui.Button['FeaturedBundleView']):
 
     async def callback(self, interaction: Interaction) -> None:
         assert self.other_view is not None
-
+        self.other_view.selected = True
         await interaction.response.edit_message(embeds=self.other_view.all_embeds[self.custom_id], view=None)
 
 

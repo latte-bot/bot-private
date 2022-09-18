@@ -21,22 +21,13 @@
 ## Library
 #### Discord:
 - [discord.py](https://github.com/Rapptz/discord.py)
-- [jishaku](https://github.com/Gorialis/jishaku)
-#### HTTP:
-- [requests](https://github.com/psf/requests)
-- [aiohttp](https://github.com/aio-libs/aiohttp)
 #### Database:
 - [asyncpg](https://github.com/MagicStack/asyncpg)
 #### Encryption:
 - [cryptography](https://github.com/pyca/cryptography)
 #### Utility:
-- [chardet](https://github.com/chardet/chardet)
 - [colorthief](https://github.com/fengsp/color-thief-py)
 - [pillow](https://github.com/python-pillow/Pillow)
-- [psutil](https://github.com/giampaolo/psutil)
-- [pygit2](https://github.com/libgit2/pygit2)
-#### config
-- [python-dotenv](https://github.com/theskumar/python-dotenv)
 #### API:
 - valorant api (private)
 

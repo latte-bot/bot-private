@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import logging
 from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union
 
@@ -19,6 +20,8 @@ class RiotAuth(valorant.RiotAuth):
         super().__init__()
         self.bot = bot
         self.discord_id: int = discord_id
+        self.guild_id: int = 0
+        self.date_signed: Union[datetime.datetime, int] = 0
         self.acc_num: int = 1
 
         # config
@@ -95,15 +98,15 @@ class RiotAuth(valorant.RiotAuth):
 
             # endregion
 
-    async def reauthorize(self, only_database: bool = False) -> None:
+    async def reauthorize(self, wait_for: bool = True) -> None:
         try_authorize = await super().reauthorize()
         if try_authorize:
             if self.bot is not MISSING:
-                self.bot.dispatch('riot_re_authorized', self, only_database)
+                self.bot.dispatch('riot_re_authorized', self, wait_for)
 
     # alias
-    def re_authorize(self, only_database: bool = False) -> Coroutine[Any, Any, None]:
-        return self.reauthorize(only_database=only_database)
+    def re_authorize(self, wait_for: bool = True) -> Coroutine[Any, Any, None]:
+        return self.reauthorize(wait_for=wait_for)
 
     def clear_cookie(self) -> None:
         self._cookie_jar.clear()

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+
 import discord
 from discord import Interaction, app_commands
 from discord.app_commands import Choice, locale_str as _T
 
 from ._abc import MixinMeta
-from ._errors import NoAccountsLinked
 from ._client import RiotAuth
+from ._errors import NoAccountsLinked
 
 SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
 
@@ -72,7 +73,7 @@ class Admin(MixinMeta):
         else:
             riot_acc = riot_acc[0]
 
-        client = await self.valorant_client.set_authorize(riot_acc)
+        client = await self.v_client.set_authorize(riot_acc)
         await client.fetch_assets(with_price=with_price, reload=reload, force=force)
 
         await interaction.followup.send('Asset has been fetched', ephemeral=True)
@@ -87,16 +88,16 @@ class Admin(MixinMeta):
     )
     async def asset_clear(self, interaction: Interaction, cache: Choice[str]) -> None:
         if cache.value == 'assets':
-            self.valorant_client.assets.clear_asset_cache()
+            self.v_client.assets.clear_asset_cache()
         elif cache.value == 'offers':
-            self.valorant_client.assets.clear_offer_cache()
+            self.v_client.assets.clear_offer_cache()
         else:
-            self.valorant_client.assets.clear_all_cache()
+            self.v_client.assets.clear_all_cache()
 
         msg = f'Cache `{cache.value}` has been cleared'
         await interaction.response.send_message(msg, ephemeral=True)
 
     @asset.command(name=_T('reload'), description=_T('Reload asset'))
     async def asset_reload(self, interaction: Interaction, with_price: bool = True) -> None:
-        self.valorant_client.assets.reload_assets(with_price=with_price)
+        self.v_client.assets.reload_assets(with_price=with_price)
         await interaction.response.send_message('Asset has been reloaded', ephemeral=True)

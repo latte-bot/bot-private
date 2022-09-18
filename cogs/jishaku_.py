@@ -333,11 +333,13 @@ class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
         if not message.content:
             raise CommandError('No code provided.')
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=message.content.startswith('private'))
+
+        content = message.content.removeprefix('private').strip()
 
         jsk = self.bot.get_command(f'jishaku py')
         ctx = await commands.Context.from_interaction(interaction)
-        codeblock = codeblock_converter(message.content)
+        codeblock = codeblock_converter(content)
 
         try:
             await jsk(ctx, argument=codeblock)
