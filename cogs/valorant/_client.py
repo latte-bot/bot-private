@@ -40,7 +40,7 @@ class RiotAuth(valorant.RiotAuth):
     def __hash__(self) -> int:
         return hash(self.puuid)
 
-    async def authorize_multi_factor(self, code: str):
+    async def authorize_multi_factor(self, code: str, remember: bool = False):
 
         headers = {
             "Accept-Encoding": "deflate, gzip, zstd",
@@ -49,7 +49,7 @@ class RiotAuth(valorant.RiotAuth):
             "Accept": "application/json",
         }
 
-        data = {"type": "multifactor", "code": code, "rememberDevice": True}
+        data = {"type": "multifactor", "code": code, "rememberDevice": remember}
 
         conn = aiohttp.TCPConnector(ssl=self._auth_ssl_ctx)
         async with aiohttp.ClientSession(

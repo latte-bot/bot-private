@@ -22,7 +22,7 @@ from discord.ext import commands
 
 # valorant
 from valorant.errors import RiotMultifactorError
-from valorant.models import PlayerCard, Skin, Spray
+from valorant.models import PlayerCard, Skin, Buddy, BuddyLevel, SprayLevel, Spray
 
 from utils.chat_formatting import bold, italics, strikethrough
 
@@ -50,7 +50,7 @@ from .notify import Notify
 
 if TYPE_CHECKING:
     from discord import Client
-    from valorant import Agent, Buddy, BuddyLevel, Bundle, PlayerTitle, SkinChroma, SkinLevel, SprayLevel, Weapon
+    from valorant import Agent, Bundle, PlayerTitle, SkinChroma, SkinLevel, Weapon
 
     from bot import LatteBot
 
@@ -87,13 +87,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.patch_note_color: Dict[str, int] = {}
         self.featured_bundle_color: Dict[str, int] = {}
 
-        # start tasks
-        self.notify_alert.start()
-        self.auto_logout.start()
-        self.client_version.start()
-        self.featured_bundle_cache.start()
-        self.reset_cache.start()
-
         # context menu
         self.ctx_user_store = app_commands.ContextMenu(
             name=_T('store'),
@@ -118,12 +111,32 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         return self.bot.get_emoji(998169266044022875)
 
     async def cog_load(self):
+
         if self.v_client is MISSING:
             self.v_client = ValorantClient()
-            await self.v_client.fetch_assets()
-        _log.info('Valorant client loaded.')
+
+            if self.v_client.http._riot_auth is valorant.utils.MISSING:
+                riot_acc = await self.get_riot_account(user_id=self.bot.owner_id)
+                await self.v_client.set_authorize(riot_acc[0])
+
+            try:
+                await self.v_client.fetch_assets(with_price=True, force=True, reload=True)
+            except Exception as e:
+                await self.v_client.fetch_assets(force=True, reload=True)
+                _log.error(f'Failed to fetch assets with price: {e}')
+            finally:
+                _log.info('Valorant client loaded.')
 
         await self.load_cache_from_database()
+
+        # start tasks
+        self.notify_alert.start()
+        self.auto_logout.start()
+        self.client_version.start()
+        self.featured_bundle_cache.start()
+        self.reset_cache.start()
+
+        _log.info('Valorant client loaded.')
 
     async def cog_unload(self) -> None:
 
@@ -193,6 +206,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         riot_acc = self.users.get(user_id)
         if riot_acc is None:
             self.get_riot_account.invalidate(self, user_id=user_id)
+            if user_id == self.bot.owner_id:
+                riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
+                riot_acc.guild_id = self.bot.support_guild_id
+                await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
             raise NoAccountsLinked('You have no accounts linked.')
 
         return riot_acc
@@ -255,7 +272,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             riot_acc = await self.get_riot_account(user_id=self.bot.owner_id)  # super user
         except NoAccountsLinked:
             riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-            riot_acc.guild_id = (self.bot.support_guild_id,)
+            riot_acc.guild_id = self.bot.support_guild_id
             await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
             riot_acc = riot_acc[0]
@@ -409,7 +426,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         try_auth.guild_id = interaction.guild_id
 
         try:
-            await try_auth.authorize(username, password)
+            await try_auth.authorize(username, password, remember=True)
         except RiotMultifactorError:
             wait_modal = RiotMultiFactorModal(try_auth)
             await interaction.response.send_modal(wait_modal)
@@ -419,7 +436,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             if wait_modal.code is None:
                 raise CommandError('You did not enter the code in time.')
 
-            await try_auth.authorize_multi_factor(wait_modal.code)
+            await try_auth.authorize_multi_factor(wait_modal.code, remember=True)
 
             # replace interaction
             interaction = wait_modal.interaction
@@ -737,6 +754,47 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         else:
             await interaction.followup.send("No featured bundles found")
 
+    @app_commands.command(name=_T('mission'), description=_T('View your daily/weekly mission progress'))
+    @dynamic_cooldown(cooldown_5s)
+    async def mission(self, interaction: Interaction) -> None:
+
+        await interaction.response.defer()
+
+        # client = await self.valo_client(interaction.user.id)
+        # contracts = client.http.contracts_fetch()
+
+        await interaction.followup.send(...)
+
+    @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
+    @dynamic_cooldown(cooldown_5s)
+    @app_commands.guild_only()
+    async def patchnote(self, interaction: Interaction) -> None:
+
+        await interaction.response.defer()
+
+        patch_note = await self.get_patch_notes(interaction.locale)
+
+        color_thief = self.patch_note_color.get(patch_note.latest.uid)
+        if color_thief is None:
+            banner_url_read = await patch_note.latest.banner.read()
+            color_thief = ColorThief(io.BytesIO(banner_url_read)).get_palette(color_count=5)
+            self.patch_note_color[patch_note.latest.uid] = color_thief  # cache color_thief
+
+        embed = discord.Embed(
+            title=patch_note.latest.title,
+            timestamp=patch_note.latest.timestamp.replace(tzinfo=timezone.utc),
+            url=patch_note.latest.url,
+            colour=discord.Colour.from_rgb(*(random.choice(color_thief))),
+            description=patch_note.latest.description,
+        )
+        embed.set_image(url=patch_note.latest.banner)
+        embed.set_footer(text=patch_note.latest.category_title)
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label=patch_note.see_article_title, url=patch_note.latest.url, emoji='🔗'))
+
+        await interaction.followup.send(embed=embed, view=view)
+
     @app_commands.command(name=_T('agent'))
     @app_commands.guild_only()
     @app_commands.rename(maybe_uuid='agent')
@@ -801,14 +859,85 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @app_commands.rename(maybe_uuid='buddy')
     @dynamic_cooldown(cooldown_5s)
     async def buddy(self, interaction: Interaction, maybe_uuid: str = None) -> None:
-        ...
+
+        await interaction.response.defer()
+
+        locale = self.locale_converter(interaction.locale)
+        buddy = self.v_client.get_buddy_level(maybe_uuid)
+
+        if buddy is not None:
+            embed = Embed(colour=self.bot.theme.purple)
+
+            if isinstance(buddy, Buddy):
+                embed.set_author(
+                    name=buddy.name_localizations.from_locale_code(locale),
+                    icon_url=buddy.theme.display_icon if buddy.theme is not None else None,
+                    url=buddy.display_icon,
+                )
+
+            elif isinstance(buddy, BuddyLevel):
+                embed.set_author(
+                    name=buddy.base_buddy.name_localizations.from_locale_code(locale),
+                    url=buddy.display_icon,
+                    icon_url=buddy.base_buddy.theme.display_icon if buddy.base_buddy.theme is not None else None,
+                )
+            embed.set_image(url=buddy.display_icon)
+
+            view = BaseView()
+            view.add_item(ui.Button(label="Display Icon", url=buddy.display_icon.url))
+
+            await interaction.followup.send(embed=embed, view=view)
+        else:
+            await interaction.followup.send("No buddy found")
 
     @app_commands.command(name=_T('spray'))
     @app_commands.guild_only()
     @app_commands.rename(maybe_uuid='spray')
     @dynamic_cooldown(cooldown_5s)
     async def spray(self, interaction: Interaction, maybe_uuid: str = None) -> None:
-        ...
+
+        await interaction.response.defer()
+
+        locale = self.locale_converter(interaction.locale)
+        spray = self.v_client.get_spray(maybe_uuid)
+
+        if spray is not None:
+            embed = Embed(colour=self.bot.theme.purple)  # TODO: get color from spray
+            view = BaseView()
+
+            if isinstance(spray, Spray):
+                embed.set_author(
+                    name=spray.name_localizations.from_locale_code(locale),
+                    url=spray.display_icon,
+                    icon_url=spray.theme.display_icon if spray.theme is not None else None,
+                )
+                embed.set_image(url=spray.animation_gif or spray.full_transparent_icon or spray.display_icon)
+                if spray.animation_gif:
+                    view.add_item(ui.Button(label="Animation Gif", url=spray.animation_gif.url))
+                if spray.full_transparent_icon:
+                    view.add_item(ui.Button(label="Full Transparent Icon", url=spray.full_transparent_icon.url))
+                if spray.display_icon:
+                    view.add_item(ui.Button(label="Display Icon", url=spray.display_icon.url))
+
+            elif isinstance(spray, SprayLevel):
+                base_spray = spray.base_spray
+                embed.set_author(
+                    name=base_spray.name_localizations.from_locale_code(locale),
+                    icon_url=base_spray.theme.display_icon if base_spray.theme is not None else None,
+                    url=spray.display_icon,
+                )
+                embed.set_image(url=base_spray.animation_gif or base_spray.full_transparent_icon or base_spray.display_icon or spray.display_icon)
+
+                if base_spray.animation_gif:
+                    view.add_item(ui.Button(label="Animation Gif", url=base_spray.animation_gif.url))
+                if base_spray.full_transparent_icon:
+                    view.add_item(ui.Button(label="Full Transparent Icon", url=base_spray.full_transparent_icon.url))
+                if base_spray.display_icon:
+                    view.add_item(ui.Button(label="Display Icon", url=base_spray.display_icon.url))
+
+            await interaction.followup.send(embed=embed, view=view)
+        else:
+            await interaction.followup.send("No spray found")
 
     player = app_commands.Group(name=_T('player'), description=_T('Player commands'), guild_only=True)
 
@@ -816,13 +945,40 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @dynamic_cooldown(cooldown_5s)
     @app_commands.rename(maybe_uuid='card')
     async def player_card(self, interaction: Interaction, maybe_uuid: str):
-        ...
+
+        await interaction.response.defer()
+
+        locale = self.locale_converter(interaction.locale)
+        player_card = self.v_client.get_player_card(maybe_uuid)
+
+        if player_card is not None:
+            embed = Embed(colour=self.bot.theme.purple)
+            embed.set_author(
+                name=player_card.name_localizations.from_locale_code(locale),
+                icon_url=player_card.theme.display_icon if player_card.theme is not None else None,
+                url=player_card.large_icon
+            )
+            embed.set_image(url=player_card.large_icon)
+            # TODO: player card views selection
+
+            view = BaseView()
+            if player_card.display_icon is not None:
+                view.add_item(ui.Button(label="Display Icon", url=player_card.display_icon.url))
+
+            await interaction.followup.send(embed=embed, view=view)
 
     @player.command(name=_T('title'))
     @dynamic_cooldown(cooldown_5s)
     @app_commands.rename(maybe_uuid='title')
     async def player_title(self, interaction: Interaction, maybe_uuid: str):
-        ...
+
+        await interaction.response.defer()
+
+        locale = self.locale_converter(interaction.locale)
+        player_title = self.v_client.get_player_title(maybe_uuid)
+
+        if player_title is not None:
+            embed = Embed(colour=self.bot.theme.purple)
 
     @app_commands.command(name=_T('weapon'))
     @app_commands.guild_only()
@@ -837,17 +993,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @dynamic_cooldown(cooldown_5s)
     async def skin(self, interaction: Interaction, maybe_uuid: str = None) -> None:
         ...
-
-    @app_commands.command(name=_T('mission'), description=_T('View your daily/weekly mission progress'))
-    @dynamic_cooldown(cooldown_5s)
-    async def mission(self, interaction: Interaction) -> None:
-
-        await interaction.response.defer()
-
-        # client = await self.valo_client(interaction.user.id)
-        # contracts = client.http.contracts_fetch()
-
-        await interaction.followup.send(...)
 
     # auto complete
     @bundle.autocomplete('maybe_uuid')
@@ -887,16 +1032,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     if len(results) >= mex_index:
                         break
 
-        elif command in [self.agent, self.buddy, self.spray, self.weapon, self.skin]:
+        elif command in [self.agent, self.buddy, self.spray, self.weapon, self.skin, self.player_card, self.player_title]:
 
             if command is self.agent:
                 value_list = self.get_all_agents()
                 namespace = interaction.namespace.agent
             elif command is self.buddy:
-                value_list = self.get_all_buddy_levels()
+                value_list = self.get_all_buddies()
                 namespace = interaction.namespace.buddy
             elif command is self.spray:
-                value_list = self.get_all_spray_levels()
+                value_list = self.get_all_sprays()
                 namespace = interaction.namespace.spray
             elif command is self.weapon:
                 value_list = self.get_all_weapons()
@@ -904,6 +1049,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             elif command is self.skin:
                 value_list = self.get_all_skins()
                 namespace = interaction.namespace.skin
+            elif command is self.player_card:
+                value_list = self.get_all_player_cards()
+                namespace = interaction.namespace.card
+            elif command is self.player_title:
+                value_list = self.get_all_player_titles()
+                namespace = interaction.namespace.title
             else:
                 return []
 
@@ -911,6 +1062,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 if value.name_localizations.from_locale_code(locale).lower().startswith(namespace.lower()):
 
                     value_name = value.name_localizations.from_locale_code(locale)
+
+                    if value_name == ' ':
+                        continue
 
                     if not value_name.startswith('.') and not namespace.startswith('.'):
                         results.append(app_commands.Choice(name=value_name, value=value.uuid))
@@ -922,118 +1076,88 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         return results[:mex_index]
 
-    @app_commands.command(name=_T('match'), description=_T('Last match history'))
-    @app_commands.choices(
-        queue=[
-            Choice(name=_T('Unrated'), value='unrated'),
-            Choice(name=_T('Competitive'), value='competitive'),
-            Choice(name=_T('Deathmatch'), value='deathmatch'),
-            Choice(name=_T('Spike Rush'), value='spikerush'),
-            Choice(name=_T('Escalation'), value='escalation'),
-            Choice(name=_T('Replication'), value='replication'),
-            Choice(name=_T('Snowball Fight'), value='snowball'),
-            Choice(name=_T('Custom'), value='custom'),
-        ]
-    )
-    @app_commands.describe(queue=_T('Choose the queue'))
-    @app_commands.rename(queue=_T('queue'))
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.guild_only()
-    async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-        ...
+    # @app_commands.command(name=_T('match'), description=_T('Last match history'))
+    # @app_commands.choices(
+    #     queue=[
+    #         Choice(name=_T('Unrated'), value='unrated'),
+    #         Choice(name=_T('Competitive'), value='competitive'),
+    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
+    #         Choice(name=_T('Spike Rush'), value='spikerush'),
+    #         Choice(name=_T('Escalation'), value='escalation'),
+    #         Choice(name=_T('Replication'), value='replication'),
+    #         Choice(name=_T('Snowball Fight'), value='snowball'),
+    #         Choice(name=_T('Custom'), value='custom'),
+    #     ]
+    # )
+    # @app_commands.describe(queue=_T('Choose the queue'))
+    # @app_commands.rename(queue=_T('queue'))
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.guild_only()
+    # async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
+    #     ...
 
-    @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
-    @app_commands.choices(
-        queue=[
-            Choice(name=_T('Unrated'), value='unrated'),
-            Choice(name=_T('Competitive'), value='competitive'),
-            Choice(name=_T('Deathmatch'), value='deathmatch'),
-            Choice(name=_T('Spike Rush'), value='spikerush'),
-            Choice(name=_T('Escalation'), value='escalation'),
-            Choice(name=_T('Replication'), value='replication'),
-            Choice(name=_T('Snowball Fight'), value='snowball'),
-            Choice(name=_T('Custom'), value='custom'),
-        ]
-    )
-    @app_commands.describe(queue=_T('Choose the queue'))
-    @app_commands.rename(queue=_T('queue'))
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.guild_only()
-    async def stats(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-        ...
+    # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
+    # @app_commands.choices(
+    #     queue=[
+    #         Choice(name=_T('Unrated'), value='unrated'),
+    #         Choice(name=_T('Competitive'), value='competitive'),
+    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
+    #         Choice(name=_T('Spike Rush'), value='spikerush'),
+    #         Choice(name=_T('Escalation'), value='escalation'),
+    #         Choice(name=_T('Replication'), value='replication'),
+    #         Choice(name=_T('Snowball Fight'), value='snowball'),
+    #         Choice(name=_T('Custom'), value='custom'),
+    #     ]
+    # )
+    # @app_commands.describe(queue=_T('Choose the queue'))
+    # @app_commands.rename(queue=_T('queue'))
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.guild_only()
+    # async def stats(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
+    #     ...
 
-    @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.guild_only()
-    async def patchnote(self, interaction: Interaction) -> None:
+    # @app_commands.command(name=_T('leaderboard'), description=_T('Shows your Region Leaderboard'))
+    # @app_commands.describe(region='Select region to get the leaderboard')
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.guild_only()
+    # async def leaderboard(self, interaction: Interaction, region: Literal['AP', 'EU', 'NA', 'KR']) -> None:
+    #     ...
 
-        await interaction.response.defer()
-
-        patch_note = await self.get_patch_notes(interaction.locale)
-
-        color_thief = self.patch_note_color.get(patch_note.latest.uid)
-        if color_thief is None:
-            banner_url_read = await patch_note.latest.banner.read()
-            color_thief = ColorThief(io.BytesIO(banner_url_read)).get_palette(color_count=5)
-            self.patch_note_color[patch_note.latest.uid] = color_thief  # cache color_thief
-
-        embed = discord.Embed(
-            title=patch_note.latest.title,
-            timestamp=patch_note.latest.timestamp.replace(tzinfo=timezone.utc),
-            url=patch_note.latest.url,
-            colour=discord.Colour.from_rgb(*(random.choice(color_thief))),
-            description=patch_note.latest.description,
-        )
-        embed.set_image(url=patch_note.latest.banner)
-        embed.set_footer(text=patch_note.latest.category_title)
-
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label=patch_note.see_article_title, url=patch_note.latest.url, emoji='🔗'))
-
-        await interaction.followup.send(embed=embed, view=view)
-
-    @app_commands.command(name=_T('leaderboard'), description=_T('Shows your Region Leaderboard'))
-    @app_commands.describe(region='Select region to get the leaderboard')
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.guild_only()
-    async def leaderboard(self, interaction: Interaction, region: Literal['AP', 'EU', 'NA', 'KR']) -> None:
-        ...
-
-    @app_commands.command(name=_T('collection'), description=_T('Shows your collection'))
-    @dynamic_cooldown(cooldown_10s)
-    @app_commands.guild_only()
-    async def collection(self, interaction: Interaction) -> None:
-
-        await interaction.response.defer()
-
-        riot_acc = await self.get_riot_account(user_id=interaction.user.id)
-        client = await self.v_client.run(auth=riot_acc)
-        loadout = await client.fetch_player_loadout()
-
-        file = await player_collection(loadout)
-
-        embed = Embed(color=self.bot.theme.primacy)
-        embed.set_image(url="attachment://collection.png")
-
-        await interaction.followup.send(embed=embed, file=file)
-
-    @app_commands.command(name=_T('profile'), description=_T('Shows your profile'))
-    @app_commands.guild_only()
-    async def profile(self, interaction: Interaction) -> None:
-
-        await interaction.response.defer()
-
-        riot_acc = await self.get_riot_account(user_id=interaction.user.id)
-        client = await self.v_client.run(auth=riot_acc)
-
-        loadout = await client.fetch_player_loadout()
-
-        file = await profile_card(loadout)
-
-        embed = Embed(colour=0x63C0B5)
-        embed.set_image(url="attachment://profile.png")
-
-        await interaction.followup.send(embed=embed, file=file)
+    # @app_commands.command(name=_T('collection'), description=_T('Shows your collection'))
+    # @dynamic_cooldown(cooldown_10s)
+    # @app_commands.guild_only()
+    # async def collection(self, interaction: Interaction) -> None:
+    #
+    #     await interaction.response.defer()
+    #
+    #     riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+    #     client = await self.v_client.run(auth=riot_acc)
+    #     loadout = await client.fetch_player_loadout()
+    #
+    #     file = await player_collection(loadout)
+    #
+    #     embed = Embed(color=self.bot.theme.primacy)
+    #     embed.set_image(url="attachment://collection.png")
+    #
+    #     await interaction.followup.send(embed=embed, file=file)
+    #
+    # @app_commands.command(name=_T('profile'), description=_T('Shows your profile'))
+    # @app_commands.guild_only()
+    # async def profile(self, interaction: Interaction) -> None:
+    #
+    #     await interaction.response.defer()
+    #
+    #     riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+    #     client = await self.v_client.run(auth=riot_acc)
+    #
+    #     loadout = await client.fetch_player_loadout()
+    #
+    #     file = await profile_card(loadout)
+    #
+    #     embed = Embed(colour=0x63C0B5)
+    #     embed.set_image(url="attachment://profile.png")
+    #
+    #     await interaction.followup.send(embed=embed, file=file)
 
 
 async def setup(bot: LatteBot) -> None:
