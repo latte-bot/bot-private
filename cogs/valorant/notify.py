@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ._abc import GetRiotAccount
 
 
-class Notify(MixinMeta):
+class Notify(MixinMeta):  # noqa
     """Notify cog"""
 
     if TYPE_CHECKING:

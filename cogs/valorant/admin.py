@@ -13,7 +13,7 @@ from ._errors import NoAccountsLinked
 SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
 
 
-class Admin(MixinMeta):
+class Admin(MixinMeta):  # noqa
 
     cache = app_commands.Group(
         name=_T('cache'),

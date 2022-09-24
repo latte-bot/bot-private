@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
 
 import aiohttp
 import valorant
@@ -27,6 +27,9 @@ class RiotAuth(valorant.RiotAuth):
         # config
         self.hide_display_name: bool = kwargs.get('hide_display_name', False)
         self.notify_mode: int = kwargs.get('notify_mode', 0)
+
+        # multi factor
+        self.__waif_for_2fa = True
 
     def __repr__(self) -> str:
         attrs = [

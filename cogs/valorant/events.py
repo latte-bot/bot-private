@@ -9,17 +9,15 @@ from discord.ext import commands, tasks
 
 from ._abc import MixinMeta
 from ._client import RiotAuth
-from ._sql_statements import RIOT_ACC_DELETE_BY_GUILD, RIOT_ACC_WITH_UPSERT
+from ._sql_statements import ACCOUNT_DELETE_BY_GUILD, ACCOUNT_WITH_UPSERT
 
 _log = logging.getLogger(__name__)
 
 
-class Events(MixinMeta):
+class Events(MixinMeta):  # noqa
     @commands.Cog.listener()
     async def on_riot_re_authorized(self, riot_auth: RiotAuth, wait_for: bool) -> None:
         """Called when a user's riot account is updated"""
-
-        print("on_riot_re_authorized")
 
         if wait_for:
 
@@ -44,7 +42,7 @@ class Events(MixinMeta):
                 encrypt_payload = self.bot.encryption.encrypt(dumps_payload)
 
                 await conn.execute(
-                    RIOT_ACC_WITH_UPSERT,
+                    ACCOUNT_WITH_UPSERT,
                     riot_auth.discord_id,
                     riot_auth.guild_id,
                     encrypt_payload,
@@ -61,7 +59,7 @@ class Events(MixinMeta):
 
         # DELETE RETURNING
         async with self.bot.pool.acquire(timeout=180.0) as conn:
-            records = await conn.fetch(RIOT_ACC_DELETE_BY_GUILD, guild.id)
+            records = await conn.fetch(ACCOUNT_DELETE_BY_GUILD, guild.id)
 
             # remove for cache
             for record in records:
@@ -95,16 +93,22 @@ class Events(MixinMeta):
     async def featured_bundle_cache(self) -> None:
         self.get_featured_bundle.cache_clear()  # type: ignore
 
-    @tasks.loop(hours=1)
+    @tasks.loop(time=datetime.time(hour=17, minute=0, second=0))  # looping every 00:00:00 UTC+7
     async def client_version(self) -> None:
-        print("client_version")
-        # if self.valorant_client is None:
-        #     return
-        #
-        # NEW_VERSION = await self.valorant_client._http._get_current_version()
-        #
-        # if NEW_VERSION != self.valorant_client.VERSION:
-        #     await self.valorant_client.cache.fetch_all()
+
+        client_version = await self.v_client.get_valorant_version()
+
+        if client_version is None:
+            return
+
+        if client_version != self.v_client.version:
+            self.v_client.version = client_version
+            # TODO: Login super user
+
+            await self.v_client.fetch_assets(with_price=True, force=True, reload=True)
+
+            # cache clear
+            self.clear_cache_assets()
 
     # before loops tasks
 

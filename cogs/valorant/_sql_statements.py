@@ -1,6 +1,6 @@
 from typing import Final
 
-RIOT_ACC_CREATE_TABLE: Final[
+CREATE_TABLE: Final[
     str
 ] = """
 CREATE TABLE IF NOT EXISTS riot_accounts (
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS riot_accounts (
     date_signed TIMESTAMP);
 """
 
-RIOT_ACC_INSERT_OR_UPDATE: Final[
+ACCOUNT_INSERT_OR_UPDATE: Final[
     str
 ] = """
 INSERT 
@@ -27,7 +27,7 @@ VALUES
         date_signed = $4;
 """
 
-RIOT_ACC_WITH_UPSERT: Final[
+ACCOUNT_WITH_UPSERT: Final[
     str
 ] = """
    WITH upsert AS (UPDATE
@@ -55,7 +55,7 @@ WHERE
             );
 """
 
-RIOT_ACC_UPDATE_EXTRAS: Final[
+ACCOUNT_UPDATE_EXTRAS: Final[
     str
 ] = """
 UPDATE
@@ -66,7 +66,7 @@ WHERE
     user_id = $2;
 """
 
-RIOT_ACC_DELETE: Final[
+ACCOUNT_DELETE: Final[
     str
 ] = """
 DELETE 
@@ -76,7 +76,7 @@ WHERE
     user_id = $1;
 """
 
-RIOT_ACC_SELECT: Final[
+ACCOUNT_SELECT: Final[
     str
 ] = """
 SELECT
@@ -87,7 +87,7 @@ WHERE
     user_id = $1;
 """
 
-RIOT_ACC_SELECT_ALL: Final[
+ACCOUNT_SELECT_ALL: Final[
     str
 ] = """
 SELECT
@@ -96,7 +96,7 @@ FROM
     riot_accounts;
 """
 
-RIOT_ACC_DELETE_BY_GUILD: Final[
+ACCOUNT_DELETE_BY_GUILD: Final[
     str
 ] = """
 DELETE 

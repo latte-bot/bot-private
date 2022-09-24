@@ -27,17 +27,21 @@ class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
 
     def __init__(self, try_auth: RiotAuth) -> None:
         super().__init__(timeout=120, custom_id='wait_for_modal')
-        self.try_auth = try_auth
+        self.try_auth: RiotAuth = try_auth
         self.code: Optional[str] = None
         self.interaction: Optional[Interaction] = None
         self.two2fa = ui.TextInput(
             label='Input 2FA Code',
-            placeholder='2FA Code',
             max_length=6,
             # min_length=6,
             style=TextStyle.short,
             custom_id=self.custom_id + '_2fa',
         )
+        if self.try_auth.multi_factor_email is not None:
+            self.two2fa.placeholder = 'Riot sent a code to ' + self.try_auth.multi_factor_email
+        else:
+            self.two2fa.placeholder = 'You have 2FA enabled!'
+
         self.add_item(self.two2fa)
 
     async def on_submit(self, interaction: Interaction) -> None:

@@ -5,7 +5,7 @@ from ._abc import MixinMeta
 from ._errors import NoAccountsLinked
 
 
-class ErrorHandler(MixinMeta):
+class ErrorHandler(MixinMeta):  # noqa
     async def cog_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:

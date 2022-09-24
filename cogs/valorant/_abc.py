@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC
-from typing import TYPE_CHECKING, Awaitable, Callable, Dict, List, Optional, Protocol, TypeVar, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Protocol, TypeVar, runtime_checkable
 
 from discord.utils import MISSING
 
@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     import ssl
 
     import aiohttp
+    import discord
 
     from bot import LatteBot
 
@@ -50,3 +51,69 @@ class MixinMeta(ABC):
     def __init__(self, *_args):
         self.bot: LatteBot = MISSING
         self.v_client: Client = MISSING
+
+    @abstractmethod
+    def clear_cache_assets(self) -> Any:
+        """Clears the cache for assets."""
+        pass
+
+    @abstractmethod
+    def get_all_agents(self) -> Any:
+        """Gets all agents."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_bundles(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_buddies(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_buddy_levels(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_player_cards(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_player_titles(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_sprays(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_spray_levels(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_skins(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_skin_levels(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_skin_chromas(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_all_weapons(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def get_patch_notes(self, locale: discord.Locale) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def get_featured_bundle(self) -> Any:
+        raise NotImplementedError()
+
+    @staticmethod
+    def locale_converter(locale: discord.Locale) -> Any:
+        raise NotImplementedError()

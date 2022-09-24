@@ -7,7 +7,7 @@ from utils.errors import CommandError
 from ._abc import MixinMeta
 
 
-class ContextMenu(MixinMeta):
+class ContextMenu(MixinMeta):  # noqa
     @dynamic_cooldown(cooldown_5s)
     async def store_user_context(self, interaction: Interaction, member: Member):
 
