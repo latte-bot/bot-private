@@ -18,17 +18,11 @@
 
 ## Features
 
-## Library
-#### Discord:
+## Libraries
 - [discord.py](https://github.com/Rapptz/discord.py)
-#### Database:
 - [asyncpg](https://github.com/MagicStack/asyncpg)
-#### Encryption:
 - [cryptography](https://github.com/pyca/cryptography)
-#### Utility:
-- [colorthief](https://github.com/fengsp/color-thief-py)
 - [pillow](https://github.com/python-pillow/Pillow)
-#### API:
 - valorant api (private)
 
 ## License
