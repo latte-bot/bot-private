@@ -1,4 +1,6 @@
-from enum import Enum
+from enum import Enum, IntEnum
+
+from typing_extensions import Self
 
 
 class ContentTier(Enum):
@@ -30,6 +32,12 @@ class Point(Enum):
         return str(self.value)
 
 
+class ResultColor(IntEnum):
+    WIN = 0x60DCC4
+    LOSE = 0xFC5C5C
+    DRAW = 0xCBCCD6
+
+
 class ValorantLocale(Enum):
     en_US = 'en-US'
     en_GB = 'en-US'
@@ -52,9 +60,9 @@ class ValorantLocale(Enum):
         return str(self.value)
 
     @classmethod
-    def from_discord(cls, value: str) -> str:
+    def from_discord(cls, value: str) -> Self:
         value = value.replace('-', '_')
         locale = getattr(cls, value, None)
         if locale is None:
             raise ValueError(f'Invalid locale: {value}')
-        return str(locale)
+        return locale

@@ -16,7 +16,7 @@ _log = logging.getLogger(__name__)
 
 class Events(MixinMeta):  # noqa
     @commands.Cog.listener()
-    async def on_riot_re_authorized(self, riot_auth: RiotAuth, wait_for: bool) -> None:
+    async def on_re_authorized_completion(self, riot_auth: RiotAuth, wait_for: bool) -> None:
         """Called when a user's riot account is updated"""
 
         if wait_for:
@@ -52,6 +52,11 @@ class Events(MixinMeta):  # noqa
 
             # invalidate cache
             self.get_riot_account.invalidate(self, user_id=riot_auth.discord_id)  # type: ignore
+
+    @commands.Cog.listener()
+    async def on_re_authorized_failure(self, riot_auth: RiotAuth) -> None:
+        """Called when a user's riot account fails to update"""
+        self.cache_get_invalidate(riot_auth)  # validate cache
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union
 
 import aiohttp
 import valorant
@@ -103,9 +103,11 @@ class RiotAuth(valorant.RiotAuth):
 
     async def reauthorize(self, wait_for: bool = True) -> None:
         try_authorize = await super().reauthorize()
-        if try_authorize:
-            if self.bot is not MISSING:
-                self.bot.dispatch('riot_re_authorized', self, wait_for)
+        if self.bot is not MISSING:
+            if try_authorize:
+                self.bot.dispatch('re_authorized_completion', self, wait_for)
+            else:
+                self.bot.dispatch('re_authorized_failure', self)
 
     # alias
     def re_authorize(self, wait_for: bool = True) -> Coroutine[Any, Any, None]:
@@ -190,6 +192,10 @@ class HTTPClientCustom(HTTPClient):
         self._riot_auth: RiotAuth = MISSING
         self._next_fetch_client_version: int = 0
         # self._puuid: Optional[str] = self._riot_auth.user_id if self._riot_auth is not MISSING else None
+
+    @property
+    def riot_auth(self) -> RiotAuth:
+        return self._riot_auth
 
     def clear_headers(self) -> None:
         self._headers.clear()

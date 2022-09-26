@@ -58,6 +58,11 @@ class MixinMeta(ABC):
         pass
 
     @abstractmethod
+    def cache_get_invalidate(self, riot_auth: RiotAuth) -> Any:
+        """Invalidates the cache for a user."""
+        pass
+
+    @abstractmethod
     def get_all_agents(self) -> Any:
         """Gets all agents."""
         raise NotImplementedError()

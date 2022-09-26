@@ -73,7 +73,7 @@ class ViewAuthor(BaseView):
         author = self.interaction.user
         user = interaction.user
 
-        if await self.interaction.client.is_owner(user):
+        if await self.interaction.client.is_owner(user):  # type: ignore
             return True
 
         if isinstance(user, discord.Member) and user.guild_permissions.administrator:
@@ -85,7 +85,7 @@ class ViewAuthor(BaseView):
                 if self.is_command:
 
                     command_name: str = self.interaction.command.qualified_name
-                    app_cmd_mapping: dict = self.interaction.client._app_commands
+                    app_cmd_mapping: dict = self.interaction.client._app_commands  # type: ignore
 
                     get_app_cmd = app_cmd_mapping.get(command_name)
 

@@ -7,7 +7,7 @@ import random
 from abc import ABC
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import TYPE_CHECKING, Dict, List, Literal, Union
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union
 
 import aiohttp
 import discord
@@ -40,7 +40,7 @@ from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, Valora
 from ._errors import NoAccountsLinked
 from ._pillow import player_collection, profile_card
 from ._sql_statements import ACCOUNT_DELETE, ACCOUNT_SELECT, ACCOUNT_SELECT_ALL, ACCOUNT_WITH_UPSERT
-from ._views import FeaturedBundleView, RiotMultiFactorModal, SwitchAccountView
+from ._views import FeaturedBundleView, MatchHistoryView, RiotMultiFactorModal, StatsView, SwitchAccountView
 
 # cogs
 from .admin import Admin
@@ -113,12 +113,17 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     async def cog_load(self):
 
+        await self.load_cache_from_database()
+
         if self.v_client is MISSING:
             self.v_client = ValorantClient()
 
-            if self.v_client.http._riot_auth is valorant.utils.MISSING:
-                riot_acc = await self.get_riot_account(user_id=self.bot.owner_id)
-                await self.v_client.set_authorize(riot_acc[0])
+            if self.v_client.http.riot_auth is valorant.utils.MISSING:
+
+                riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
+                riot_acc.guild_id = self.bot.support_guild_id
+                await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
+                await self.v_client.set_authorize(riot_acc)
 
             try:
                 await self.v_client.fetch_assets(with_price=True, force=True, reload=True)
@@ -127,8 +132,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 _log.error(f'Failed to fetch assets with price: {e}')
             finally:
                 _log.info('Valorant client loaded.')
-
-        await self.load_cache_from_database()
 
         # start tasks
         self.notify_alert.start()
@@ -180,12 +183,18 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     # - useful cache functions
 
-    @alru_cache(maxsize=1024)  # TODO: 1024 may be too much?
+    @alru_cache(maxsize=2048)
     async def get_riot_account(self, *, user_id: int) -> List[RiotAuth]:
 
         riot_acc = self.users.get(user_id)
         if riot_acc is not None:
             return riot_acc
+
+        # if user_id == self.bot.owner_id:
+        #     riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
+        #     riot_acc.guild_id = self.bot.support_guild_id
+        #     await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
+        #     return [riot_acc]
 
         row = await self.bot.pool.fetchrow(ACCOUNT_SELECT, user_id)
 
@@ -207,10 +216,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         riot_acc = self.users.get(user_id)
         if riot_acc is None:
             self.get_riot_account.invalidate(self, user_id=user_id)
-            if user_id == self.bot.owner_id:
-                riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-                riot_acc.guild_id = self.bot.support_guild_id
-                await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
             raise NoAccountsLinked('You have no accounts linked.')
 
         return riot_acc
@@ -265,7 +270,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @alru_cache(maxsize=30)
     async def get_patch_notes(self, locale: discord.Locale) -> valorant.PatchNotes:
-        return await self.v_client.fetch_patch_notes(self.locale_converter(locale))
+        return await self.v_client.fetch_patch_notes(str(self.locale_converter(locale)))
 
     @alru_cache(maxsize=1)
     async def get_featured_bundle(self) -> List[valorant.FeaturedBundle]:
@@ -282,7 +287,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         return data.bundles
 
     @staticmethod
-    def locale_converter(locale: discord.Locale) -> str:
+    def locale_converter(locale: discord.Locale) -> VLocale:
         return VLocale.from_discord(str(locale))
 
     def clear_cache_assets(self):
@@ -301,6 +306,15 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.get_all_weapons.cache_clear()
         self.get_patch_notes.cache_clear()
         self.get_featured_bundle.cache_clear()
+
+    def cache_get_invalidate(self, riot_acc: RiotAuth):
+
+        for locale in VLocale:
+            self.get_store.invalidate(self, riot_acc, locale)
+            self.get_battlepass.invalidate(self, riot_acc, locale)
+            self.get_nightmarket.invalidate(self, riot_acc, locale)
+            self.get_point.invalidate(self, riot_acc, locale)
+            self.get_mission.invalidate(self, riot_acc, locale)
 
     # functions
 
@@ -388,7 +402,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         for skin in data.nightmarket.skins:
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
-                title=f"{emoji} {bold(skin.name_localizations.from_locale_code(locale))}",
+                title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
                 description=f"{PointEmoji.valorant_point} {bold(str(skin.discount_price))}\n"
                 f"{PointEmoji.valorant_point}  {strikethrough(str(skin.price))} (-{skin.discount_percent}%)",
                 colour=self.bot.theme.dark,
@@ -409,7 +423,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         vp = client.get_currency(uuid='85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741')
         rad = client.get_currency(uuid='e59aa87c-4cbf-517a-5983-6e81511be9b7')
 
-        vp_display_name = vp.name_localizations.from_locale_code(locale)
+        vp_display_name = vp.name_localizations.from_locale_code(str(locale))
 
         embed = Embed(title=f"{client.user.display_name} Point:")
         embed.add_field(
@@ -417,27 +431,79 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             value=f"{PointEmoji.valorant_point} {wallet.valorant_points}",
         )
         embed.add_field(
-            name=f'{rad.name_localizations.from_locale_code(locale)}',
+            name=f'{rad.name_localizations.from_locale_code(str(locale))}',
             value=f"{PointEmoji.radianite_point} {wallet.radiant_points}",
         )
 
         return [embed]
 
-    # @alru_cache(maxsize=1024)
-    # def get_mission(self, riot_acc: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US) -> List[discord.Embed]:
-    #
-    #     client = await self.v_client.set_authorize(riot_acc)
-    #     contracts = await client.fetch_contracts()
-    #
-    #     embeds = []
-    #
-    #     for mission in contracts.missions:
-    #         embed = Embed(title=mission.title_localizations.from_locale_code(locale))
-    #         embed.add_field(name="Progress", value=f"{mission.progress}/{mission.goal}")
-    #         embed.add_field(name="Reward", value=f"{mission.reward}")
-    #         embeds.append(embed)
-    #
-    #     return embeds
+    @alru_cache(maxsize=1024)
+    async def get_mission(self, riot_acc: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US) -> List[discord.Embed]:
+
+        client = await self.v_client.set_authorize(riot_acc)
+        contracts = await client.fetch_contracts()
+
+        daily = []
+        weekly = []
+        tutorial = []
+        npe = []
+
+        all_completed = True
+
+        daily_format = '{0} | **+ {1.xp:,} XP**\n- **`{1.progress}/{1.target}`**'
+        for mission in contracts.missions:
+            title = mission.title_localizations.from_locale_code(str(locale))
+            if mission.type == valorant.MissionType.daily:
+                daily.append(daily_format.format(title, mission))
+            elif mission.type == valorant.MissionType.weekly:
+                weekly.append(daily_format.format(title, mission))
+            elif mission.type == valorant.MissionType.tutorial:
+                tutorial.append(daily_format.format(title, mission))
+            elif mission.type == valorant.MissionType.npe:
+                npe.append(daily_format.format(title, mission))
+
+            if not mission.is_completed():
+                all_completed = False
+
+        embed = Embed(title=f"{client.user.display_name} Mission:")
+        if all_completed:
+            embed.colour = 0x77DD77
+
+        if len(daily) > 0:
+            embed.add_field(
+                name=f"**Daily**",
+                value='\n'.join(daily),
+                inline=False,
+            )
+
+        if len(weekly) > 0:
+
+            weekly_refill_time = None
+            if contracts.mission_metadata is not None:
+                weekly_refill_time = format_relative(contracts.mission_metadata.weekly_refill_time)
+
+            embed.add_field(
+                name=f"**Weekly**",
+                value='\n'.join(weekly)
+                + ('\n\n' + "Refill Time: " + weekly_refill_time if weekly_refill_time is not None else ''),
+                inline=False,
+            )
+
+        if len(tutorial) > 0:
+            embed.add_field(
+                name=f"**Tutorial**",
+                value='\n'.join(tutorial),
+                inline=False,
+            )
+
+        if len(npe) > 0:
+            embed.add_field(
+                name=f"**NPE**",
+                value='\n'.join(npe),
+                inline=False,
+            )
+
+        return [embed]
 
     # --
 
@@ -564,6 +630,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                         if user_acc.acc_num == number:
                             acc_remove = user_acc
                             data_cache.remove(user_acc)
+                            self.cache_get_invalidate(user_acc)
                             break
 
                 e = Embed(description=f"Successfully logged out {bold(acc_remove.display_name)}")
@@ -572,10 +639,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             else:
                 await conn.execute(ACCOUNT_DELETE, interaction.user.id)
-                self.users.pop(interaction.user.id, None)
+
+                # validate cache
+                riot_acc = self.users.pop(interaction.user.id, None)
+                if riot_acc is not None:
+                    for acc in riot_acc:
+                        self.cache_get_invalidate(acc)
 
                 e = Embed(description=f"Successfully logged out all accounts")
-
                 await interaction.followup.send(embed=e, ephemeral=True)
 
         # invalidate cache
@@ -656,7 +727,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embeds = []
 
             embed = Embed(
-                description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale_code(locale)} Collection')}\n"  # noqa: E501
+                description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale_code(str(locale))} Collection')}\n"  # noqa: E501
                 f"{PointEmoji.valorant_point} {bundle.price}",
                 colour=self.bot.theme.purple,
             )
@@ -668,7 +739,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             for item in sorted(bundle.items, key=lambda i: i.price, reverse=True):
                 emoji = ContentTierEmoji.from_name(item.rarity.dev_name) if isinstance(item, Skin) else ''
                 e = Embed(
-                    title=f"{emoji} {bold(item.name_localizations.from_locale_code(locale))}",
+                    title=f"{emoji} {bold(item.name_localizations.from_locale_code(str(locale)))}",
                     description=f"{PointEmoji.valorant_point} {item.price}",
                     colour=self.bot.theme.dark,
                 )
@@ -712,9 +783,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         for bundle in bundles:
 
             # build embeds stuff
-            s_embed = discord.Embed(title=bundle.name_localizations.from_locale_code(locale), description='')
+            s_embed = discord.Embed(title=bundle.name_localizations.from_locale_code(str(locale)), description='')
             if bundle.description_extra is not None:
-                s_embed.description += f'{italics(bundle.description_extra_localizations.from_locale_code(locale))}\n'
+                s_embed.description += (
+                    f'{italics(bundle.description_extra_localizations.from_locale_code(str(locale)))}\n'
+                )
             s_embed.description += (
                 f'{PointEmoji.valorant_point} {bold(str(bundle.discount_price))} - '
                 f'expires {format_relative(bundle.expires_at)}'
@@ -736,7 +809,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             # build embeds
             embeds = []
             embed = Embed(
-                description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale_code(locale)} Collection')}\n"  # noqa: E501
+                description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale_code(str(locale))} Collection')}\n"  # noqa: E501
                 f"{PointEmoji.valorant_point} {bold(str(bundle.discount_price))} {strikethrough(str(bundle.price))} "
                 f"{italics(f'(Expires {format_relative(bundle.expires_at)})')}",
                 colour=self.bot.theme.purple,
@@ -796,10 +869,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        # client = await self.valo_client(interaction.user.id)
-        # contracts = client.http.contracts_fetch()
+        get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
 
-        await interaction.followup.send(...)
+        switch_view = SwitchAccountView(interaction, get_riot_acc, self.get_point)
+        embeds = await self.get_mission(get_riot_acc[0], self.locale_converter(interaction.locale))
+
+        await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
     @dynamic_cooldown(cooldown_5s)
@@ -849,13 +924,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             embed = Embed(
                 title=agent.display_name,
-                description=italics(agent.description_localizations.from_locale_code(locale)),
+                description=italics(agent.description_localizations.from_locale_code(str(locale))),
                 colour=int(random.choice(agent.background_gradient_colors)[:-2], 16),
             )
             embed.set_image(url=agent.full_portrait)
             embed.set_thumbnail(url=agent.display_icon)
             embed.set_footer(
-                text=agent.role.name_localizations.from_locale_code(locale), icon_url=agent.role.display_icon
+                text=agent.role.name_localizations.from_locale_code(str(locale)), icon_url=agent.role.display_icon
             )
 
             # TODO: add agent abilities
@@ -906,14 +981,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             if isinstance(buddy, Buddy):
                 embed.set_author(
-                    name=buddy.name_localizations.from_locale_code(locale),
+                    name=buddy.name_localizations.from_locale_code(str(locale)),
                     icon_url=buddy.theme.display_icon if buddy.theme is not None else None,
                     url=buddy.display_icon,
                 )
 
             elif isinstance(buddy, BuddyLevel):
                 embed.set_author(
-                    name=buddy.base_buddy.name_localizations.from_locale_code(locale),
+                    name=buddy.base_buddy.name_localizations.from_locale_code(str(locale)),
                     url=buddy.display_icon,
                     icon_url=buddy.base_buddy.theme.display_icon if buddy.base_buddy.theme is not None else None,
                 )
@@ -943,7 +1018,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             if isinstance(spray, Spray):
                 embed.set_author(
-                    name=spray.name_localizations.from_locale_code(locale),
+                    name=spray.name_localizations.from_locale_code(str(locale)),
                     url=spray.display_icon,
                     icon_url=spray.theme.display_icon if spray.theme is not None else None,
                 )
@@ -958,7 +1033,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             elif isinstance(spray, SprayLevel):
                 base_spray = spray.base_spray
                 embed.set_author(
-                    name=base_spray.name_localizations.from_locale_code(locale),
+                    name=base_spray.name_localizations.from_locale_code(str(locale)),
                     icon_url=base_spray.theme.display_icon if base_spray.theme is not None else None,
                     url=spray.display_icon,
                 )
@@ -995,7 +1070,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         if player_card is not None:
             embed = Embed(colour=self.bot.theme.purple)
             embed.set_author(
-                name=player_card.name_localizations.from_locale_code(locale),
+                name=player_card.name_localizations.from_locale_code(str(locale)),
                 icon_url=player_card.theme.display_icon if player_card.theme is not None else None,
                 url=player_card.large_icon,
             )
@@ -1058,10 +1133,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             namespace = interaction.namespace.bundle
             mex_index = 15
 
-            for bundle in sorted(bundle_list, key=lambda a: a.name_localizations.from_locale_code(locale)):
-                if bundle.name_localizations.from_locale_code(locale).lower().startswith(namespace.lower()):
+            for bundle in sorted(bundle_list, key=lambda a: a.name_localizations.from_locale_code(str(locale))):
+                if bundle.name_localizations.from_locale_code(str(locale)).lower().startswith(namespace.lower()):
 
-                    bundle_name = bundle.name_localizations.from_locale_code(locale)
+                    bundle_name = bundle.name_localizations.from_locale_code(str(locale))
 
                     index = 2
                     for choice in results:
@@ -1107,10 +1182,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             else:
                 return []
 
-            for value in sorted(value_list, key=lambda a: a.name_localizations.from_locale_code(locale)):
-                if value.name_localizations.from_locale_code(locale).lower().startswith(namespace.lower()):
+            for value in sorted(value_list, key=lambda a: a.name_localizations.from_locale_code(str(locale))):
+                if value.name_localizations.from_locale_code(str(locale)).lower().startswith(namespace.lower()):
 
-                    value_name = value.name_localizations.from_locale_code(locale)
+                    value_name = value.name_localizations.from_locale_code(str(locale))
 
                     if value_name == ' ':
                         continue
@@ -1125,45 +1200,59 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         return results[:mex_index]
 
-    # @app_commands.command(name=_T('match'), description=_T('Last match history'))
-    # @app_commands.choices(
-    #     queue=[
-    #         Choice(name=_T('Unrated'), value='unrated'),
-    #         Choice(name=_T('Competitive'), value='competitive'),
-    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
-    #         Choice(name=_T('Spike Rush'), value='spikerush'),
-    #         Choice(name=_T('Escalation'), value='escalation'),
-    #         Choice(name=_T('Replication'), value='replication'),
-    #         Choice(name=_T('Snowball Fight'), value='snowball'),
-    #         Choice(name=_T('Custom'), value='custom'),
-    #     ]
-    # )
-    # @app_commands.describe(queue=_T('Choose the queue'))
-    # @app_commands.rename(queue=_T('queue'))
-    # @dynamic_cooldown(cooldown_5s)
-    # @app_commands.guild_only()
-    # async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-    #     ...
+    @app_commands.command(name=_T('match'), description=_T('Last match history'))
+    @app_commands.choices(
+        queue=[
+            Choice(name=_T('Unrated'), value='unrated'),
+            Choice(name=_T('Competitive'), value='competitive'),
+            Choice(name=_T('Deathmatch'), value='deathmatch'),
+            Choice(name=_T('Spike Rush'), value='spikerush'),
+            Choice(name=_T('Escalation'), value='escalation'),
+            Choice(name=_T('Replication'), value='replication'),
+            Choice(name=_T('Snowball Fight'), value='snowball'),
+            Choice(name=_T('Custom'), value='custom'),
+        ]
+    )
+    @app_commands.describe(queue=_T('Choose the queue'))
+    @app_commands.rename(queue=_T('queue'))
+    @dynamic_cooldown(cooldown_5s)
+    @app_commands.guild_only()
+    async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
+        await interaction.response.defer()
 
-    # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
-    # @app_commands.choices(
-    #     queue=[
-    #         Choice(name=_T('Unrated'), value='unrated'),
-    #         Choice(name=_T('Competitive'), value='competitive'),
-    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
-    #         Choice(name=_T('Spike Rush'), value='spikerush'),
-    #         Choice(name=_T('Escalation'), value='escalation'),
-    #         Choice(name=_T('Replication'), value='replication'),
-    #         Choice(name=_T('Snowball Fight'), value='snowball'),
-    #         Choice(name=_T('Custom'), value='custom'),
-    #     ]
-    # )
-    # @app_commands.describe(queue=_T('Choose the queue'))
-    # @app_commands.rename(queue=_T('queue'))
-    # @dynamic_cooldown(cooldown_5s)
-    # @app_commands.guild_only()
-    # async def stats(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-    #     ...
+        get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        client = await self.v_client.set_authorize(get_riot_acc[0])
+        match_history = await client.fetch_match_history(queue_id=valorant.QueueID.competitive)
+
+        if len(match_history) == 0:
+            await interaction.followup.send('No match history found')
+            return
+
+        view = MatchHistoryView(interaction, match_history.match_details)
+        await view.start()
+
+    @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
+    @app_commands.choices(
+        queue=[
+            Choice(name=_T('Unrated'), value='unrated'),
+            Choice(name=_T('Competitive'), value='competitive'),
+            Choice(name=_T('Deathmatch'), value='deathmatch'),
+            Choice(name=_T('Spike Rush'), value='spikerush'),
+            Choice(name=_T('Escalation'), value='escalation'),
+            Choice(name=_T('Replication'), value='replication'),
+            Choice(name=_T('Snowball Fight'), value='snowball'),
+            Choice(name=_T('Custom'), value='custom'),
+        ]
+    )
+    @app_commands.describe(queue=_T('Choose the queue'))
+    @app_commands.rename(queue=_T('queue'))
+    @dynamic_cooldown(cooldown_5s)
+    @app_commands.guild_only()
+    async def stats(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
+        await interaction.response.defer()
+
+        view = StatsView(interaction)
+        await view.pre_start()
 
     # @app_commands.command(name=_T('leaderboard'), description=_T('Shows your Region Leaderboard'))
     # @app_commands.describe(region='Select region to get the leaderboard')
