@@ -896,10 +896,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             timestamp=patch_note.latest.timestamp.replace(tzinfo=timezone.utc),
             url=patch_note.latest.url,
             colour=discord.Colour.from_rgb(*(random.choice(color_thief))),
-            description=patch_note.latest.description,
+            description=italics(patch_note.latest.description),
         )
         embed.set_image(url=patch_note.latest.banner)
-        embed.set_footer(text=patch_note.latest.category_title)
+        # embed.set_footer(text=patch_note.latest.category_title)
 
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label=patch_note.see_article_title, url=patch_note.latest.url, emoji='🔗'))
