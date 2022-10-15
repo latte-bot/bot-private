@@ -63,15 +63,11 @@ def main():
 async def run_bot():
     log = logging.getLogger()
     uri = os.getenv('POSTGRESQL')
-    kwargs = {
-        'command_timeout': 60,
-        'max_size': 20,
-        'min_size': 20,
-    }
+    kwargs = {'command_timeout': 60, 'max_size': 20, 'min_size': 20}
     try:
         pool = await Table.create_pool(uri, **kwargs)
     except Exception as e:
-        log.exception('could not set up PostgreSQL. Exiting.')
+        log.exception('could not set up PostgreSQL. Exiting.', exc_info=e)
         return
 
     bot = LatteBot()

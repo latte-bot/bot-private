@@ -122,3 +122,19 @@ class MixinMeta(ABC):
     @staticmethod
     def locale_converter(locale: discord.Locale) -> Any:
         raise NotImplementedError()
+
+    @abstractmethod
+    def invite_by_display_name(self, target_id: str, display_name: str) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_user(self, _id: int) -> Optional[List[RiotAuth]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_user(self, _id: int, value: List[RiotAuth]) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_user(self, _id: int, value: RiotAuth) -> None:
+        raise NotImplementedError()

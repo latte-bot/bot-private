@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import random
+import re
 from abc import ABC
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -29,6 +30,7 @@ from utils.chat_formatting import bold, italics, strikethrough
 
 # utils
 from utils.checks import cooldown_5s
+from utils.emojis import LatteEmoji as Emoji
 from utils.errors import CommandError
 from utils.formats import format_relative
 from utils.views import BaseView
@@ -38,7 +40,8 @@ from ._client import Client as ValorantClient, RiotAuth
 from ._embeds import Embed
 from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
-from ._pillow import player_collection, profile_card
+
+# from ._pillow import player_collection, profile_card
 from ._sql_statements import ACCOUNT_DELETE, ACCOUNT_SELECT, ACCOUNT_SELECT_ALL, ACCOUNT_WITH_UPSERT
 from ._views import FeaturedBundleView, MatchHistoryView, RiotMultiFactorModal, StatsView, SwitchAccountView
 
@@ -89,23 +92,44 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.featured_bundle_color: Dict[str, int] = {}
 
         # context menu
-        self.ctx_user_store = app_commands.ContextMenu(
-            name=_T('store'),
-            callback=self.store_user_context,
+        # self.ctx_user_store = app_commands.ContextMenu(
+        #     name=_T('store'),
+        #     callback=self.store_user_context,
+        # )
+        # self.ctx_user_nightmarket = app_commands.ContextMenu(
+        #     name=_T('nightmarket'),
+        #     callback=self.nightmarket_user_context,
+        # )
+        # self.ctx_user_point = app_commands.ContextMenu(
+        #     name=_T('point'),
+        #     callback=self.point_user_context,
+        # )
+
+        self.ctx_user_party_request = app_commands.ContextMenu(
+            name=_T('Party: Request to join'),
+            callback=self.party_request_user_context,
         )
-        self.ctx_user_nightmarket = app_commands.ContextMenu(
-            name=_T('nightmarket'),
-            callback=self.nightmarket_user_context,
-        )
-        self.ctx_user_point = app_commands.ContextMenu(
-            name=_T('point'),
-            callback=self.point_user_context,
-        )
+        # self.ctx_user_party_invite = app_commands.ContextMenu(
+        #     name=_T('party_invite'),
+        #     callback=self.party_invite_user_context,
+        # )
+        # self.ctx_user_party_join = app_commands.ContextMenu(
+        #     name=_T('party_join'),
+        #     callback=self.party_join_user_context,
+        # )
+        # self.ctx_user_party_leave = app_commands.ContextMenu(
+        #     name=_T('party_leave'),
+        #     callback=self.party_leave_user_context,
+        # )
+        # self.ctx_user_party_kick = app_commands.ContextMenu(
+        #     name=_T('party_kick'),
+        #     callback=self.party_kick_user_context,
+        # )
 
         # add context menus to bot
-        self.bot.tree.add_command(self.ctx_user_store)
-        self.bot.tree.add_command(self.ctx_user_nightmarket)
-        self.bot.tree.add_command(self.ctx_user_point)
+        # self.bot.tree.add_command(self.ctx_user_store)
+        # self.bot.tree.add_command(self.ctx_user_nightmarket)
+        # self.bot.tree.add_command(self.ctx_user_point)
 
     @property
     def display_emoji(self) -> discord.Emoji:
@@ -126,7 +150,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 await self.v_client.set_authorize(riot_acc)
 
             try:
-                await self.v_client.fetch_assets(with_price=True, force=True, reload=True)
+                await self.v_client.fetch_assets(with_price=True, force=False, reload=True)
             except Exception as e:
                 await self.v_client.fetch_assets(force=True, reload=True)
                 _log.error(f'Failed to fetch assets with price: {e}')
@@ -152,9 +176,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.reset_cache.stop()
 
         # remove context menus from bot
-        self.bot.tree.remove_command(self.ctx_user_store.name, type=self.ctx_user_store.type)
-        self.bot.tree.remove_command(self.ctx_user_nightmarket.name, type=self.ctx_user_nightmarket.type)
-        self.bot.tree.remove_command(self.ctx_user_point.name, type=self.ctx_user_point.type)
+        # self.bot.tree.remove_command(self.ctx_user_store.name, type=self.ctx_user_store.type)
+        # self.bot.tree.remove_command(self.ctx_user_nightmarket.name, type=self.ctx_user_nightmarket.type)
+        # self.bot.tree.remove_command(self.ctx_user_point.name, type=self.ctx_user_point.type)
 
         # close valorant client
         await self.v_client.close()
@@ -175,11 +199,17 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 data_dict = json.loads(data)
                 self.users[row['user_id']] = []
                 for user_acc in data_dict:
-                    riot_acc = RiotAuth(row['user_id'], bot=self.bot)
-                    riot_acc.guild_id = row['guild_id']
-                    riot_acc.date_signed = row['date_signed']
-                    await riot_acc.from_dict(user_acc)
-                    self.users[row['user_id']].append(riot_acc)
+                    if row['user_id'] != self.bot.owner_id:
+                        riot_acc = RiotAuth(row['user_id'], bot=self.bot)
+                        riot_acc.guild_id = row['guild_id']
+                        riot_acc.date_signed = row['date_signed']
+                        await riot_acc.from_dict(user_acc)
+                        self.users[row['user_id']].append(riot_acc)
+                    else:
+                        riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
+                        riot_acc.guild_id = self.bot.support_guild_id
+                        await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
+                        self.users[self.bot.owner_id].append(riot_acc)
 
     # - useful cache functions
 
@@ -284,11 +314,23 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             riot_acc = riot_acc[0]
         client = await self.v_client.set_authorize(riot_acc)
         data = await client.fetch_store_front()
-        return data.bundles
+        return data.get_bundles()
 
     @staticmethod
     def locale_converter(locale: discord.Locale) -> VLocale:
         return VLocale.from_discord(str(locale))
+
+    def get_patch_note_color(self, uid: str) -> int:
+        return self.patch_note_color.get(uid)
+
+    def get_user(self, _id: int) -> Optional[List[RiotAuth]]:
+        return self.users.get(_id)
+
+    def set_user(self, _id: int, value: List[RiotAuth]):
+        self.users[_id] = value
+
+    def add_user(self, _id: int, value: RiotAuth):
+        self.users[_id].append(value)
 
     def clear_cache_assets(self):
         self.get_riot_account.cache_clear()
@@ -316,6 +358,18 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             self.get_point.invalidate(self, riot_acc, locale)
             self.get_mission.invalidate(self, riot_acc, locale)
 
+    async def invite_by_display_name(self, target_id: str, display_name: str) -> None:
+
+        RIOT_ID_REGEX = r'(^.{1,16})+[#]+(.{1,5})$'
+        RIOT_ID_BAD_REGEX = r'[|^&+\-%*/=!>()<>?;:\\\'"\[\]{}_,]'
+
+        if re.findall(RIOT_ID_BAD_REGEX, display_name) or not re.findall(RIOT_ID_REGEX, display_name):
+            raise CommandError('Invalid Riot ID.')
+
+        party_id = await self.v_client.http.party_fetch_player()
+        name, tag = display_name.split('#')
+        await self.v_client.http.party_invite_by_display_name(party_id['ID'], name, tag)
+
     # functions
 
     @alru_cache(maxsize=1024)
@@ -323,15 +377,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         client = await self.v_client.set_authorize(riot_acc)
         data = await client.fetch_store_front()
+        store = data.get_store()
 
         embeds = [
             Embed(
                 description=f"Daily store for {bold(client.user.display_name)}\n"
-                f"Resets {format_relative(data.store.reset_at)}"
+                f"Resets {format_relative(store.reset_at)}"
             )
         ]
 
-        for skin in data.store.skins:
+        for skin in store.skins:
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
                 title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
@@ -341,6 +396,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             if skin.display_icon is not None:
                 e.url = skin.display_icon.url
                 e.set_thumbnail(url=skin.display_icon)
+
+            if skin.rarity is not None:
+                e.colour = int(skin.rarity.highlight_color[0:6], 16)
+
             embeds.append(e)
 
         return embeds
@@ -355,7 +414,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         btp = contract.get_latest_contract(relation_type=valorant.RelationType.season)
 
-        next_reward = btp.next_tier_reward.reward
+        next_reward = btp.get_next_reward()
 
         embed = discord.Embed(
             title=f"Battlepass for {bold(client.user.display_name)}",
@@ -388,18 +447,20 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         client = await self.v_client.set_authorize(riot_acc)
         data = await client.fetch_store_front()
 
-        if data.nightmarket is None:
+        nightmarket = data.get_nightmarket()
+
+        if nightmarket is None:
             raise CommandError(f"{bold('Nightmarket')} is not available.")
 
         embeds = [
             Embed(
                 description=f"NightMarket for {bold(client.user.display_name)}\n"
-                f"Expires {format_relative(data.nightmarket.expire_at)}",
+                f"Expires {format_relative(nightmarket.expire_at)}",
                 colour=self.bot.theme.purple,
             )
         ]
 
-        for skin in data.nightmarket.skins:
+        for skin in nightmarket.skins:
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
                 title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
@@ -410,6 +471,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             if skin.display_icon is not None:
                 e.url = skin.display_icon.url
                 e.set_thumbnail(url=skin.display_icon)
+
+            if skin.rarity is not None:
+                e.colour = int(skin.rarity.highlight_color[0:6], 16)
+
             embeds.append(e)
 
         return embeds
@@ -546,16 +611,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         else:
             await interaction.response.defer(ephemeral=True)
 
-        get_user = self.users.get(interaction.user.id)
+        get_user = self.get_user(interaction.user.id)
         if get_user is None:
             try_auth.acc_num = 1
-            self.users[interaction.user.id] = [try_auth]
+            self.set_user(interaction.user.id, [try_auth])
         else:
             for auth_u in get_user:
                 if auth_u.puuid == try_auth.puuid:
                     raise CommandError('You already have this account linked.')
             try_auth.acc_num = len(get_user) + 1
-            self.users[interaction.user.id].append(try_auth)
+            self.add_user(interaction.user.id, try_auth)
 
         # insert to database sql and encrypt data
 
@@ -883,26 +948,39 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        patch_note = await self.get_patch_notes(interaction.locale)
+        patch_notes = await self.get_patch_notes(interaction.locale)
 
-        color_thief = self.patch_note_color.get(patch_note.latest.uid)
-        if color_thief is None:
-            banner_url_read = await patch_note.latest.banner.read()
-            color_thief = ColorThief(io.BytesIO(banner_url_read)).get_palette(color_count=5)
-            self.patch_note_color[patch_note.latest.uid] = color_thief  # cache color_thief
+        latest = patch_notes.get_latest_patch_note()
 
         embed = discord.Embed(
-            title=patch_note.latest.title,
-            timestamp=patch_note.latest.timestamp.replace(tzinfo=timezone.utc),
-            url=patch_note.latest.url,
-            colour=discord.Colour.from_rgb(*(random.choice(color_thief))),
-            description=italics(patch_note.latest.description),
+            title=latest.title,
+            timestamp=latest.timestamp.replace(tzinfo=timezone.utc),
+            url=latest.url,
+            description=italics(latest.description),
         )
-        embed.set_image(url=patch_note.latest.banner)
         # embed.set_footer(text=patch_note.latest.category_title)
 
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label=patch_note.see_article_title, url=patch_note.latest.url, emoji='🔗'))
+        # banner
+        scraper = await self.v_client.scraper_patch_note(latest.url)
+        banner_url = scraper.banner or latest.banner
+        if banner_url is not None:
+            embed.set_image(url=banner_url)
+
+            # color
+            color_thief = self.get_patch_note_color(latest.uid)
+            if color_thief is None:
+                try:
+                    banner_read = await self.v_client.http.read_from_url(banner_url)
+                    color_thief = ColorThief(io.BytesIO(banner_read)).get_palette(color_count=5)
+                    self.patch_note_color[latest.uid] = color_thief  # cache color_thief
+                except Exception as e:
+                    _log.error(f"Error getting patch note color: {e}")
+                    color_thief = self.bot.theme.purple
+
+            embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
+
+        view = discord.ui.View()  # TODO: URLButton class
+        view.add_item(discord.ui.Button(label=patch_notes.see_article_title, url=latest.url, emoji=Emoji.link_standard))
 
         await interaction.followup.send(embed=embed, view=view)
 
@@ -1228,7 +1306,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await interaction.followup.send('No match history found')
             return
 
-        view = MatchHistoryView(interaction, match_history.match_details)
+        view = MatchHistoryView(interaction, match_history.get_match_details())
         await view.start()
 
     @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
@@ -1253,6 +1331,28 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         view = StatsView(interaction)
         await view.pre_start()
+
+    party = app_commands.Group(name=_T('party'), description=_T('Party commands'), guild_only=True)
+
+    @party.command(name=_T('invite'), description=_T('Invite a player to your party'))
+    @dynamic_cooldown(cooldown_5s)
+    async def party_invite(self, interaction: Interaction, player: discord.User) -> None:
+        ...
+
+    @party.command(name=_T('invite_by_name'), description=_T('Invite a player to your party by name'))
+    @dynamic_cooldown(cooldown_5s)
+    async def party_invite_by_name(self, interaction: Interaction, player: str) -> None:
+        ...
+
+    @party.command(name=_T('kick'), description=_T('Kick a player from your party'))
+    @dynamic_cooldown(cooldown_5s)
+    async def party_kick(self, interaction: Interaction, player: discord.User) -> None:
+        ...
+
+    @party.command(name=_T('leave'), description=_T('Leave your party'))
+    @dynamic_cooldown(cooldown_5s)
+    async def party_leave(self, interaction: Interaction) -> None:
+        ...
 
     # @app_commands.command(name=_T('leaderboard'), description=_T('Shows your Region Leaderboard'))
     # @app_commands.describe(region='Select region to get the leaderboard')

@@ -5,6 +5,7 @@ asyncpg
 python-dotenv
 
 # aio-libs
+aiohttp
 async_lru
 
 # discord
@@ -24,3 +25,7 @@ typing_extensions
 
 # unsorted
 uvloop; sys_platform != 'win32'
+
+# private
+valorantx
+valorantx-scraper

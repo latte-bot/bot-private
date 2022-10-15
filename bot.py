@@ -28,6 +28,7 @@ os.environ['JISHAKU_NO_UNDERSCORE'] = 'True'
 os.environ['JISHAKU_HIDE'] = 'True'
 
 initial_extensions = [
+    'cogs.test',
     'cogs.dev',
     'cogs.events',
     'cogs.errors',
@@ -108,6 +109,7 @@ class LatteBot(commands.AutoShardedBot):
         self._app_commands: Dict[str, app_commands.AppCommand] = {}
 
         # valorant
+        self.fake_user_id: int = 000000000000000000
         self.riot_username: str = os.getenv('RIOT_USERNAME')
         self.riot_password: str = os.getenv('RIOT_PASSWORD')
 
@@ -197,8 +199,8 @@ class LatteBot(commands.AutoShardedBot):
         await self.load_cogs()
 
         # tree sync application commands
-        await self.tree.sync()
-        await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
+        # await self.tree.sync()
+        # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
         # if 'cogs.admin' in self._initial_extensions and self.support_guild is not None:
         #     await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
 

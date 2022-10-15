@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union
 import aiohttp
 import valorant
 from valorant.http import HTTPClient
+from valorant.scraper import PatchNoteScraper
 from valorant.utils import MISSING
 
 if TYPE_CHECKING:
@@ -180,6 +181,12 @@ class Client(valorant.Client):
         await self.http.build_headers()
 
         return self
+
+    # valorantx-scraper
+
+    async def scraper_patch_note(self, url: str) -> PatchNoteScraper:
+        text = await self.http.text_from_url(url)
+        return PatchNoteScraper(text)
 
 
 class HTTPClientCustom(HTTPClient):
