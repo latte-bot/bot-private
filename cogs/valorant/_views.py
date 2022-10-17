@@ -542,7 +542,6 @@ class MatchHistoryView(ViewAuthor):
         source = self.pages_source[self.current_page]
         for item in self.children:
             if isinstance(item, ui.Select):
-                print("update select")
                 self.remove_item(item)
                 self.add_item(SelectMatchHistory(source))
 
@@ -551,7 +550,6 @@ class MatchHistoryView(ViewAuthor):
         interaction = interaction or self.interaction
 
         if len(self.pages) > 0:
-            print("start", self.pages)
             if interaction.response.is_done():
                 return await interaction.followup.send(embeds=self.pages[0], view=self, ephemeral=True)
             await interaction.response.send_message(embeds=self.pages[0], view=self, ephemeral=True)

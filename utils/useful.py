@@ -47,7 +47,7 @@ class LatteFonts(enum.Enum):
     serif_712: str = _asset_font_path + '712_serif.ttf'
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 class LatteImages(enum.Enum):
@@ -62,7 +62,7 @@ class LatteImages(enum.Enum):
     help_banner = _asset_image_path + 'help_banner.png'
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 class LatteCDN(enum.Enum):
@@ -75,4 +75,4 @@ class LatteCDN(enum.Enum):
     invite_banner: str = __attachments__ + '1001858419990478909/invite_banner.png'
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)

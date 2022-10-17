@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import logging
 from typing import TYPE_CHECKING, Literal
 
 import discord
@@ -16,6 +17,8 @@ from utils.errors import CommandError
 
 if TYPE_CHECKING:
     from bot import LatteBot
+
+_log = logging.getLogger('cogs.dev')
 
 SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
 SUPPORT_GUILD = discord.Object(id=SUPPORT_GUILD_ID)
@@ -81,10 +84,11 @@ class Developers(commands.Cog):
 
         try:
             await self.bot.load_extension(f'{extension}')
+            _log.info(f'Loading extension {extension}')
         except commands.ExtensionAlreadyLoaded:
             raise CommandError(f"The extension is already loaded.")
         except Exception as e:
-            print(e)
+            _log.error(e)
             raise CommandError('The extension load failed')
         else:
             embed = discord.Embed(description=f"Load : `{extension}`", color=0x8BE28B)
@@ -99,10 +103,11 @@ class Developers(commands.Cog):
 
         try:
             await self.bot.unload_extension(f'{extension}')
+            _log.info(f'Unloading extension {extension}')
         except commands.ExtensionNotLoaded:
             raise CommandError(f'The extension was not loaded.')
         except Exception as e:
-            print(e)
+            _log.error(e)
             raise CommandError('The extension unload failed')
         else:
             embed = discord.Embed(description=f"Unload : `{extension}`", color=0x8BE28B)
@@ -116,14 +121,14 @@ class Developers(commands.Cog):
         """Reloads an extension."""
 
         try:
-            print(f"Reloading {extension}")
             await self.bot.reload_extension(f'{extension}')
+            _log.info(f'Reloading extension {extension}')
         except commands.ExtensionNotLoaded:
             raise CommandError(f'The extension was not loaded.')
         except commands.ExtensionNotFound:
             raise CommandError(f'The Extension Not Found')
         except Exception as e:
-            print(e)
+            _log.error(e)
             raise CommandError('The extension reload failed')
         else:
             embed = discord.Embed(description=f"Reload : `{extension}`", color=0x8BE28B)

@@ -5,6 +5,7 @@ import io
 import os
 import pathlib
 import sys
+import logging
 from typing import TYPE_CHECKING, Awaitable
 
 import discord
@@ -26,6 +27,8 @@ from utils.errors import CommandError
 
 if TYPE_CHECKING:
     from bot import LatteBot
+
+_log = logging.getLogger('cogs.jishaku')
 
 SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
 SUPPORT_GUILD = discord.Object(id=SUPPORT_GUILD_ID)
@@ -344,7 +347,7 @@ class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
         try:
             await jsk(ctx, argument=codeblock)
         except Exception as e:
-            print(e)
+            _log.error(e)
             raise CommandError('Invalid Python code.') from e
 
 

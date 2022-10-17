@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, List, Literal
 
@@ -17,6 +18,7 @@ from ._abc import MixinMeta
 if TYPE_CHECKING:
     from ._abc import GetRiotAccount
 
+_log = logging.getLogger('cogs.valorant.notify')
 
 class Notify(MixinMeta):  # noqa
     """Notify cog"""
@@ -34,7 +36,7 @@ class Notify(MixinMeta):  # noqa
     @notify_alert.before_loop
     async def before_daily_send(self) -> None:
         await self.bot.wait_until_ready()
-        print('Checking new store skins for notifys...')
+        _log.info('Notify alert loop started')
 
     notify = app_commands.Group(name=_T('notify'), description=_T('Notify commands'), guild_only=True)
 

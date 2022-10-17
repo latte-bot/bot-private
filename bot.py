@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
-import traceback
 from datetime import datetime
 from typing import Dict, List, Optional, Type
 
@@ -63,15 +61,15 @@ class LatteBot(commands.AutoShardedBot):
         )
 
         # bot stuff
-        self.launch_time = f'<t:{round(datetime.now().timestamp())}:R>'
-        self.maintenance = False
-        self.version = '2.0.0a'
+        self.launch_time: str = f'<t:{round(datetime.now().timestamp())}:R>'
+        self.maintenance: bool = False
+        self.version: str = '2.0.0a'
 
         # bot theme
         self.theme: Type[Theme] = Theme
 
         # bot invite link
-        self.invite_permission = 280576
+        self.invite_permission: int = 280576
         self.invite_url = discord.utils.oauth_url(
             self.application_id,
             permissions=discord.Permissions(self.invite_permission),
@@ -81,23 +79,23 @@ class LatteBot(commands.AutoShardedBot):
         self._initial_extensions = initial_extensions
 
         # webhook
-        self._webook_id = os.getenv('WEBHOOK_ID')
-        self._webook_token = os.getenv('WEBHOOK_TOKEN')
+        self._webook_id: Optional[str] = os.getenv('WEBHOOK_ID')
+        self._webook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
 
         # activity
-        self.bot_activity = 'LatteBot :)'
+        self.bot_activity: str = 'LatteBot :)'
 
         # support guild stuff
         self.support_guild_id: int = int(os.getenv('SUPPORT_GUILD_ID'))
 
-        self.support_invite_url = 'https://discord.gg/xeVJYRDY'
+        self.support_invite_url: str = 'https://discord.gg/xeVJYRDY'
 
         # bot interaction checker
         self.tree.interaction_check = self.interaction_check
-        self.maintenance_message = 'Bot is in maintenance mode.'  # TODO: localization support
+        self.maintenance_message: str = 'Bot is in maintenance mode.'  # TODO: localization support
 
         # encryption
-        self.encryption = Encryption(os.getenv('CRYPTOGRAPHY'))
+        self.encryption: Encryption = Encryption(os.getenv('CRYPTOGRAPHY'))
 
         # i18n stuff
         self.translator: Translator = utils.MISSING
@@ -163,13 +161,11 @@ class LatteBot(commands.AutoShardedBot):
             ),
         )
 
-        print(
-            '\n\n'
-            f'Logged in as: {self.user}\n'
-            f'Activity: {self.bot_activity}\n'
-            f'Servers: {len(self.guilds)}\n'
+        _log.info(
+            f'Logged in as: {self.user} '
+            f'Activity: {self.bot_activity} '
+            f'Servers: {len(self.guilds)} '
             f'Users: {sum(guild.member_count for guild in self.guilds)}'
-            '\n\n'
         )
 
     async def load_cogs(self) -> None:
@@ -177,8 +173,7 @@ class LatteBot(commands.AutoShardedBot):
             try:
                 await self.load_extension(extension)
             except Exception as e:
-                print(f'Failed to load extension {extension}.', file=sys.stderr)
-                traceback.print_exc()
+                _log.error(f'Failed to load extension {extension}.', exc_info=e)
 
     async def setup_hook(self) -> None:
 

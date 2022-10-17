@@ -72,7 +72,6 @@ async def run_bot():
 
     bot = LatteBot()
     bot.pool = pool
-    print("postgresql connected")
     await bot.start()
 
 

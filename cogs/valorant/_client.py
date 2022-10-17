@@ -73,7 +73,6 @@ class RiotAuth(valorant.RiotAuth):
             self.__set_tokens_from_uri(data)
 
             # region Get new entitlements token
-            print(f"{self.token_type} {self.access_token}")
             headers["Authorization"] = f"{self.token_type} {self.access_token}"
             async with session.post(
                 "https://entitlements.auth.riotgames.com/api/token/v1",

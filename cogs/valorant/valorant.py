@@ -119,11 +119,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # )
         # self.ctx_user_party_leave = app_commands.ContextMenu(
         #     name=_T('party_leave'),
-        #     callback=self.party_leave_user_context,
+        #     callback=self.party_leave_user_context
         # )
         # self.ctx_user_party_kick = app_commands.ContextMenu(
         #     name=_T('party_kick'),
-        #     callback=self.party_kick_user_context,
+        #     callback=self.party_kick_user_context
         # )
 
         # add context menus to bot
@@ -545,7 +545,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             weekly_refill_time = None
             if contracts.mission_metadata is not None:
-                weekly_refill_time = format_relative(contracts.mission_metadata.weekly_refill_time)
+                if contracts.mission_metadata.weekly_refill_time is not None:
+                    weekly_refill_time = format_relative(contracts.mission_metadata.weekly_refill_time)
 
             embed.add_field(
                 name=f"**Weekly**",
@@ -1016,7 +1017,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             buttons = (
                 ui.Button(label="Full Portrait", url=agent.full_portrait.url),
                 ui.Button(label="Display Icon", url=agent.display_icon.url),
-                ui.Button(label="Background", url=agent.background),
+                ui.Button(label="Background", url=agent.background.url),
             )
             view = BaseView()
             for button in buttons:

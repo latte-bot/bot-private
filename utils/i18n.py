@@ -13,15 +13,15 @@ if TYPE_CHECKING:
     from discord import Locale
     from discord.app_commands import TranslationContext, locale_str
 
-_log = logging.getLogger('lattebot.i18n')
+_log = logging.getLogger('utils.i18n')
 
 
 class Translator(app_commands.Translator):
     async def load(self) -> None:
-        print('lattebot i18n loaded')
+        _log.info('lattebot i18n loaded')
 
     async def unload(self) -> None:
-        print('lattebot i18n unloaded')
+        _log.info('lattebot i18n unloaded')
 
     async def translate(
         self, string: app_commands.locale_str, locale: discord.Locale, context: app_commands.TranslationContext
@@ -35,7 +35,7 @@ class Translator(app_commands.Translator):
             if string.message == 'logout':
                 return 'ออกจากระบบ'
             if string.message == 'store':
-                return 'อยากได้สกินดีๆ'
+                return 'ร้านค้า'
 
             # command describe
             if string.message == 'Input username':
@@ -163,7 +163,6 @@ class TranslatorBot(Callable[[str], str]):
             will not load.
         """
         self.cog_folder = Path(file_location).resolve().parent
-        print(self.cog_folder)
         self.cog_name = name
         self.translations = {}
 
