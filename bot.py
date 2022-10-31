@@ -153,19 +153,19 @@ class LatteBot(commands.AutoShardedBot):
 
     async def on_ready(self) -> None:
 
+        _log.info(
+            f'Logged in as: {self.user} '
+            f'Activity: {self.bot_activity} '
+            f'Servers: {len(self.guilds)} '
+            f'Users: {sum(guild.member_count for guild in self.guilds)}'
+        )
+
         await self.change_presence(
             # status=discord.Status.offline,  # dev mode = idle
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
                 name=self.bot_activity,
             ),
-        )
-
-        _log.info(
-            f'Logged in as: {self.user} '
-            f'Activity: {self.bot_activity} '
-            f'Servers: {len(self.guilds)} '
-            f'Users: {sum(guild.member_count for guild in self.guilds)}'
         )
 
     async def load_cogs(self) -> None:
@@ -194,7 +194,7 @@ class LatteBot(commands.AutoShardedBot):
         await self.load_cogs()
 
         # tree sync application commands
-        # await self.tree.sync()
+        await self.tree.sync()
         # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
         # if 'cogs.admin' in self._initial_extensions and self.support_guild is not None:
         #     await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
