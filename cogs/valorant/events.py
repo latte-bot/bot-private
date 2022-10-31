@@ -58,11 +58,14 @@ class Events(MixinMeta):  # noqa
         """Called when a user's riot account fails to update"""
         self.cache_get_invalidate(riot_auth)  # validate cache
 
+    async def on_riot_account_error(self, user_id: int) -> None:
+        """Called when a user's riot account is updated"""
+        self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore
+
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         """Called when LatteBot leaves a guild"""
 
-        # DELETE RETURNING
         async with self.bot.pool.acquire(timeout=180.0) as conn:
             records = await conn.fetch(ACCOUNT_DELETE_BY_GUILD, guild.id)
 
@@ -72,10 +75,6 @@ class Events(MixinMeta):  # noqa
 
                 # invalidate cache
                 self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore
-
-    async def on_riot_account_error(self, user_id: int) -> None:
-        """Called when a user's riot account is updated"""
-        self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore
 
     # tasks
 

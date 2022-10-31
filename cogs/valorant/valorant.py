@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union
 
 import aiohttp
 import discord
-import valorant
+import valorantx
 from async_lru import alru_cache
 from colorthief import ColorThief
 
@@ -23,8 +23,9 @@ from discord.app_commands.checks import dynamic_cooldown
 from discord.ext import commands
 
 # valorant
-from valorant.errors import RiotMultifactorError
-from valorant.models import Buddy, BuddyLevel, PlayerCard, Skin, Spray, SprayLevel
+from valorantx.errors import RiotMultifactorError
+from valorantx.models import Buddy, BuddyLevel, PlayerCard, Skin, Spray, SprayLevel
+from valorantx import MissionType, PatchNotes, QueueID
 
 from utils.chat_formatting import bold, italics, strikethrough
 
@@ -54,7 +55,7 @@ from .notify import Notify
 
 if TYPE_CHECKING:
     from discord import Client
-    from valorant import Agent, Bundle, PlayerTitle, SkinChroma, SkinLevel, Weapon
+    from valorantx import Agent, Bundle, PlayerTitle, SkinChroma, SkinLevel, Weapon
 
     from bot import LatteBot
 
@@ -142,7 +143,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         if self.v_client is MISSING:
             self.v_client = ValorantClient()
 
-            if self.v_client.http.riot_auth is valorant.utils.MISSING:
+            if self.v_client.http.riot_auth is valorantx.utils.MISSING:
 
                 riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
                 riot_acc.guild_id = self.bot.support_guild_id
@@ -299,11 +300,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         return list(self.v_client.get_all_weapons())
 
     @alru_cache(maxsize=30)
-    async def get_patch_notes(self, locale: discord.Locale) -> valorant.PatchNotes:
+    async def get_patch_notes(self, locale: discord.Locale) -> PatchNotes:
         return await self.v_client.fetch_patch_notes(str(self.locale_converter(locale)))
 
     @alru_cache(maxsize=1)
-    async def get_featured_bundle(self) -> List[valorant.FeaturedBundle]:
+    async def get_featured_bundle(self) -> List[valorantx.FeaturedBundle]:
         try:
             riot_acc = await self.get_riot_account(user_id=self.bot.owner_id)  # super user
         except NoAccountsLinked:
@@ -412,7 +413,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         client = await self.v_client.set_authorize(riot_acc)
         contract = await client.fetch_contracts()
 
-        btp = contract.get_latest_contract(relation_type=valorant.RelationType.season)
+        btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
 
         next_reward = btp.get_next_reward()
 
@@ -425,9 +426,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         if next_reward is not None:
             if next_reward is not None:
                 if next_reward.display_icon is not None:
-                    if isinstance(next_reward, valorant.SkinLevel):
+                    if isinstance(next_reward, valorantx.SkinLevel):
                         embed.set_image(url=next_reward.display_icon)
-                    elif isinstance(next_reward, valorant.PlayerCard):
+                    elif isinstance(next_reward, valorantx.PlayerCard):
                         embed.set_image(url=next_reward.wide_icon)
                     else:
                         embed.set_thumbnail(url=next_reward.display_icon)
@@ -518,13 +519,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         daily_format = '{0} | **+ {1.xp:,} XP**\n- **`{1.progress}/{1.target}`**'
         for mission in contracts.missions:
             title = mission.title_localizations.from_locale_code(str(locale))
-            if mission.type == valorant.MissionType.daily:
+            if mission.type == MissionType.daily:
                 daily.append(daily_format.format(title, mission))
-            elif mission.type == valorant.MissionType.weekly:
+            elif mission.type == MissionType.weekly:
                 weekly.append(daily_format.format(title, mission))
-            elif mission.type == valorant.MissionType.tutorial:
+            elif mission.type == MissionType.tutorial:
                 tutorial.append(daily_format.format(title, mission))
-            elif mission.type == valorant.MissionType.npe:
+            elif mission.type == MissionType.npe:
                 npe.append(daily_format.format(title, mission))
 
             if not mission.is_completed():
@@ -893,7 +894,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 item_price = item.price
                 item_discounted_price = item.discounted_price
 
-                if not isinstance(item, valorant.SkinBundle) or item.is_melee():
+                if not isinstance(item, valorantx.SkinBundle) or item.is_melee():
                     price_label += f"{bold('FREE')} {strikethrough(str(item_price))}"
                 else:
                     if item_discounted_price != item_price and item_discounted_price != 0:
@@ -971,14 +972,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             color_thief = self.get_patch_note_color(latest.uid)
             if color_thief is None:
                 try:
-                    banner_read = await self.v_client.http.read_from_url(banner_url)
+                    banner_read = await self.v_client.http.read_from_url(str(banner_url))
                     color_thief = ColorThief(io.BytesIO(banner_read)).get_palette(color_count=5)
                     self.patch_note_color[latest.uid] = color_thief  # cache color_thief
                 except Exception as e:
                     _log.error(f"Error getting patch note color: {e}")
                     color_thief = self.bot.theme.purple
 
-            embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
+            # embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
 
         view = discord.ui.View()  # TODO: URLButton class
         view.add_item(discord.ui.Button(label=patch_notes.see_article_title, url=latest.url, emoji=Emoji.link_standard))
@@ -1301,7 +1302,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
         client = await self.v_client.set_authorize(get_riot_acc[0])
-        match_history = await client.fetch_match_history(queue_id=valorant.QueueID.competitive)
+        match_history = await client.fetch_match_history(queue_id=QueueID.competitive)
 
         if len(match_history) == 0:
             await interaction.followup.send('No match history found')

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union, Optional
 
 import aiohttp
-import valorant
-from valorant.http import HTTPClient
-from valorant.scraper import PatchNoteScraper
-from valorant.utils import MISSING
+import valorantx
+from valorantx.http import HTTPClient
+from valorantx.scraper import PatchNoteScraper
+from valorantx.utils import MISSING
+
+from ._custom import Agent
 
 if TYPE_CHECKING:
     from bot import LatteBot
@@ -16,7 +18,7 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 
-class RiotAuth(valorant.RiotAuth):
+class RiotAuth(valorantx.RiotAuth):
     def __init__(self, discord_id: int, bot: LatteBot = MISSING, **kwargs) -> None:
         super().__init__()
         self.bot = bot
@@ -158,9 +160,9 @@ class RiotAuth(valorant.RiotAuth):
             self._cookie_jar.update_cookies({key: value})
 
 
-class Client(valorant.Client):
+class Client(valorantx.Client):
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(locale=valorant.Locale.american_english, **kwargs)
+        super().__init__(locale=valorantx.Locale.american_english, **kwargs)
         self._http = HTTPClientCustom(self)
         self._is_authorized = True
 
@@ -187,12 +189,17 @@ class Client(valorant.Client):
         text = await self.http.text_from_url(url)
         return PatchNoteScraper(text)
 
+    # custom
+
+    def get_agent(self, *args: Any, **kwargs: Any) -> Optional[Agent]:
+        data = self.assets.get_agent(*args, **kwargs)
+        return Agent(client=self, data=data) if data else None
 
 class HTTPClientCustom(HTTPClient):
 
     super_user_id: int
 
-    def __init__(self, client: Union[valorant.Client, Client]) -> None:
+    def __init__(self, client: Union[valorantx.Client, Client]) -> None:
         super().__init__()
         self._client = client
         self._riot_auth: RiotAuth = MISSING
