@@ -83,7 +83,7 @@ class LatteBot(commands.AutoShardedBot):
         self._webook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
 
         # activity
-        self.bot_activity: str = 'LatteBot :)'
+        self.bot_activity: str = 'nyanpasu ♡ ₊˚'
 
         # support guild stuff
         self.support_guild_id: int = int(os.getenv('SUPPORT_GUILD_ID'))
