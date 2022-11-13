@@ -1,11 +1,14 @@
 import asyncio
 import contextlib
+import json
 import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+import asyncpg
+import valorantx
+
 from bot import LatteBot
-from utils.database import Table
 
 try:
     import uvloop  # type: ignore
@@ -13,6 +16,10 @@ except ImportError:
     pass
 else:
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+
+# overrides valorantx
+valorantx.Assets._cache_dir = os.getcwd()
 
 
 class RemoveNoise(logging.Filter):
@@ -60,22 +67,45 @@ def main():
         asyncio.run(run_bot())
 
 
+async def create_pool() -> asyncpg.Pool:
+    def _encode_jsonb(value):
+        return json.dumps(value)
+
+    def _decode_jsonb(value):
+        return json.loads(value)
+
+    async def init(con):
+        await con.set_type_codec(
+            'jsonb',
+            schema='pg_catalog',
+            encoder=_encode_jsonb,
+            decoder=_decode_jsonb,
+            format='text',
+        )
+
+    return await asyncpg.create_pool(
+        os.getenv('POSTGRESQL'),
+        init=init,
+        command_timeout=60,
+        max_size=20,
+        min_size=20,
+    )  # type: ignore
+
+
 async def run_bot():
     log = logging.getLogger()
-    uri = os.getenv('POSTGRESQL')
-    kwargs = {'command_timeout': 60, 'max_size': 20, 'min_size': 20}
     try:
-        pool = await Table.create_pool(uri, **kwargs)
-    except Exception as e:
-        log.exception('could not set up PostgreSQL. Exiting.', exc_info=e)
+        pool = await create_pool()
+    except Exception:  # noqa
+        log.exception('Could not set up PostgreSQL. Exiting.')
         return
 
-    bot = LatteBot()
-    bot.pool = pool
-    await bot.start()
+    async with LatteBot() as bot:
+        bot.pool = pool
+        await bot.start()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format=f'%(asctime)s:%(levelname)s:%(name)s: %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format=f'%(asctime)s:%(levelname)s:%(name)s: %(message)s')
     with contextlib.suppress(KeyboardInterrupt):
         main()

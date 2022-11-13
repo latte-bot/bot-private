@@ -1,3 +1,4 @@
+import json
 from typing import AnyStr
 
 from cryptography.fernet import Fernet
@@ -6,13 +7,23 @@ from cryptography.fernet import Fernet
 class Encryption:
     """Encryption class."""
 
+    _key: AnyStr
+
     def __init__(self, key: AnyStr) -> None:
-        self.__key: AnyStr = key
+        """Encryption class."""
+        Encryption._key = key
 
-    def encrypt(self, args: str) -> str:
+    @staticmethod
+    def encrypt(args: str) -> str:
         """Encrypts a message with the key."""
-        return str(Fernet(self.__key).encrypt(args.encode())).split("'")[1]
+        return str(Fernet(Encryption._key).encrypt(args.encode())).split("'")[1]
 
-    def decrypt(self, token: str) -> str:
+    @staticmethod
+    def decrypt(token: str) -> str:
         """Decrypts a message with the key."""
-        return Fernet(self.__key).decrypt(bytes(token, "utf-8")).decode()
+        return Fernet(Encryption._key).decrypt(bytes(token, "utf-8")).decode()
+
+    @staticmethod
+    def decrypt_to_dict(token: str) -> dict:
+        """Decrypts a message with the key and returns a dict."""
+        return json.loads(Encryption.decrypt(token))

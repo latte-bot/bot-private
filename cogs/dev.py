@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import io
-import os
 import logging
+import os
 from typing import TYPE_CHECKING, Literal
 
 import discord
@@ -18,7 +18,7 @@ from utils.errors import CommandError
 if TYPE_CHECKING:
     from bot import LatteBot
 
-_log = logging.getLogger('cogs.dev')
+_log = logging.getLogger(__file__)
 
 SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
 SUPPORT_GUILD = discord.Object(id=SUPPORT_GUILD_ID)

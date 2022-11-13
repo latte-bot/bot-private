@@ -22,13 +22,10 @@ from discord.utils import format_dt
 from utils.checks import cooldown_5s
 from utils.emojis import LatteEmoji as Emoji
 from utils.formats import count_python
-from utils.i18n import TranslatorBot
 from utils.useful import LatteCDN
 
 if TYPE_CHECKING:
     from bot import LatteBot
-
-_ = TranslatorBot('info', __file__)
 
 
 class About(commands.Cog):
@@ -74,7 +71,7 @@ class About(commands.Cog):
 
         embed = discord.Embed(color=self.bot.theme.secondary)
         embed.set_author(
-            name=_('{bot} ɪɴᴠɪᴛᴇ').format(bot=self.bot.user.name),
+            name='{bot} ɪɴᴠɪᴛᴇ'.format(bot=self.bot.user.name),
             url=self.bot.invite_url,
             icon_url=self.bot.user.avatar,
         )
@@ -82,7 +79,7 @@ class About(commands.Cog):
         embed.set_image(url=str(LatteCDN.invite_banner))
 
         view = ui.View()
-        view.add_item(ui.Button(label=_('ɪɴᴠɪᴛᴇ ᴍᴇ'), url=self.bot.invite_url, emoji=str(Emoji.latte_icon)))
+        view.add_item(ui.Button(label='ɪɴᴠɪᴛᴇ ᴍᴇ', url=self.bot.invite_url, emoji=str(Emoji.latte_icon)))
 
         await interaction.response.send_message(embed=embed, view=view)
 
@@ -103,10 +100,10 @@ class About(commands.Cog):
         emoji = Emoji
 
         embed = discord.Embed(color=self.bot.theme.primacy, timestamp=interaction.created_at)
-        embed.set_author(name=_('About Me'), icon_url=self.bot.user.avatar)
-        embed.add_field(name=_('ʟᴀᴛᴇꜱᴛ ᴜᴘᴅᴀᴛᴇꜱ:'), value=self.get_latest_commits(), inline=False)
+        embed.set_author(name='About Me', icon_url=self.bot.user.avatar)
+        embed.add_field(name='ʟᴀᴛᴇꜱᴛ ᴜᴘᴅᴀᴛᴇꜱ:', value=self.get_latest_commits(), inline=False)
         embed.add_field(
-            name=_('ꜱᴛᴀᴛꜱ:'),
+            name='ꜱᴛᴀᴛꜱ:',
             value=f'{emoji.latte_icon} ꜱᴇʀᴠᴇʀꜱ: `{server_count}`\n'
             f'{emoji.member_icon} ᴜꜱᴇʀꜱ: `{member_count}`\n'
             f'{emoji.slash_command} ᴄᴏᴍᴍᴀɴᴅꜱ: `{total_commands}`\n'
@@ -114,7 +111,7 @@ class About(commands.Cog):
             inline=True,
         )
         embed.add_field(
-            name=_('ʙᴏᴛ ɪɴꜰᴏ:'),
+            name='ʙᴏᴛ ɪɴꜰᴏ:',
             value=f'{emoji.cursor} ʟɪɴᴇ ᴄᴏᴜɴᴛ: `{count_python(".")}`\n'
             f'{emoji.latte_icon} ʟᴀᴛᴛᴇ_ʙᴏᴛ: `{bot_version}`\n'
             f'{emoji.python} ᴘʏᴛʜᴏɴ: `{platform.python_version()}`\n'
@@ -123,26 +120,24 @@ class About(commands.Cog):
         )
         embed.add_field(name='\u200b', value='\u200b', inline=True)
         embed.add_field(
-            name=_('ᴘʀᴏᴄᴇꜱꜱ:'),
+            name='ᴘʀᴏᴄᴇꜱꜱ:',
             value=f'ᴏꜱ: `{platform.system()}`\n'
             f'ᴄᴘᴜ ᴜꜱᴀɢᴇ: `{cpu_usage}%`\n'
             f'ᴍᴇᴍᴏʀʏ ᴜꜱᴀɢᴇ: `{memory_usage:.2f} MB`',
             inline=True,
         )
         embed.add_field(
-            name=_('ᴜᴘᴛɪᴍᴇ:'),
+            name='ᴜᴘᴛɪᴍᴇ:',
             value=f'ʙᴏᴛ: {self.bot.launch_time}\n' f'ꜱʏꜱᴛᴇᴍ: <t:{round(psutil.boot_time())}:R>',
             inline=True,
         )
         embed.add_field(name='\u200b', value='\u200b', inline=True)
-        embed.set_footer(text=_('ᴍᴀᴅᴇ ʙʏ {dev}').format(dev=core_dev), icon_url=core_dev.avatar)
+        embed.set_footer(text='ᴍᴀᴅᴇ ʙʏ {dev}'.format(dev=core_dev), icon_url=core_dev.avatar)
 
         view = ui.View()
+        view.add_item(ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(emoji.latte_icon)))
         view.add_item(
-            ui.Button(label=_('ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ'), url=self.bot.support_invite_url, emoji=str(emoji.latte_icon))
-        )
-        view.add_item(
-            ui.Button(label=_('ᴅᴇᴠᴇʟᴏᴘᴇʀ'), url=f'https://discord.com/users/{core_dev.id}', emoji=str(emoji.stacia_dev))
+            ui.Button(label='ᴅᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://discord.com/users/{core_dev.id}', emoji=str(emoji.stacia_dev))
         )
 
         await interaction.response.send_message(embed=embed, view=view)
@@ -153,16 +148,14 @@ class About(commands.Cog):
         """Sends the support server of the bot."""
 
         embed = discord.Embed(color=self.bot.theme.primacy)
-        embed.set_author(name=_("ꜱᴜᴘᴘᴏʀᴛ:"), icon_url=self.bot.user.avatar, url=self.bot.support_invite_url)
+        embed.set_author(name='ꜱᴜᴘᴘᴏʀᴛ:', icon_url=self.bot.user.avatar, url=self.bot.support_invite_url)
         embed.set_thumbnail(url=self.bot.user.avatar)
 
         view = ui.View()
-        view.add_item(
-            ui.Button(label=_('ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ'), url=self.bot.support_invite_url, emoji=str(Emoji.latte_icon))
-        )
+        view.add_item(ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(Emoji.latte_icon)))
         view.add_item(
             ui.Button(
-                label=_('ᴅᴇᴠᴇʟᴏᴘᴇʀ'), url=f'https://discord.com/users/{self.bot.owner_id}', emoji=str(Emoji.stacia_dev)
+                label='ᴅᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://discord.com/users/{self.bot.owner_id}', emoji=str(Emoji.stacia_dev)
             )
         )
 

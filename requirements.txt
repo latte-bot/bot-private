@@ -27,5 +27,5 @@ typing_extensions
 uvloop; sys_platform != 'win32'
 
 # private
-valorantx
-valorantx-scraper
+# valorantx
+# valorantx-scraper

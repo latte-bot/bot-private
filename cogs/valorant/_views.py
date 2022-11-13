@@ -4,7 +4,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Union
 
 import discord
-import valorant
+import valorantx
 from async_lru import alru_cache
 from discord import ButtonStyle, Interaction, TextStyle, ui
 
@@ -13,8 +13,8 @@ from utils.views import ViewAuthor
 from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
-    from valorant import Client as ValorantClient
-    from valorant.models import NightMarket
+    from valorantx import Client as ValorantClient
+    from valorantx.models import NightMarket
 
     from .valorant import RiotAuth
 
@@ -96,7 +96,7 @@ class SwitchAccountView(ViewAuthor):
         for index, acc in enumerate(self.riot_acc, start=1):
             self.add_item(
                 ButtonAccountSwitch(
-                    label='Account #' + str(index),
+                    label="Account #" + str(index) if acc.hide_display_name else acc.display_name,
                     custom_id=acc.puuid,
                     other_view=self,
                     disabled=True if index == 1 else False,
@@ -147,14 +147,7 @@ class ButtonAccountSwitch(ui.Button['SwitchAccountView']):
         for acc in self.other_view.riot_acc:
             if acc.puuid == self.custom_id:
                 locale = self.other_view.locale_converter(interaction.locale)
-
-                import time
-
-                start_time = time.time()
-
                 embeds = await self.other_view.get_embeds(acc, locale)
-
-                print(f'--- {time.time() - start_time} seconds ---')
                 await interaction.edit_original_response(embeds=embeds, view=self.other_view)
                 break
 
@@ -163,7 +156,7 @@ class ButtonAccountSwitch(ui.Button['SwitchAccountView']):
 
 
 class FeaturedBundleView(ViewAuthor):
-    def __init__(self, interaction: Interaction, bundles: List[valorant.Bundle]) -> None:
+    def __init__(self, interaction: Interaction, bundles: List[valorantx.Bundle]) -> None:
         self.interaction = interaction
         self.bundles = bundles
         self.locale = ValorantLocale.from_discord(str(interaction.locale))
@@ -172,7 +165,7 @@ class FeaturedBundleView(ViewAuthor):
         self.build_buttons(bundles)
         self.selected: bool = False
 
-    def build_buttons(self, bundles: List[valorant.Bundle]) -> None:
+    def build_buttons(self, bundles: List[valorantx.Bundle]) -> None:
         for index, bundle in enumerate(bundles, start=1):
             self.add_item(
                 FeaturedBundleButton(
@@ -240,7 +233,7 @@ class StatsSelect(ui.Select['StatsView']):
         TOP_WEAPONS = "Top Weapons!"
 
         self.add_option(
-            label='Matchs', value='matchs', description=MATCH_HISTORY, emoji='<:newmember:973160072425377823>'
+            label="Match's", value="match's", description=MATCH_HISTORY, emoji='<:newmember:973160072425377823>'
         )
         self.add_option(label='Agents', value='agents', description=TOP_AGENTS, emoji='<:jetthappy:973158900679442432>')
         self.add_option(label='Maps', value='maps', description=TOP_MAPS, emoji='🗺️')
@@ -377,7 +370,7 @@ class StatsView(ViewAuthor):
 
 
 class SelectMatchHistory(ui.Select['MatchHistoryView']):
-    def __init__(self, match_details: List[valorant.MatchDetails]) -> None:
+    def __init__(self, match_details: List[valorantx.MatchDetails]) -> None:
         self.match_details = match_details
         super().__init__(placeholder="Select Match to see details", max_values=1, min_values=1, row=1)
         self.__fill_options()
@@ -394,7 +387,7 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
     async def callback(self, interaction: Interaction) -> Any:
         assert self.view is not None
         value = self.values[0]
-        source = self.view.match_embeds
+        source = self.view.pages_source
         current_page = self.view.current_page
 
         show_page = (current_page * 3) + int(value)
@@ -406,15 +399,15 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
 
 class MatchHistoryView(ViewAuthor):
     def __init__(
-        self, interaction: Interaction, match_details: List[valorant.MatchDetails], *arg: Any, **kwargs: Any
+        self, interaction: Interaction, match_details: List[valorantx.MatchDetails], *arg: Any, **kwargs: Any
     ) -> None:
         self.interaction: Interaction = interaction
-        self.match_details: List[valorant.MatchDetails] = match_details
+        self.match_details: List[valorantx.MatchDetails] = match_details
         self.other_view: Optional[MatchDetailsView] = kwargs.get('other_view', None)
         super().__init__(interaction, *arg, **kwargs)
         self.locale = ValorantLocale.from_discord(str(interaction.locale))
         self.current_page: int = 0
-        self.pages_source: List[List[valorant.MatchDetails]] = []
+        self.pages_source: List[List[valorantx.MatchDetails]] = []
         self.pages: List[List[discord.Embed]] = []
         self.message: Optional[discord.InteractionMessage] = None
         self.__build_pages()
@@ -439,7 +432,7 @@ class MatchHistoryView(ViewAuthor):
     async def last_page(self, interaction: Interaction, button: ui.Button):
         await self.show_checked_page(interaction, self.get_max_pages() - 1)
 
-    def default_page(self, match: valorant.MatchDetails) -> discord.Embed:
+    def default_page(self, match: valorantx.MatchDetails) -> discord.Embed:
 
         # radiant_color = 0xffffaa
         # immortal_color = 0xfd4554

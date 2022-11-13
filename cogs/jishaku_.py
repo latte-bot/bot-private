@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import inspect
 import io
+import logging
 import os
 import pathlib
 import sys
-import logging
 from typing import TYPE_CHECKING, Awaitable
 
 import discord
@@ -28,7 +28,7 @@ from utils.errors import CommandError
 if TYPE_CHECKING:
     from bot import LatteBot
 
-_log = logging.getLogger('cogs.jishaku')
+_log = logging.getLogger(__file__)
 
 SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
 SUPPORT_GUILD = discord.Object(id=SUPPORT_GUILD_ID)

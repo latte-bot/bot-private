@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import datetime
 import io
 import json
 import logging
 import random
 import re
 from abc import ABC
-from datetime import datetime, timezone
+from datetime import timezone
 from functools import lru_cache
-from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import aiohttp
 import discord
@@ -23,9 +24,18 @@ from discord.app_commands.checks import dynamic_cooldown
 from discord.ext import commands
 
 # valorant
-from valorantx.errors import RiotMultifactorError
-from valorantx.models import Buddy, BuddyLevel, PlayerCard, Skin, Spray, SprayLevel
-from valorantx import MissionType, PatchNotes, QueueID
+from valorantx import (
+    Buddy,
+    BuddyLevel,
+    MissionType,
+    PatchNotes,
+    PlayerCard,
+    QueueID,
+    RiotMultifactorError,
+    Skin,
+    Spray,
+    SprayLevel,
+)
 
 from utils.chat_formatting import bold, italics, strikethrough
 
@@ -38,12 +48,10 @@ from utils.views import BaseView
 
 # usually
 from ._client import Client as ValorantClient, RiotAuth
+from ._database import Database, ValorantUser
 from ._embeds import Embed
 from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
-
-# from ._pillow import player_collection, profile_card
-from ._sql_statements import ACCOUNT_DELETE, ACCOUNT_SELECT, ACCOUNT_SELECT_ALL, ACCOUNT_WITH_UPSERT
 from ._views import FeaturedBundleView, MatchHistoryView, RiotMultiFactorModal, StatsView, SwitchAccountView
 
 # cogs
@@ -65,6 +73,8 @@ _log = logging.getLogger(__name__)
 
 MISSING = utils.MISSING
 
+RIOT_ID_REGEX = r'(^.{1,16})+[#]+(.{1,5})$'
+RIOT_ID_BAD_REGEX = r'[|^&+\-%*/=!>()<>?;:\\\'"\[\]{}_,]'
 
 # - main cog
 
@@ -86,11 +96,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.bot: LatteBot = bot
 
         # users
-        self.users: Dict[int, List[RiotAuth]] = {}
+        self.valorant_users: Dict[int, ValorantUser] = {}
 
         # color cache
         self.patch_note_color: Dict[str, int] = {}
         self.featured_bundle_color: Dict[str, int] = {}
+
+        # database
+        self.db: Database = Database(bot)
 
         # context menu
         # self.ctx_user_store = app_commands.ContextMenu(
@@ -106,10 +119,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         #     callback=self.point_user_context,
         # )
 
-        self.ctx_user_party_request = app_commands.ContextMenu(
-            name=_T('Party: Request to join'),
-            callback=self.party_request_user_context,
-        )
+        # self.ctx_user_party_request = app_commands.ContextMenu(
+        #     name=_T('Party: Request to join'),
+        #     callback=self.party_request_user_context,
+        # )
         # self.ctx_user_party_invite = app_commands.ContextMenu(
         #     name=_T('party_invite'),
         #     callback=self.party_invite_user_context,
@@ -138,25 +151,27 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     async def cog_load(self):
 
-        await self.load_cache_from_database()
+        await self.fetch_valorant_users()
 
         if self.v_client is MISSING:
+
             self.v_client = ValorantClient()
 
             if self.v_client.http.riot_auth is valorantx.utils.MISSING:
 
-                riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-                riot_acc.guild_id = self.bot.support_guild_id
-                await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
-                await self.v_client.set_authorize(riot_acc)
+                riot_acc = RiotAuth(self.bot.owner_id, self.bot.support_guild_id, self.bot)
 
-            try:
-                await self.v_client.fetch_assets(with_price=True, force=False, reload=True)
-            except Exception as e:
-                await self.v_client.fetch_assets(force=True, reload=True)
-                _log.error(f'Failed to fetch assets with price: {e}')
-            finally:
-                _log.info('Valorant client loaded.')
+                await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
+
+                client = await self.v_client.set_authorize(riot_acc)
+
+                try:
+                    await client.fetch_assets(force=False, reload=True)
+                except Exception as e:
+                    await client.fetch_assets(force=True, reload=True)
+                    _log.error(f'Failed to fetch assets: {e}')
+                finally:
+                    _log.info('Valorant client loaded.')
 
         # start tasks
         self.notify_alert.start()
@@ -180,76 +195,48 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # self.bot.tree.remove_command(self.ctx_user_store.name, type=self.ctx_user_store.type)
         # self.bot.tree.remove_command(self.ctx_user_nightmarket.name, type=self.ctx_user_nightmarket.type)
         # self.bot.tree.remove_command(self.ctx_user_point.name, type=self.ctx_user_point.type)
+        # self.bot.tree.remove_command(self.ctx_user_party_request.name, type=self.ctx_user_party_request.type)
+        # self.bot.tree.remove_command(self.ctx_user_party_invite.name, type=self.ctx_user_party_invite.type)
+        # self.bot.tree.remove_command(self.ctx_user_party_join.name, type=self.ctx_user_party_join.type)
+        # self.bot.tree.remove_command(self.ctx_user_party_leave.name, type=self.ctx_user_party_leave.type)
+        # self.bot.tree.remove_command(self.ctx_user_party_kick.name, type=self.ctx_user_party_kick.type)
 
         # close valorant client
+        self.v_client.clear()
         await self.v_client.close()
+        self.valorant_users.clear()
         self.v_client = MISSING
-
-        # clear users
-        self.users.clear()
 
         _log.info('Valorant client unloaded.')
 
     # useful functions
 
-    async def load_cache_from_database(self) -> None:
+    # database
+
+    async def fetch_valorant_users(self) -> None:
         async with self.bot.pool.acquire(timeout=150.0) as conn:
-            data = await conn.fetch(ACCOUNT_SELECT_ALL)
-            for row in data:
-                data = self.bot.encryption.decrypt(row['extras'])
-                data_dict = json.loads(data)
-                self.users[row['user_id']] = []
-                for user_acc in data_dict:
-                    if row['user_id'] != self.bot.owner_id:
-                        riot_acc = RiotAuth(row['user_id'], bot=self.bot)
-                        riot_acc.guild_id = row['guild_id']
-                        riot_acc.date_signed = row['date_signed']
-                        await riot_acc.from_dict(user_acc)
-                        self.users[row['user_id']].append(riot_acc)
-                    else:
-                        riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-                        riot_acc.guild_id = self.bot.support_guild_id
-                        await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
-                        self.users[self.bot.owner_id].append(riot_acc)
+            accounts = await self.db.select_users(conn=conn)
+            self.valorant_users = {account.id: account for account in accounts}
+            #  if account.id not in self.bot.blacklist
 
     # - useful cache functions
 
     @alru_cache(maxsize=2048)
-    async def get_riot_account(self, *, user_id: int) -> List[RiotAuth]:
+    async def get_valorant_user(self, *, user_id: int) -> ValorantUser:
 
-        riot_acc = self.users.get(user_id)
-        if riot_acc is not None:
-            return riot_acc
+        v_user = self.valorant_users.get(user_id)
+        if v_user is not None:
+            return v_user
 
-        # if user_id == self.bot.owner_id:
-        #     riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-        #     riot_acc.guild_id = self.bot.support_guild_id
-        #     await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
-        #     return [riot_acc]
+        v_user = await self.db.select_user(user_id)
 
-        row = await self.bot.pool.fetchrow(ACCOUNT_SELECT, user_id)
-
-        if row is None:
-            self.get_riot_account.invalidate(self, user_id=user_id)
+        if v_user is None:
+            self.get_valorant_user.invalidate(self, user_id=user_id)
             raise NoAccountsLinked('You have no accounts linked.')
 
-        data = self.bot.encryption.decrypt(row['extras'])
+        self.valorant_users[user_id] = v_user
 
-        data_dict = json.loads(data)
-
-        self.users[user_id] = []
-        for user_acc in data_dict:
-            riot_auth = RiotAuth(user_id, bot=self.bot)
-            riot_auth.guild_id = row['guild_id']
-            await riot_auth.from_dict(user_acc)
-            self.users[user_id].append(riot_auth)
-
-        riot_acc = self.users.get(user_id)
-        if riot_acc is None:
-            self.get_riot_account.invalidate(self, user_id=user_id)
-            raise NoAccountsLinked('You have no accounts linked.')
-
-        return riot_acc
+        return v_user
 
     @lru_cache(maxsize=1)
     def get_all_agents(self) -> List[Agent]:
@@ -306,13 +293,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @alru_cache(maxsize=1)
     async def get_featured_bundle(self) -> List[valorantx.FeaturedBundle]:
         try:
-            riot_acc = await self.get_riot_account(user_id=self.bot.owner_id)  # super user
+            v_user = await self.get_valorant_user(user_id=self.bot.owner_id)  # super user
         except NoAccountsLinked:
-            riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-            riot_acc.guild_id = self.bot.support_guild_id
+            riot_acc = RiotAuth(self.bot.owner_id, self.bot.support_guild_id, bot=self.bot)
             await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
-            riot_acc = riot_acc[0]
+            riot_acc = v_user.get_1st()
         client = await self.v_client.set_authorize(riot_acc)
         data = await client.fetch_store_front()
         return data.get_bundles()
@@ -324,17 +310,22 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     def get_patch_note_color(self, uid: str) -> int:
         return self.patch_note_color.get(uid)
 
-    def get_user(self, _id: int) -> Optional[List[RiotAuth]]:
-        return self.users.get(_id)
+    def get_user(self, _id: int) -> Optional[ValorantUser]:
+        return self.valorant_users.get(_id)
 
-    def set_user(self, _id: int, value: List[RiotAuth]):
-        self.users[_id] = value
+    def set_valorant_user(
+        self, user_id: int, guild_id: int, locale: discord.Locale, riot_auth: RiotAuth
+    ) -> ValorantUser:
+        self.valorant_users[user_id] = v_user = ValorantUser.from_login(riot_auth, user_id, guild_id, locale, self.bot)
+        return v_user
 
-    def add_user(self, _id: int, value: RiotAuth):
-        self.users[_id].append(value)
+    def add_riot_auth(self, user_id: int, riot_auth: RiotAuth) -> ValorantUser:
+        v_user = self.valorant_users.get(user_id)
+        v_user.add_account(riot_auth)
+        return v_user
 
-    def clear_cache_assets(self):
-        self.get_riot_account.cache_clear()
+    def clear_assets(self):
+        self.get_valorant_user.cache_clear()
         self.get_all_agents.cache_clear()
         self.get_all_bundles.cache_clear()
         self.get_all_buddies.cache_clear()
@@ -359,17 +350,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             self.get_point.invalidate(self, riot_acc, locale)
             self.get_mission.invalidate(self, riot_acc, locale)
 
-    async def invite_by_display_name(self, target_id: str, display_name: str) -> None:
-
-        RIOT_ID_REGEX = r'(^.{1,16})+[#]+(.{1,5})$'
-        RIOT_ID_BAD_REGEX = r'[|^&+\-%*/=!>()<>?;:\\\'"\[\]{}_,]'
+    async def invite_by_display_name(self, party: valorantx.Party, display_name: str) -> None:
 
         if re.findall(RIOT_ID_BAD_REGEX, display_name) or not re.findall(RIOT_ID_REGEX, display_name):
             raise CommandError('Invalid Riot ID.')
 
-        party_id = await self.v_client.http.party_fetch_player()
-        name, tag = display_name.split('#')
-        await self.v_client.http.party_invite_by_display_name(party_id['ID'], name, tag)
+        await party.invite_by_display_name(display_name=display_name)
 
     # functions
 
@@ -387,7 +373,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             )
         ]
 
-        for skin in store.skins:
+        for skin in store.get_skins():
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
                 title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
@@ -461,7 +447,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             )
         ]
 
-        for skin in nightmarket.skins:
+        for skin in nightmarket.get_skins():
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
                 title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
@@ -586,11 +572,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         password: app_commands.Range[str, 1, 128],
     ) -> None:
 
-        if len(self.users.get(interaction.user.id, [])) >= 5:
-            raise CommandError('You can only have up to 5 accounts linked.')
+        v_user = self.valorant_users.get(interaction.user.id)
+        if v_user is not None:
+            if len(v_user.get_riot_accounts()) >= 5:
+                raise CommandError('You can only have up to 5 accounts linked.')
 
-        try_auth = RiotAuth(interaction.user.id, bot=self.bot)
-        try_auth.guild_id = interaction.guild_id
+        try_auth = RiotAuth(interaction.user.id, interaction.guild_id, self.bot)
 
         try:
             await try_auth.authorize(username, password, remember=True)
@@ -613,37 +600,26 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         else:
             await interaction.response.defer(ephemeral=True)
 
-        get_user = self.get_user(interaction.user.id)
-        if get_user is None:
+        if v_user is None:
             try_auth.acc_num = 1
-            self.set_user(interaction.user.id, [try_auth])
+            v_user = self.set_valorant_user(interaction.user.id, interaction.guild_id, interaction.locale, try_auth)
         else:
-            for auth_u in get_user:
+            for auth_u in v_user.get_riot_accounts():
                 if auth_u.puuid == try_auth.puuid:
                     raise CommandError('You already have this account linked.')
-            try_auth.acc_num = len(get_user) + 1
-            self.add_user(interaction.user.id, try_auth)
+            self.add_riot_auth(interaction.user.id, try_auth)
 
         # insert to database sql and encrypt data
 
-        user_data = self.users[interaction.user.id]
-        payload = [user_riot_auth.to_dict() for user_riot_auth in user_data]
-        dumps_payload = json.dumps(payload)
+        payload = list(riot_auth.to_dict() for riot_auth in v_user.get_riot_accounts())
 
         # encryption
-        encrypt_payload = self.bot.encryption.encrypt(dumps_payload)
+        encrypt_payload = self.bot.encryption.encrypt(json.dumps(payload))
 
-        await self.bot.pool.execute(
-            ACCOUNT_WITH_UPSERT,
-            interaction.user.id,
-            interaction.guild_id,
-            encrypt_payload,
-            datetime.now(),
-            interaction.user.id,
-        )
+        await self.db.upsert_user(encrypt_payload, interaction.user.id, interaction.guild_id, interaction.locale)
 
         # invalidate cache
-        self.get_riot_account.invalidate(self, user_id=interaction.user.id)
+        self.get_valorant_user.invalidate(self, user_id=interaction.user.id)
 
         e = Embed(description=f"Successfully logged in {bold(try_auth.display_name)}")
 
@@ -651,73 +627,79 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @app_commands.command(name=_T('logout'), description=_T('Logout and Delete your accounts from database'))
     @app_commands.guild_only()
+    @app_commands.rename(number=_T('account'))
     @dynamic_cooldown(cooldown_5s)
-    async def logout(self, interaction: Interaction, number: app_commands.Range[int, 1, 5] = 0) -> None:
+    async def logout(self, interaction: Interaction, number: Optional[str] = None) -> None:
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
 
         async with self.bot.pool.acquire(timeout=150.0) as conn:
 
-            if number != 0:
-                data = await conn.fetchrow(ACCOUNT_SELECT, interaction.user.id)
+            if number is None or number == '-':
 
-                if data is None or self.users.get(interaction.user.id) is None:
-                    raise CommandError('You have no accounts linked.')
+                await self.db.delete_user(interaction.user.id, conn=conn)
 
-                data = self.bot.encryption.decrypt(data['extras'])
-                data_dict = json.loads(data)
-
-                # remove from database
-                for user_acc in data_dict:
-                    if user_acc['acc_num'] == number:
-                        data_dict.remove(user_acc)
-                        break
-
-                # to_json
-                payload = json.dumps(data_dict)
-
-                # encryption
-                encrypt_payload = self.bot.encryption.encrypt(payload)
-
-                await conn.execute(
-                    ACCOUNT_WITH_UPSERT,
-                    interaction.user.id,
-                    interaction.guild_id,
-                    encrypt_payload,
-                    datetime.now(),
-                    interaction.user.id,
-                )
-
-                # remove for cache
-
-                data_cache = self.users.get(interaction.user.id)
-                acc_remove = None
-                if data_cache is not None:
-                    for user_acc in data_cache:
-                        if user_acc.acc_num == number:
-                            acc_remove = user_acc
-                            data_cache.remove(user_acc)
-                            self.cache_get_invalidate(user_acc)
-                            break
-
-                e = Embed(description=f"Successfully logged out {bold(acc_remove.display_name)}")
-
-                await interaction.followup.send(embed=e, ephemeral=True)
-
-            else:
-                await conn.execute(ACCOUNT_DELETE, interaction.user.id)
-
-                # validate cache
-                riot_acc = self.users.pop(interaction.user.id, None)
-                if riot_acc is not None:
-                    for acc in riot_acc:
+                v_user = self.valorant_users.pop(interaction.user.id, None)
+                if v_user is not None:
+                    for acc in v_user.get_riot_accounts():
+                        # validate cache
                         self.cache_get_invalidate(acc)
 
                 e = Embed(description=f"Successfully logged out all accounts")
                 await interaction.followup.send(embed=e, ephemeral=True)
 
+            elif int(number) in range(1, 6):
+
+                v_user = await self.get_valorant_user(user_id=interaction.user.id)
+                if v_user is None:
+                    v_user = await self.db.select_user(interaction.user.id, conn=conn)
+                    if v_user is None:
+                        raise CommandError('You have no accounts linked.')
+
+                for auth_u in v_user.get_riot_accounts():
+                    if auth_u.acc_num == int(number):
+                        self.cache_get_invalidate(auth_u)
+                        break
+
+                # remove from database
+                riot_auth_remove = v_user.remove_account(int(number))
+
+                if len(v_user.get_riot_accounts()) == 0:
+                    await self.db.delete_user(interaction.user.id, conn=conn)
+                    self.valorant_users.pop(interaction.user.id, None)
+                else:
+                    await self.db.upsert_user(
+                        v_user.extras_encrypted(),
+                        v_user.id,
+                        v_user.guild_id,
+                        interaction.locale,
+                        v_user.date_signed,
+                        conn=conn,
+                    )
+
+                e = Embed(description=f"Successfully logged out {bold(riot_auth_remove.display_name)}")
+
+                await interaction.followup.send(embed=e, ephemeral=True)
+
+            else:
+                raise CommandError('Invalid number.')
+
         # invalidate cache
-        self.get_riot_account.invalidate(self, user_id=interaction.user.id)
+        self.get_valorant_user.invalidate(self, user_id=interaction.user.id)
+
+    @logout.autocomplete('number')
+    async def logout_autocomplete(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
+
+        get_user = self.valorant_users.get(interaction.user.id)
+        if get_user is None:
+            return [
+                app_commands.Choice(name="You have no accounts linked.", value="-"),
+            ]
+
+        return [
+            app_commands.Choice(name=f"{user.acc_num}. {user.display_name} ", value=str(user.acc_num))
+            for user in sorted(get_user.get_riot_accounts(), key=lambda x: x.acc_num)
+        ]
 
     @app_commands.command(name=_T('store'), description=_T('Shows your daily store in your accounts'))
     @app_commands.guild_only()
@@ -726,26 +708,25 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        v_user = await self.get_valorant_user(user_id=interaction.user.id)
 
-        embeds = await self.get_store(riot_acc[0], self.locale_converter(interaction.locale))
+        embeds = await self.get_store(v_user.get_1st(), self.locale_converter(interaction.locale))
 
-        switch_view = SwitchAccountView(interaction, riot_acc, self.get_store)
+        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_store)
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('nightmarket'), description=_T('Show skin offers on the nightmarket'))
     @dynamic_cooldown(cooldown_5s)
-    @app_commands.rename(hide=_T('hide'))
     @app_commands.guild_only()
-    async def nightmarket(self, interaction: Interaction, hide: bool = False) -> None:
+    async def nightmarket(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
 
-        riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        v_user = await self.get_valorant_user(user_id=interaction.user.id)
 
-        embeds = await self.get_nightmarket(riot_acc[0], self.locale_converter(interaction.locale))
+        embeds = await self.get_nightmarket(v_user.get_1st(), self.locale_converter(interaction.locale))
 
-        switch_view = SwitchAccountView(interaction, riot_acc, self.get_nightmarket)
+        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_nightmarket)
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('battlepass'), description=_T('View your battlepass current tier'))
@@ -755,10 +736,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        v_user = await self.get_valorant_user(user_id=interaction.user.id)
 
-        switch_view = SwitchAccountView(interaction, riot_acc, self.get_battlepass)
-        embeds = await self.get_battlepass(riot_acc[0], self.locale_converter(interaction.locale))
+        embeds = await self.get_battlepass(v_user.get_1st(), self.locale_converter(interaction.locale))
+        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_battlepass)
 
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
@@ -769,66 +750,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        v_user = await self.get_valorant_user(user_id=interaction.user.id)
 
-        switch_view = SwitchAccountView(interaction, get_riot_acc, self.get_point)
-        embeds = await self.get_point(get_riot_acc[0], self.locale_converter(interaction.locale))
+        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_point)
+        embeds = await self.get_point(v_user.get_1st(), self.locale_converter(interaction.locale))
 
         await interaction.followup.send(embeds=embeds, view=switch_view)
-
-    @app_commands.command(name=_T('bundle'), description='inspect a specific bundle')
-    @app_commands.describe(maybe_uuid="The name of the bundle you want to inspect!")
-    @app_commands.rename(maybe_uuid=_T('bundle'))
-    @app_commands.guild_only()
-    @dynamic_cooldown(cooldown_5s)
-    async def bundle(self, interaction: Interaction, maybe_uuid: str) -> None:
-
-        await interaction.response.defer()
-
-        locale = self.locale_converter(interaction.locale)
-
-        bundle = self.v_client.get_bundle(maybe_uuid)
-
-        if bundle is not None:
-
-            embeds = []
-
-            embed = Embed(
-                description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale_code(str(locale))} Collection')}\n"  # noqa: E501
-                f"{PointEmoji.valorant_point} {bundle.price}",
-                colour=self.bot.theme.purple,
-            )
-            if bundle.display_icon_2 is not None:
-                embed.set_image(url=bundle.display_icon_2)
-
-            embeds.append(embed)
-
-            for item in sorted(bundle.items, key=lambda i: i.price, reverse=True):
-                emoji = ContentTierEmoji.from_name(item.rarity.dev_name) if isinstance(item, Skin) else ''
-                e = Embed(
-                    title=f"{emoji} {bold(item.name_localizations.from_locale_code(str(locale)))}",
-                    description=f"{PointEmoji.valorant_point} {item.price}",
-                    colour=self.bot.theme.dark,
-                )
-
-                if isinstance(item, PlayerCard):
-                    item_icon = item.large_icon
-                elif isinstance(item, Spray):
-                    item_icon = item.full_transparent_icon or item.full_icon or item.display_icon
-                else:
-                    item_icon = item.display_icon
-
-                if item_icon is not None:
-                    e.url = item_icon.url
-                    e.set_thumbnail(url=item_icon)
-
-                embeds.append(e)
-
-            await interaction.followup.send(embeds=embeds)
-
-        else:
-
-            await interaction.followup.send(f"Could not find bundle with name {bold(maybe_uuid)}")
 
     @app_commands.command(name=_T('bundles'), description=_T('Show the current featured bundles'))
     @dynamic_cooldown(cooldown_5s)
@@ -936,12 +863,19 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        v_user = await self.get_valorant_user(user_id=interaction.user.id)
 
-        switch_view = SwitchAccountView(interaction, get_riot_acc, self.get_point)
-        embeds = await self.get_mission(get_riot_acc[0], self.locale_converter(interaction.locale))
+        embeds = await self.get_mission(v_user.get_1st(), self.locale_converter(interaction.locale))
+        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_mission)
 
         await interaction.followup.send(embeds=embeds, view=switch_view)
+
+    @app_commands.command(name=_T('collection'), description=_T('Shows your collection'))
+    @dynamic_cooldown(cooldown_5s)
+    @app_commands.guild_only()
+    async def collection(self, interaction: Interaction) -> None:
+
+        e_page_1 = discord.Embed(title="Collection", description="This is the collection page")
 
     @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
     @dynamic_cooldown(cooldown_5s)
@@ -960,7 +894,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             url=latest.url,
             description=italics(latest.description),
         )
-        # embed.set_footer(text=patch_note.latest.category_title)
 
         # banner
         scraper = await self.v_client.scraper_patch_note(latest.url)
@@ -988,37 +921,38 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @app_commands.command(name=_T('agent'), description=_T('View agent info'))
     @app_commands.guild_only()
-    @app_commands.rename(maybe_uuid='agent')
+    @app_commands.rename(agent='agent')
     @dynamic_cooldown(cooldown_5s)
-    async def agent(self, interaction: Interaction, maybe_uuid: str = None) -> None:
+    async def agent(self, interaction: Interaction, agent: str = None) -> None:
 
-        # หน้าเลือก agent role ทำเหมือนน้อง nextcord
+        # หน้าเลือก agent role n.nextcord
 
         await interaction.response.defer()
 
         locale = self.locale_converter(interaction.locale)
 
-        agent = self.v_client.get_agent(maybe_uuid)
+        get_agent = self.v_client.get_agent(agent)
 
-        if agent is not None:
+        if get_agent is not None:
 
             embed = Embed(
-                title=agent.display_name,
-                description=italics(agent.description_localizations.from_locale_code(str(locale))),
-                colour=int(random.choice(agent.background_gradient_colors)[:-2], 16),
+                title=get_agent.display_name,
+                description=italics(get_agent.description_localizations.from_locale_code(str(locale))),
+                colour=int(random.choice(get_agent.background_gradient_colors)[:-2], 16),
             )
-            embed.set_image(url=agent.full_portrait)
-            embed.set_thumbnail(url=agent.display_icon)
+            embed.set_image(url=get_agent.full_portrait)
+            embed.set_thumbnail(url=get_agent.display_icon)
             embed.set_footer(
-                text=agent.role.name_localizations.from_locale_code(str(locale)), icon_url=agent.role.display_icon
+                text=get_agent.role.name_localizations.from_locale_code(str(locale)),
+                icon_url=get_agent.role.display_icon,
             )
 
             # TODO: add agent abilities
 
             buttons = (
-                ui.Button(label="Full Portrait", url=agent.full_portrait.url),
-                ui.Button(label="Display Icon", url=agent.display_icon.url),
-                ui.Button(label="Background", url=agent.background.url),
+                ui.Button(label="Full Portrait", url=get_agent.full_portrait.url),
+                ui.Button(label="Display Icon", url=get_agent.display_icon.url),
+                ui.Button(label="Background", url=get_agent.background.url),
             )
             view = BaseView()
             for button in buttons:
@@ -1026,15 +960,19 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             await interaction.followup.send(embed=embed, view=view)
 
+        else:
+
+            await interaction.followup.send(f"Could not find agent {bold(agent)}")
+
     @app_commands.command(name=_T('agents'), description=_T('Agent Contracts'))
     @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
     async def agents(self, interaction: Interaction) -> None:
         await interaction.response.defer()
 
-        riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+        v_user = await self.get_valorant_user(user_id=interaction.user.id)
 
-        await self.v_client.set_authorize(riot_acc[0])
+        await self.v_client.set_authorize(v_user.get_1st())
 
         contracts = await self.v_client.fetch_contracts()
 
@@ -1047,81 +985,139 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @app_commands.command(name=_T('buddy'), description=_T('View buddy info'))
     @app_commands.guild_only()
-    @app_commands.rename(maybe_uuid='buddy')
+    @app_commands.rename(buddy='buddy')
     @dynamic_cooldown(cooldown_5s)
-    async def buddy(self, interaction: Interaction, maybe_uuid: str = None) -> None:
+    async def buddy(self, interaction: Interaction, buddy: str = None) -> None:
 
         await interaction.response.defer()
 
         locale = self.locale_converter(interaction.locale)
-        buddy = self.v_client.get_buddy_level(maybe_uuid)
+        get_buddy = self.v_client.get_buddy_level(buddy)
 
-        if buddy is not None:
+        if get_buddy is not None:
             embed = Embed(colour=self.bot.theme.purple)
 
-            if isinstance(buddy, Buddy):
+            if isinstance(get_buddy, Buddy):
                 embed.set_author(
-                    name=buddy.name_localizations.from_locale_code(str(locale)),
-                    icon_url=buddy.theme.display_icon if buddy.theme is not None else None,
-                    url=buddy.display_icon,
+                    name=get_buddy.name_localizations.from_locale_code(str(locale)),
+                    icon_url=get_buddy.theme.display_icon if get_buddy.theme is not None else None,
+                    url=get_buddy.display_icon,
                 )
 
-            elif isinstance(buddy, BuddyLevel):
+            elif isinstance(get_buddy, BuddyLevel):
                 embed.set_author(
-                    name=buddy.base_buddy.name_localizations.from_locale_code(str(locale)),
-                    url=buddy.display_icon,
-                    icon_url=buddy.base_buddy.theme.display_icon if buddy.base_buddy.theme is not None else None,
+                    name=get_buddy.get_base_buddy().name_localizations.from_locale_code(str(locale)),
+                    url=get_buddy.display_icon,
+                    icon_url=get_buddy.get_base_buddy().theme.display_icon
+                    if get_buddy.get_base_buddy().theme is not None
+                    else None,
                 )
-            embed.set_image(url=buddy.display_icon)
+            embed.set_image(url=get_buddy.display_icon)
 
             view = BaseView()
-            view.add_item(ui.Button(label="Display Icon", url=buddy.display_icon.url))
+            view.add_item(ui.Button(label="Display Icon", url=get_buddy.display_icon.url))
 
             await interaction.followup.send(embed=embed, view=view)
         else:
-            await interaction.followup.send("No buddy found")
+            await interaction.followup.send(f"Could not find buddy {bold(buddy)}")
 
-    @app_commands.command(name=_T('spray'), description=_T('View spray info'))
+    @app_commands.command(name=_T('bundle'), description='inspect a specific bundle')
+    @app_commands.describe(bundle="The name of the bundle you want to inspect!")
+    @app_commands.rename(bundle=_T('bundle'))
     @app_commands.guild_only()
-    @app_commands.rename(maybe_uuid='spray')
     @dynamic_cooldown(cooldown_5s)
-    async def spray(self, interaction: Interaction, maybe_uuid: str = None) -> None:
+    async def bundle(self, interaction: Interaction, bundle: str) -> None:
 
         await interaction.response.defer()
 
         locale = self.locale_converter(interaction.locale)
-        spray = self.v_client.get_spray(maybe_uuid)
 
-        if spray is not None:
+        get_bundle = self.v_client.get_bundle(bundle)
+
+        if get_bundle is not None:
+
+            embeds = []
+
+            embed = Embed(
+                description=f"Featured Bundle: {bold(f'{get_bundle.name_localizations.from_locale_code(str(locale))} Collection')}\n"  # noqa: E501
+                f"{PointEmoji.valorant_point} {get_bundle.price}",
+                colour=self.bot.theme.purple,
+            )
+            if get_bundle.display_icon_2 is not None:
+                embed.set_image(url=get_bundle.display_icon_2)
+
+            embeds.append(embed)
+
+            for item in sorted(get_bundle.items, key=lambda i: i.price, reverse=True):
+                emoji = ContentTierEmoji.from_name(item.rarity.dev_name) if isinstance(item, Skin) else ''
+                e = Embed(
+                    title=f"{emoji} {bold(item.name_localizations.from_locale_code(str(locale)))}",
+                    description=f"{PointEmoji.valorant_point} {item.price}",
+                    colour=self.bot.theme.dark,
+                )
+
+                if isinstance(item, PlayerCard):
+                    item_icon = item.large_icon
+                elif isinstance(item, Spray):
+                    item_icon = item.full_transparent_icon or item.full_icon or item.display_icon
+                else:
+                    item_icon = item.display_icon
+
+                if item_icon is not None:
+                    e.url = item_icon.url
+                    e.set_thumbnail(url=item_icon)
+
+                embeds.append(e)
+
+            await interaction.followup.send(embeds=embeds)
+
+        else:
+
+            await interaction.followup.send(f"Could not find bundle with name {bold(bundle)}")
+
+    @app_commands.command(name=_T('spray'), description=_T('View spray info'))
+    @app_commands.guild_only()
+    @app_commands.rename(spray='spray')
+    @dynamic_cooldown(cooldown_5s)
+    async def spray(self, interaction: Interaction, spray: str = None) -> None:
+
+        await interaction.response.defer()
+
+        locale = self.locale_converter(interaction.locale)
+        get_spray = self.v_client.get_spray(spray)
+
+        if get_spray is not None:
             embed = Embed(colour=self.bot.theme.purple)  # TODO: get color from spray
             view = BaseView()
 
-            if isinstance(spray, Spray):
+            if isinstance(get_spray, Spray):
                 embed.set_author(
-                    name=spray.name_localizations.from_locale_code(str(locale)),
-                    url=spray.display_icon,
-                    icon_url=spray.theme.display_icon if spray.theme is not None else None,
+                    name=get_spray.name_localizations.from_locale_code(str(locale)),
+                    url=get_spray.display_icon,
+                    icon_url=get_spray.theme.display_icon if get_spray.theme is not None else None,
                 )
-                embed.set_image(url=spray.animation_gif or spray.full_transparent_icon or spray.display_icon)
-                if spray.animation_gif:
-                    view.add_item(ui.Button(label="Animation Gif", url=spray.animation_gif.url))
-                if spray.full_transparent_icon:
-                    view.add_item(ui.Button(label="Full Transparent Icon", url=spray.full_transparent_icon.url))
-                if spray.display_icon:
-                    view.add_item(ui.Button(label="Display Icon", url=spray.display_icon.url))
+                embed.set_image(
+                    url=get_spray.animation_gif or get_spray.full_transparent_icon or get_spray.display_icon
+                )
+                if get_spray.animation_gif:
+                    view.add_item(ui.Button(label="Animation Gif", url=get_spray.animation_gif.url))
+                if get_spray.full_transparent_icon:
+                    view.add_item(ui.Button(label="Full Transparent Icon", url=get_spray.full_transparent_icon.url))
+                if get_spray.display_icon:
+                    view.add_item(ui.Button(label="Display Icon", url=get_spray.display_icon.url))
 
-            elif isinstance(spray, SprayLevel):
-                base_spray = spray.base_spray
+            elif isinstance(get_spray, SprayLevel):
+                base_spray = get_spray.get_base_spray()
                 embed.set_author(
                     name=base_spray.name_localizations.from_locale_code(str(locale)),
                     icon_url=base_spray.theme.display_icon if base_spray.theme is not None else None,
-                    url=spray.display_icon,
+                    url=get_spray.display_icon,
                 )
                 embed.set_image(
                     url=base_spray.animation_gif
                     or base_spray.full_transparent_icon
                     or base_spray.display_icon
-                    or spray.display_icon
+                    or get_spray.display_icon
                 )
 
                 if base_spray.animation_gif:
@@ -1133,19 +1129,19 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             await interaction.followup.send(embed=embed, view=view)
         else:
-            await interaction.followup.send("No spray found")
+            await interaction.followup.send(f"Could not find spray {bold(spray)}")
 
     player = app_commands.Group(name=_T('player'), description=_T('Player commands'), guild_only=True)
 
     @player.command(name=_T('card'), description=_T('View player card'))
     @dynamic_cooldown(cooldown_5s)
-    @app_commands.rename(maybe_uuid='card')
-    async def player_card(self, interaction: Interaction, maybe_uuid: str):
+    @app_commands.rename(card='card')
+    async def player_card(self, interaction: Interaction, card: str):
 
         await interaction.response.defer()
 
         locale = self.locale_converter(interaction.locale)
-        player_card = self.v_client.get_player_card(maybe_uuid)
+        player_card = self.v_client.get_player_card(card)
 
         if player_card is not None:
             embed = Embed(colour=self.bot.theme.purple)
@@ -1165,40 +1161,40 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @player.command(name=_T('title'), description=_T('View player title'))
     @dynamic_cooldown(cooldown_5s)
-    @app_commands.rename(maybe_uuid='title')
-    async def player_title(self, interaction: Interaction, maybe_uuid: str):
+    @app_commands.rename(title='title')
+    async def player_title(self, interaction: Interaction, title: str):
 
         await interaction.response.defer()
 
         locale = self.locale_converter(interaction.locale)
-        player_title = self.v_client.get_player_title(maybe_uuid)
+        player_title = self.v_client.get_player_title(title)
 
         if player_title is not None:
             embed = Embed(colour=self.bot.theme.purple)
 
     @app_commands.command(name=_T('weapon'), description=_T('View weapon info'))
     @app_commands.guild_only()
-    @app_commands.rename(maybe_uuid='weapon')
+    @app_commands.rename(weapon='weapon')
     @dynamic_cooldown(cooldown_5s)
-    async def weapon(self, interaction: Interaction, maybe_uuid: str = None) -> None:
+    async def weapon(self, interaction: Interaction, weapon: str = None) -> None:
         ...
 
     @app_commands.command(name=_T('skin'), description=_T('View skin info'))
     @app_commands.guild_only()
-    @app_commands.rename(maybe_uuid='skin')
+    @app_commands.rename(skin='skin')
     @dynamic_cooldown(cooldown_5s)
-    async def skin(self, interaction: Interaction, maybe_uuid: str = None) -> None:
+    async def skin(self, interaction: Interaction, skin: str = None) -> None:
         ...
 
     # auto complete
-    @bundle.autocomplete('maybe_uuid')
-    @agent.autocomplete('maybe_uuid')
-    @buddy.autocomplete('maybe_uuid')
-    @spray.autocomplete('maybe_uuid')
-    @weapon.autocomplete('maybe_uuid')
-    @skin.autocomplete('maybe_uuid')
-    @player_card.autocomplete('maybe_uuid')
-    @player_title.autocomplete('maybe_uuid')
+    @bundle.autocomplete('bundle')
+    @agent.autocomplete('agent')
+    @buddy.autocomplete('buddy')
+    @spray.autocomplete('spray')
+    @weapon.autocomplete('weapon')
+    @skin.autocomplete('skin')
+    @player_card.autocomplete('card')
+    @player_title.autocomplete('title')
     async def get_all_auto_complete(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
 
         locale = self.locale_converter(interaction.locale)
@@ -1206,9 +1202,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         results: List[app_commands.Choice[str]] = []
         mex_index = 25
 
-        command = interaction.command
+        if interaction.command is self.bundle:
 
-        if command is self.bundle:
             bundle_list = self.get_all_bundles()
             namespace = interaction.namespace.bundle
             mex_index = 15
@@ -1228,35 +1223,27 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     if len(results) >= mex_index:
                         break
 
-        elif command in [
-            self.agent,
-            self.buddy,
-            self.spray,
-            self.weapon,
-            self.skin,
-            self.player_card,
-            self.player_title,
-        ]:
+        else:
 
-            if command is self.agent:
+            if interaction.command is self.agent:
                 value_list = self.get_all_agents()
                 namespace = interaction.namespace.agent
-            elif command is self.buddy:
+            elif interaction.command is self.buddy:
                 value_list = self.get_all_buddies()
                 namespace = interaction.namespace.buddy
-            elif command is self.spray:
+            elif interaction.command is self.spray:
                 value_list = self.get_all_sprays()
                 namespace = interaction.namespace.spray
-            elif command is self.weapon:
+            elif interaction.command is self.weapon:
                 value_list = self.get_all_weapons()
                 namespace = interaction.namespace.weapon
-            elif command is self.skin:
+            elif interaction.command is self.skin:
                 value_list = self.get_all_skins()
                 namespace = interaction.namespace.skin
-            elif command is self.player_card:
+            elif interaction.command is self.player_card:
                 value_list = self.get_all_player_cards()
                 namespace = interaction.namespace.card
-            elif command is self.player_title:
+            elif interaction.command is self.player_title:
                 value_list = self.get_all_player_titles()
                 namespace = interaction.namespace.title
             else:
@@ -1280,81 +1267,91 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         return results[:mex_index]
 
-    @app_commands.command(name=_T('match'), description=_T('Last match history'))
-    @app_commands.choices(
-        queue=[
-            Choice(name=_T('Unrated'), value='unrated'),
-            Choice(name=_T('Competitive'), value='competitive'),
-            Choice(name=_T('Deathmatch'), value='deathmatch'),
-            Choice(name=_T('Spike Rush'), value='spikerush'),
-            Choice(name=_T('Escalation'), value='escalation'),
-            Choice(name=_T('Replication'), value='replication'),
-            Choice(name=_T('Snowball Fight'), value='snowball'),
-            Choice(name=_T('Custom'), value='custom'),
-        ]
-    )
-    @app_commands.describe(queue=_T('Choose the queue'))
-    @app_commands.rename(queue=_T('queue'))
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.guild_only()
-    async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-        await interaction.response.defer()
+    # @app_commands.command(name=_T('match'), description=_T('Last match history'))
+    # @app_commands.choices(
+    #     queue=[
+    #         Choice(name=_T('Unrated'), value='unrated'),
+    #         Choice(name=_T('Competitive'), value='competitive'),
+    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
+    #         Choice(name=_T('Spike Rush'), value='spikerush'),
+    #         Choice(name=_T('Escalation'), value='escalation'),
+    #         Choice(name=_T('Replication'), value='replication'),
+    #         Choice(name=_T('Snowball Fight'), value='snowball'),
+    #         Choice(name=_T('Custom'), value='custom'),
+    #     ]
+    # )
+    # @app_commands.describe(queue=_T('Choose the queue'))
+    # @app_commands.rename(queue=_T('queue'))
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.guild_only()
+    # async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
+    #     await interaction.response.defer()
+    #
+    #     get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
+    #     client = await self.v_client.set_authorize(get_riot_acc[0])
+    #     match_history = await client.fetch_match_history(queue_id=QueueID.competitive)
+    #
+    #     if len(match_history) == 0:
+    #         await interaction.followup.send('No match history found')
+    #         return
+    #
+    #     view = MatchHistoryView(interaction, match_history.get_match_details())
+    #     await view.start()
 
-        get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
-        client = await self.v_client.set_authorize(get_riot_acc[0])
-        match_history = await client.fetch_match_history(queue_id=QueueID.competitive)
+    # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
+    # @app_commands.choices(
+    #     queue=[
+    #         Choice(name=_T('Unrated'), value='unrated'),
+    #         Choice(name=_T('Competitive'), value='competitive'),
+    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
+    #         Choice(name=_T('Spike Rush'), value='spikerush'),
+    #         Choice(name=_T('Escalation'), value='escalation'),
+    #         Choice(name=_T('Replication'), value='replication'),
+    #         Choice(name=_T('Snowball Fight'), value='snowball'),
+    #         Choice(name=_T('Custom'), value='custom'),
+    #     ]
+    # )
+    # @app_commands.describe(queue=_T('Choose the queue'))
+    # @app_commands.rename(queue=_T('queue'))
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.guild_only()
+    # async def stats(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
+    #     await interaction.response.defer()
+    #
+    #     view = StatsView(interaction)
+    #     await view.pre_start()
 
-        if len(match_history) == 0:
-            await interaction.followup.send('No match history found')
-            return
+    # @app_commands.command(name=_T('settings'), description=_T('Show the settings of the bot'))
+    # async def settings(self, interaction: Interaction) -> None:
+    #     ...
 
-        view = MatchHistoryView(interaction, match_history.get_match_details())
-        await view.start()
+    # @app_commands.describe(queue=_T('Party commands'))
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.guild_only()
+    # async def party(self, interaction: Interaction) -> None:
+    #     await interaction.response.defer()
 
-    @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
-    @app_commands.choices(
-        queue=[
-            Choice(name=_T('Unrated'), value='unrated'),
-            Choice(name=_T('Competitive'), value='competitive'),
-            Choice(name=_T('Deathmatch'), value='deathmatch'),
-            Choice(name=_T('Spike Rush'), value='spikerush'),
-            Choice(name=_T('Escalation'), value='escalation'),
-            Choice(name=_T('Replication'), value='replication'),
-            Choice(name=_T('Snowball Fight'), value='snowball'),
-            Choice(name=_T('Custom'), value='custom'),
-        ]
-    )
-    @app_commands.describe(queue=_T('Choose the queue'))
-    @app_commands.rename(queue=_T('queue'))
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.guild_only()
-    async def stats(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-        await interaction.response.defer()
-
-        view = StatsView(interaction)
-        await view.pre_start()
-
-    party = app_commands.Group(name=_T('party'), description=_T('Party commands'), guild_only=True)
-
-    @party.command(name=_T('invite'), description=_T('Invite a player to your party'))
-    @dynamic_cooldown(cooldown_5s)
-    async def party_invite(self, interaction: Interaction, player: discord.User) -> None:
-        ...
-
-    @party.command(name=_T('invite_by_name'), description=_T('Invite a player to your party by name'))
-    @dynamic_cooldown(cooldown_5s)
-    async def party_invite_by_name(self, interaction: Interaction, player: str) -> None:
-        ...
-
-    @party.command(name=_T('kick'), description=_T('Kick a player from your party'))
-    @dynamic_cooldown(cooldown_5s)
-    async def party_kick(self, interaction: Interaction, player: discord.User) -> None:
-        ...
-
-    @party.command(name=_T('leave'), description=_T('Leave your party'))
-    @dynamic_cooldown(cooldown_5s)
-    async def party_leave(self, interaction: Interaction) -> None:
-        ...
+    # party = app_commands.Group(name=_T('party'), description=_T('Party commands'), guild_only=True)
+    #
+    # @party.command(name=_T('invite'), description=_T('Invite a player to your party'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def party_invite(self, interaction: Interaction, player: discord.User) -> None:
+    #     ...
+    #
+    # @party.command(name=_T('invite_by_name'), description=_T('Invite a player to your party by name'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def party_invite_by_name(self, interaction: Interaction, player: str) -> None:
+    #     ...
+    #
+    # @party.command(name=_T('kick'), description=_T('Kick a player from your party'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def party_kick(self, interaction: Interaction, player: discord.User) -> None:
+    #     ...
+    #
+    # @party.command(name=_T('leave'), description=_T('Leave your party'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def party_leave(self, interaction: Interaction) -> None:
+    #     ...
 
     # @app_commands.command(name=_T('leaderboard'), description=_T('Shows your Region Leaderboard'))
     # @app_commands.describe(region='Select region to get the leaderboard')
@@ -1399,7 +1396,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     #
     #     await interaction.followup.send(embed=embed, file=file)
 
-    # @app_commands.command(name=_T('cookies'), description=_T('Log in with your Riot acoount by Cookies'))
+    # @app_commands.command(name=_T('cookies'), description=_T('Log in with your Riot account by Cookies'))
     # @app_commands.describe(cookies=_T('Your cookies or SSID'))
     # @app_commands.rename(cookies=_T('cookies'))
     # @dynamic_cooldown(cooldown_5s)

@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 
 import discord
-import valorant
+import valorantx
 from async_lru import alru_cache
 from discord import Interaction
-from valorant.models import Bundle
+from valorantx.models import Bundle
 
 from utils.chat_formatting import bold
 from utils.formats import format_relative
@@ -33,21 +33,23 @@ class MakeEmbed:
     @alru_cache(maxsize=5)
     async def build_store(
         self,
-        store_front: valorant.StoreFront,
+        store_front: valorantx.StoreFront,
         riot_acc: RiotAuth,
         *,
         locale: Optional[Union[str, VLocale]] = None,
     ) -> List[discord.Embed]:
         locale = locale or self.locale
 
+        store = store_front.get_store()
+
         embeds = [
             Embed(
                 description=f"Daily store for {bold(riot_acc.display_name)}\n"  # type: ignore
-                f"Resets {format_relative(store_front.store.reset_at)}"
+                f"Resets {format_relative(store.reset_at)}"
             )
         ]
 
-        for skin in store_front.store.skins:
+        for skin in store.get_skins():
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
                 title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
@@ -64,14 +66,14 @@ class MakeEmbed:
 
     @alru_cache(maxsize=5)
     async def build_battlepass(
-        self, contract: valorant.Contracts, riot_acc: RiotAuth, *, locale: Optional[Union[str, VLocale]] = None
+        self, contract: valorantx.Contracts, riot_acc: RiotAuth, *, locale: Optional[Union[str, VLocale]] = None
     ) -> List[discord.Embed]:
 
         locale = locale or self.locale
 
-        btp = contract.get_latest_contract(relation_type=valorant.RelationType.season)
+        btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
 
-        next_reward = btp.next_tier_reward.reward
+        next_reward = btp.get_next_reward()
 
         embed = discord.Embed(
             title=f"Battlepass for {bold(riot_acc.display_name)}",
@@ -79,17 +81,17 @@ class MakeEmbed:
         )
         embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale_code(str(locale))}')
 
-        if isinstance(next_reward, valorant.SkinLevel):
+        if isinstance(next_reward, valorantx.SkinLevel):
             if next_reward.display_icon is not None:
                 embed.set_thumbnail(url=next_reward.display_icon)
-        elif isinstance(next_reward, valorant.PlayerCard):
+        elif isinstance(next_reward, valorantx.PlayerCard):
             if next_reward.wide_icon is not None:
                 embed.set_thumbnail(url=next_reward.wide_icon)
             else:
                 if next_reward.display_icon is not None:
                     embed.set_thumbnail(url=next_reward.display_icon)
         else:
-            if not isinstance(next_reward, valorant.PlayerTitle):
+            if not isinstance(next_reward, valorantx.PlayerTitle):
                 if next_reward.display_icon is not None:
                     embed.set_thumbnail(url=next_reward.display_icon)
 

@@ -1,4 +1,3 @@
-import discord
 from discord import Interaction, Member, Message
 from discord.app_commands.checks import dynamic_cooldown
 
@@ -10,7 +9,7 @@ from ._abc import MixinMeta
 # class PartyInviteModel(discord.ui.Modal):
 #     def __init__(self, *args, **kwargs) -> None:
 #         super().__init__(*args, **kwargs)
-# self._selcect_account = discord.ui.Select()
+# self._select_account = discord.ui.Select()
 # self.add_item()
 
 
@@ -59,10 +58,10 @@ class ContextMenu(MixinMeta):  # noqa
         if len(riot_acc) > 1:
             if len(riot_acc) == 1:
                 client = await self.v_client.set_authorize(riot_acc[0])
-                party = await client.http.party_fetch_player()
+                party = await client.fetch_party()
                 if party is not None:
                     for display_name in message.content.split('\n'):
-                        await party.invite_player(display_name)
+                        await self.invite_by_display_name(party, display_name)
             else:
                 ...
 

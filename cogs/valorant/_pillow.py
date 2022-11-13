@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Optional, TypeAlias, Union
 import chardet
 import discord
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from valorant import Collection, SkinChromaLoadout, SkinLevelLoadout, SkinLoadout
-from valorant.utils import MISSING
+from valorantx import Collection, SkinChromaLoadout, SkinLevelLoadout, SkinLoadout
+from valorantx.utils import MISSING
 
 from utils.useful import LatteFonts, LatteImages
 

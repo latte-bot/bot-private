@@ -61,7 +61,7 @@ class Admin(MixinMeta):  # noqa
     )
 
     @asset.command(name=_T('fetch'), description=_T('Fetch asset'))
-    async def asset_fetch(self, interaction: Interaction, with_price: bool, force: bool, reload: bool = True) -> None:
+    async def asset_fetch(self, interaction: Interaction, force: bool, reload: bool = True) -> None:
 
         await interaction.response.defer(ephemeral=True)
 
@@ -74,7 +74,7 @@ class Admin(MixinMeta):  # noqa
             riot_acc = riot_acc[0]
 
         client = await self.v_client.set_authorize(riot_acc)
-        await client.fetch_assets(with_price=with_price, reload=reload, force=force)
+        await client.fetch_assets(reload=reload, force=force)
 
         await interaction.followup.send('Asset has been fetched', ephemeral=True)
 
@@ -88,16 +88,16 @@ class Admin(MixinMeta):  # noqa
     )
     async def asset_clear(self, interaction: Interaction, cache: Choice[str]) -> None:
         if cache.value == 'assets':
-            self.v_client.assets.clear_asset_cache()
+            self.v_client._assets.clear_cache()
         elif cache.value == 'offers':
-            self.v_client.assets.clear_offer_cache()
+            self.v_client._assets.clear_offer_cache()
         else:
-            self.v_client.assets.clear_all_cache()
+            self.v_client._assets.clear()
 
         msg = f'Cache `{cache.value}` has been cleared'
         await interaction.response.send_message(msg, ephemeral=True)
 
     @asset.command(name=_T('reload'), description=_T('Reload asset'))
     async def asset_reload(self, interaction: Interaction, with_price: bool = True) -> None:
-        self.v_client.assets.reload_assets(with_price=with_price)
+        self.v_client._assets.reload(with_price=with_price)
         await interaction.response.send_message('Asset has been reloaded', ephemeral=True)

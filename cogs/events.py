@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Union
 
 import discord
@@ -10,6 +11,8 @@ from discord.ext import commands
 if TYPE_CHECKING:
     from bot import LatteBot
 
+log = logging.getLogger(__name__)
+
 
 class Event(commands.Cog):
     """Bot Events"""
@@ -19,7 +22,7 @@ class Event(commands.Cog):
 
     @discord.utils.cached_property
     def webhook(self) -> discord.Webhook:
-        wh_id, wh_token = self.bot._webook_id, self.bot._webook_token
+        wh_id, wh_token = self.bot._webhook_id, self.bot._webhook_token
         hook = discord.Webhook.partial(id=wh_id, token=wh_token, session=self.bot.session)
         return hook
 
@@ -64,6 +67,11 @@ class Event(commands.Cog):
     @commands.Cog.listener('on_guild_join')
     async def on_latte_join(self, guild: discord.Guild) -> None:
         """Called when LatteBot joins a guild"""
+
+        if guild.id in self.bot.blacklisted:
+            _log.info(f'Left guild {guild.id} because it is blacklisted')
+            return await guild.leave()
+
         embed = discord.Embed(title='ᴊᴏɪɴᴇᴅ ꜱᴇʀᴠᴇʀ', colour=0x52D452)
         await self.send_guild_stats(embed, guild)
 

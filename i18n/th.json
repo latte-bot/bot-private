@@ -1,0 +1,93 @@
+{
+    "commands": {
+        "valorant": {
+            "login": {
+                "name": "login",
+                "description": "เข้าสู่ระบบ Valorant",
+                "parameters": {
+                    "username": {
+                        "name": "ชื่อผู้ใช้",
+                        "description": "ชื่อผู้ใช้ของคุณ"
+                    },
+                    "password": {
+                        "name": "รหัสผ่าน",
+                        "description": "รหัสผ่านของคุณ"
+                    }
+                }
+            },
+            "logout": {
+                "name": "logout",
+                "description": "ออกจากระบบ Valorant",
+                "parameters": {
+                    "number": {
+                        "name": "บัญชี",
+                        "description": "บัญชีที่ต้องการออกจากระบบ (1-5)"
+                    }
+                }
+            },
+            "store": {
+                "name": "store",
+                "description": "เปิดร้านค้า Valorant"
+            },
+            "nightmarket": {
+                "name": "nightmarket",
+                "description": "เปิดตลาดกลางคืน Valorant"
+            },
+            "battlepass": {
+                "name": "battlepass",
+                "description": "เปิด แบทเทิลพาส Valorant"
+            },
+            "point": {
+                "name": "point",
+                "description": "เปิดแต้ม Valorant"
+            },
+            "bundle": {
+                "name": "bundle",
+                "description": "เปิดชุด Valorant"
+            },
+            "bundles": {
+                "name": "bundles",
+                "description": "เปิดชุด Valorant"
+            },
+            "mission": {
+                "name": "mission",
+                "description": "เปิดภารกิจ Valorant"
+            },
+            "patchnote": {
+                "name": "patchnote",
+                "description": "เปิดบันทึกการแก้ไข Valorant"
+            },
+            "agent": {
+                "name": "agent",
+                "description": "เปิดตัวละคร Valorant"
+            },
+            "agents": {
+                "name": "agents",
+                "description": "เปิดตัวละคร Valorant"
+            },
+            "match": {
+                "name": "match",
+                "description": "เปิดการแข่งขัน Valorant",
+                "parameters": {
+                    "queue": {
+                        "name": "คิว",
+                        "description": "เลือกคิว",
+                        "choices": {
+                            "Unrated": "Unrated",
+                            "Competitive": "Competitive",
+                            "Deathmatch": "Deathmatch",
+                            "Spike Rush": "Spike Rush",
+                            "Escalation": "Escalation",
+                            "Replication": "Replication",
+                            "Snowball Fight": "Snowball Fight",
+                            "Custom": "Custom"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "strings": {
+        "Hello World!": "สวัสดี"
+    }
+}

@@ -10,10 +10,12 @@ if TYPE_CHECKING:
 
     import aiohttp
     import discord
+    import valorantx
 
     from bot import LatteBot
 
     from ._client import Client, RiotAuth
+    from ._database import Database, ValorantUser
 
 C = TypeVar('C', bound=Callable)
 
@@ -46,21 +48,26 @@ class MixinMeta(ABC):
 
     if TYPE_CHECKING:
         get_riot_account: GetRiotAccount
-        users: Dict[int, List[RiotAuth]] = {}
+        valorant_users: Dict[int, ValorantUser] = {}
+        db: Database
 
     def __init__(self, *_args):
         self.bot: LatteBot = MISSING
         self.v_client: Client = MISSING
 
     @abstractmethod
-    def clear_cache_assets(self) -> Any:
+    async def get_valorant_user(self, *, user_id: int) -> ValorantUser:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def clear_assets(self) -> Any:
         """Clears the cache for assets."""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def cache_get_invalidate(self, riot_auth: RiotAuth) -> Any:
         """Invalidates the cache for a user."""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_all_agents(self) -> Any:
@@ -124,7 +131,7 @@ class MixinMeta(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def invite_by_display_name(self, target_id: str, display_name: str) -> None:
+    async def invite_by_display_name(self, party: valorantx.Party, display_name: str) -> None:
         raise NotImplementedError()
 
     @abstractmethod
@@ -132,9 +139,9 @@ class MixinMeta(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def set_user(self, _id: int, value: List[RiotAuth]) -> None:
+    def set_valorant_user(self, user_id: int, guild_id: int, locale: discord.Locale, riot_auth: RiotAuth):
         raise NotImplementedError()
 
     @abstractmethod
-    def add_user(self, _id: int, value: RiotAuth) -> None:
+    def add_riot_auth(self, _id: int, value: RiotAuth) -> None:
         raise NotImplementedError()

@@ -26,7 +26,7 @@ os.environ['JISHAKU_NO_UNDERSCORE'] = 'True'
 os.environ['JISHAKU_HIDE'] = 'True'
 
 initial_extensions = [
-    'cogs.test',
+    # 'cogs.test',
     'cogs.dev',
     'cogs.events',
     'cogs.errors',
@@ -79,8 +79,8 @@ class LatteBot(commands.AutoShardedBot):
         self._initial_extensions = initial_extensions
 
         # webhook
-        self._webook_id: Optional[str] = os.getenv('WEBHOOK_ID')
-        self._webook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
+        self._webhook_id: Optional[int] = os.getenv('WEBHOOK_ID')
+        self._webhook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
 
         # activity
         self.bot_activity: str = 'nyanpasu ♡ ₊˚'
@@ -111,6 +111,9 @@ class LatteBot(commands.AutoShardedBot):
         self.riot_username: str = os.getenv('RIOT_USERNAME')
         self.riot_password: str = os.getenv('RIOT_PASSWORD')
 
+        # blacklisted users
+        self.blacklisted: List[int] = []
+
     @property
     def owner(self) -> discord.User:
         """Returns the bot owner."""
@@ -129,7 +132,7 @@ class LatteBot(commands.AutoShardedBot):
 
     @discord.utils.cached_property
     def webhook(self) -> discord.Webhook:
-        wh_id, wh_token = int(self._webook_id), self._webook_token
+        wh_id, wh_token = int(self._webhook_id), self._webhook_token
         hook = discord.Webhook.partial(id=wh_id, token=wh_token, session=self.session)
         return hook
 
@@ -141,7 +144,7 @@ class LatteBot(commands.AutoShardedBot):
         return app_commands_list
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return True
+        # self.i18n.set_current_locale(interaction)
         # # self.locale = str(interaction.locale)
         #
         # if await self.is_owner(interaction.user):
@@ -150,6 +153,7 @@ class LatteBot(commands.AutoShardedBot):
         # if not self.maintenance:  # if bot is in maintenance mode
         #     # todo maintenance message
         #     return True
+        return True
 
     async def on_ready(self) -> None:
 
@@ -183,7 +187,7 @@ class LatteBot(commands.AutoShardedBot):
 
         # i18n
         if self.translator is utils.MISSING:
-            self.translator = Translator()
+            self.translator = Translator('./i18n')
             await self.tree.set_translator(self.translator)
 
         # bot info

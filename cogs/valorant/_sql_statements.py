@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS riot_accounts (
     user_id BIGINT PRIMARY KEY,
     guild_id BIGINT,
     extras VARCHAR(4096),
-    date_signed TIMESTAMP);
+    date_signed TIMESTAMP,
+    locale VARCHAR(100));
 """
 
 ACCOUNT_INSERT_OR_UPDATE: Final[
@@ -24,10 +25,11 @@ VALUES
     SET
         guild_id = $2,
         extras = $3,
-        date_signed = $4;
+        date_signed = $4,
+        locale = $5;
 """
 
-ACCOUNT_WITH_UPSERT: Final[
+ACCOUNT_UPSERT: Final[
     str
 ] = """
    WITH upsert AS (UPDATE
@@ -36,16 +38,18 @@ SET
     user_id = $1,
     guild_id = $2,
     extras = $3,
-    date_signed = $4 
+    date_signed = $4,
+    locale = $5
 WHERE
-    user_id = $5 RETURNING *) INSERT 
+    user_id = $6 RETURNING *) INSERT 
     INTO
         riot_accounts
-        (user_id, guild_id,       extras, date_signed) SELECT
+        (user_id, guild_id, extras, date_signed, locale) SELECT
             $1,
             $2,
             $3,
-            $4 
+            $4,
+            $5
         WHERE
             NOT EXISTS (
                 SELECT

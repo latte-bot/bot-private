@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 
 from ._abc import MixinMeta
 from ._client import RiotAuth
-from ._sql_statements import ACCOUNT_DELETE_BY_GUILD, ACCOUNT_WITH_UPSERT
+from ._sql_statements import ACCOUNT_DELETE_BY_GUILD, ACCOUNT_UPSERT
 
 _log = logging.getLogger(__name__)
 
@@ -21,8 +21,8 @@ class Events(MixinMeta):  # noqa
 
         if wait_for:
 
-            riot_acc_list = await self.get_riot_account(user_id=riot_auth.discord_id)
-            for acc in riot_acc_list:
+            v_user = await self.get_valorant_user(user_id=riot_auth.discord_id)
+            for acc in v_user.get_riot_accounts():
                 if acc.puuid != riot_auth.puuid:
                     await acc.re_authorize(wait_for=False)
 
@@ -30,9 +30,10 @@ class Events(MixinMeta):  # noqa
             async with self.bot.pool.acquire() as conn:
                 # Update the riot account in the database
 
-                # single line
-                old_data = self.users[riot_auth.discord_id]
-                new_data = [riot_auth if auth_u.puuid == riot_auth.puuid else auth_u for auth_u in old_data]
+                old_data = self.valorant_users.get(riot_auth.discord_id)
+                new_data = [
+                    riot_auth if auth_u.puuid == riot_auth.puuid else auth_u for auth_u in old_data.get_riot_accounts()
+                ]
 
                 payload = [user_riot_auth.to_dict() for user_riot_auth in new_data]
 
@@ -41,17 +42,17 @@ class Events(MixinMeta):  # noqa
                 # encryption
                 encrypt_payload = self.bot.encryption.encrypt(dumps_payload)
 
-                await conn.execute(
-                    ACCOUNT_WITH_UPSERT,
-                    riot_auth.discord_id,
-                    riot_auth.guild_id,
+                await self.db.upsert_user(
                     encrypt_payload,
-                    riot_auth.date_signed,
-                    riot_auth.discord_id,
+                    v_user.id,
+                    v_user.guild_id,
+                    v_user.locale,
+                    v_user.date_signed,
+                    conn=conn,
                 )
 
             # invalidate cache
-            self.get_riot_account.invalidate(self, user_id=riot_auth.discord_id)  # type: ignore
+            self.get_valorant_user.invalidate(self, user_id=riot_auth.discord_id)  # type: ignore
 
     @commands.Cog.listener()
     async def on_re_authorized_failure(self, riot_auth: RiotAuth) -> None:
@@ -60,7 +61,7 @@ class Events(MixinMeta):  # noqa
 
     async def on_riot_account_error(self, user_id: int) -> None:
         """Called when a user's riot account is updated"""
-        self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore
+        self.get_valorant_user.invalidate(self, user_id=user_id)  # type: ignore
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
@@ -74,7 +75,7 @@ class Events(MixinMeta):  # noqa
                 user_id = record["user_id"]
 
                 # invalidate cache
-                self.get_riot_account.invalidate(self, user_id=user_id)  # type: ignore
+                self.get_valorant_user.invalidate(self, user_id=user_id)  # type: ignore
 
     # tasks
 
@@ -82,7 +83,7 @@ class Events(MixinMeta):  # noqa
     @tasks.loop(time=datetime.time(hour=0, minute=0, second=5))
     async def reset_cache(self) -> None:
         """Called every day at 7am UTC+7"""
-        self.get_riot_account.cache_clear()  # type: ignore
+        self.get_valorant_user.cache_clear()  # type: ignore
         self.store_func.cache_clear()  # type: ignore
         self.battlepass_func.cache_clear()  # type: ignore
 
@@ -100,19 +101,18 @@ class Events(MixinMeta):  # noqa
     @tasks.loop(time=datetime.time(hour=17, minute=0, second=0))  # looping every 00:00:00 UTC+7
     async def client_version(self) -> None:
 
-        client_version = await self.v_client.get_valorant_version()
+        version = await self.v_client.get_valorant_version()
 
-        if client_version is None:
+        if version is None:
             return
 
-        if client_version != self.v_client.version:
-            self.v_client.version = client_version
-            # TODO: Login super user
-
-            await self.v_client.fetch_assets(with_price=True, force=True, reload=True)
-
-            # cache clear
-            self.clear_cache_assets()
+        if version != self.v_client.version:
+            self.v_client.version = version
+            # login super user
+            await self.v_client.fetch_assets(force=True, reload=True)
+            self.v_client.http.to_update_riot_client_version()
+            self.v_client.http.riot_auth.RIOT_CLIENT_USER_AGENT = version.riot_client_build
+            self.clear_assets()
 
     # before loops tasks
 

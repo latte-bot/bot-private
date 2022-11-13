@@ -27,25 +27,25 @@ class BaseView(ui.View):
     def reset_timeout(self) -> None:
         self.timeout = self.timeout
 
-    async def _scheduled_task(self, item: discord.ui.item, interaction: discord.Interaction):
-        try:
-
-            item._refresh_state(interaction.data)  # type: ignore
-
-            if self.timeout:
-                self.__timeout_expiry = time.monotonic() + self.timeout
-
-            allow = await self.interaction_check(interaction)
-            if not allow:
-                return
-
-            await item.callback(interaction)
-
-            if not interaction.response._response_type:
-                await interaction.response.defer()
-
-        except Exception as e:
-            return await self.on_error(interaction, e, item)
+    # async def _scheduled_task(self, item: discord.ui.item, interaction: discord.Interaction):
+    #     try:
+    #
+    #         item._refresh_state(interaction, interaction.data)
+    #
+    #         if self.timeout:
+    #             self.__timeout_expiry = time.monotonic() + self.timeout
+    #
+    #         allow = await self.interaction_check(interaction)
+    #         if not allow:
+    #             return
+    #
+    #         await item.callback(interaction)
+    #
+    #         if not interaction.response._response_type:
+    #             await interaction.response.defer()
+    #
+    #     except Exception as e:
+    #         return await self.on_error(interaction, e, item)
 
     async def on_error(self, interaction: Interaction, error: Exception, item: ui.Item[Any]) -> None:
         # TODO: supress error

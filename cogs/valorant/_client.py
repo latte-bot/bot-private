@@ -1,35 +1,50 @@
 from __future__ import annotations
 
-import datetime
+import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Coroutine, Dict, Union, Optional
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
 
 import aiohttp
+import discord
 import valorantx
 from valorantx.http import HTTPClient
+
+# ext valorant
 from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
 from ._custom import Agent
 
 if TYPE_CHECKING:
+    import datetime
+
+    from typing_extensions import Self
+
     from bot import LatteBot
 
 _log = logging.getLogger(__name__)
 
 
 class RiotAuth(valorantx.RiotAuth):
-    def __init__(self, discord_id: int, bot: LatteBot = MISSING, **kwargs) -> None:
+    def __init__(
+        self,
+        discord_id: int,
+        guild_id: int = 0,
+        bot: LatteBot = MISSING,
+        **kwargs,
+    ) -> None:
         super().__init__()
         self.bot = bot
         self.discord_id: int = discord_id
-        self.guild_id: int = 0
-        self.date_signed: Union[datetime.datetime, int] = 0
+        self.guild_id: int = guild_id
         self.acc_num: int = 1
+        self.date_signed: Optional[datetime.datetime] = None
 
         # config
         self.hide_display_name: bool = kwargs.get('hide_display_name', False)
-        self.notify_mode: int = kwargs.get('notify_mode', 0)
+        self.notify_mode: bool = kwargs.get('notify_mode', False)
+        self.locale: discord.Locale = discord.Locale.american_english
+        self.night_market_is_opened: bool = False
 
         # multi factor
         self.__waif_for_2fa = True
@@ -139,9 +154,10 @@ class RiotAuth(valorantx.RiotAuth):
             'acc_num': self.acc_num,
             'hide_display_name': self.hide_display_name,
             'notify_mode': self.notify_mode,
+            'night_market_is_opened': self.night_market_is_opened,
         }
 
-    async def from_dict(self, data: Dict[str, Any]) -> None:
+    def from_data(self, data: Dict[str, Any]) -> None:
         self.access_token = data['access_token']
         self.id_token = data['id_token']
         self.token_type = data['token_type']
@@ -153,17 +169,25 @@ class RiotAuth(valorantx.RiotAuth):
         self.region = data['region']
         self.acc_num = data['acc_num']
         self.hide_display_name = data.get('hide_display_name', False)
-        self.notify_mode = data.get('notify_mode', 0)
+        self.notify_mode = data.get('notify_mode', False)
+        self.night_market_is_opened = data.get('night_market_is_opened', False)
 
         self._cookie_jar = aiohttp.CookieJar()  # abc set in async function
         for key, value in data['cookie'].items():
             self._cookie_jar.update_cookies({key: value})
 
+    @classmethod
+    def from_db(cls, user_id: int, guild_id: int, locale: discord.Locale, bot: LatteBot, data: Dict[str, Any]) -> Self:
+        riot_auth = cls(user_id, guild_id, bot=bot)
+        riot_auth.locale = locale
+        riot_auth.from_data(data)
+        return riot_auth
+
 
 class Client(valorantx.Client):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(locale=valorantx.Locale.american_english, **kwargs)
-        self._http = HTTPClientCustom(self)
+        self._http = HTTPClientCustom(self, self.loop)
         self._is_authorized = True
 
     @property
@@ -192,19 +216,20 @@ class Client(valorantx.Client):
     # custom
 
     def get_agent(self, *args: Any, **kwargs: Any) -> Optional[Agent]:
-        data = self.assets.get_agent(*args, **kwargs)
+        data = self._assets.get_agent(*args, **kwargs)
         return Agent(client=self, data=data) if data else None
+
 
 class HTTPClientCustom(HTTPClient):
 
     super_user_id: int
 
-    def __init__(self, client: Union[valorantx.Client, Client]) -> None:
-        super().__init__()
+    def __init__(self, client: Union[valorantx.Client, Client], loop: asyncio.AbstractEventLoop) -> None:
+        super().__init__(loop)
         self._client = client
         self._riot_auth: RiotAuth = MISSING
-        self._next_fetch_client_version: int = 0
-        # self._puuid: Optional[str] = self._riot_auth.user_id if self._riot_auth is not MISSING else None
+        self._riot_client_version: str = ''
+        self._is_update_riot_client_version: bool = False
 
     @property
     def riot_auth(self) -> RiotAuth:
@@ -216,11 +241,14 @@ class HTTPClientCustom(HTTPClient):
     async def build_headers(self) -> None:
         await self.__build_headers()
 
-    async def __build_headers(self) -> None:
+    def to_update_riot_client_version(self) -> None:
+        self._is_update_riot_client_version = True
 
-        self._next_fetch_client_version += 1
-        if self._riot_client_version == '' or self._next_fetch_client_version >= 30:
+    async def __build_headers(self) -> None:
+        if self._riot_client_version == '' or self._is_update_riot_client_version:
             self._riot_client_version = await self._get_current_version()
+            self._is_update_riot_client_version = False
+
         self._headers['Authorization'] = f"Bearer %s" % self._riot_auth.access_token
         self._headers['X-Riot-Entitlements-JWT'] = self._riot_auth.entitlements_token
         self._headers['X-Riot-ClientPlatform'] = self._client_platform

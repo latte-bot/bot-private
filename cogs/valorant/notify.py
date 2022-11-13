@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger('cogs.valorant.notify')
 
+
 class Notify(MixinMeta):  # noqa
     """Notify cog"""
 
@@ -38,45 +39,45 @@ class Notify(MixinMeta):  # noqa
         await self.bot.wait_until_ready()
         _log.info('Notify alert loop started')
 
-    notify = app_commands.Group(name=_T('notify'), description=_T('Notify commands'), guild_only=True)
-
-    @notify.command(
-        name=_T('add'), description=_T('Set a notification when a specific skin is available on your store')
-    )
-    @dynamic_cooldown(cooldown_5s)
-    @app_commands.describe(skin=_T('The name of the skin you want to notify'))
-    @app_commands.rename(skin=_T('skin'))
-    async def notify_add(self, interaction: Interaction, skin: str) -> None:
-        """Set a notification when a specific skin is available on your store"""
-        ...
-
-    @notify_add.autocomplete('skin')
-    async def notify_add_autocomplete(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
-        ...
-
-    @notify.command(name=_T('list'), description=_T('View skins you have set a for notification.'))
-    @dynamic_cooldown(cooldown_5s)
-    async def notify_list(self, interaction: Interaction) -> None:
-        """View skins you have set a notification for"""
-        ...
-
-    @notify.command(name=_T('mode'), description=_T('Change notification mode'))
-    @app_commands.describe(mode=_T('Choose notification'))
-    @app_commands.choices(
-        mode=[
-            app_commands.Choice(name=_T('Specified Skin'), value=1),
-            app_commands.Choice(name=_T('All Skin'), value=2),
-            app_commands.Choice(name=_T('Off'), value=0),
-        ]
-    )
-    @app_commands.rename(mode=_T('mode'))
-    @dynamic_cooldown(cooldown_5s)
-    async def notify_mode(self, interaction: Interaction, mode: app_commands.Choice[int]) -> None:
-        """Set Skin Notifications mode"""
-        ...
-
-    @notify.command(name=_T('test'))
-    @dynamic_cooldown(cooldown_5s)
-    async def notify_test(self, interaction: Interaction) -> None:
-        """Test Notifications"""
-        ...
+    # notify = app_commands.Group(name=_T('notify'), description=_T('Notify commands'), guild_only=True)
+    #
+    # @notify.command(
+    #     name=_T('add'), description=_T('Set a notification when a specific skin is available on your store')
+    # )
+    # @dynamic_cooldown(cooldown_5s)
+    # @app_commands.describe(skin=_T('The name of the skin you want to notify'))
+    # @app_commands.rename(skin=_T('skin'))
+    # async def notify_add(self, interaction: Interaction, skin: str) -> None:
+    #     """Set a notification when a specific skin is available on your store"""
+    #     ...
+    #
+    # @notify_add.autocomplete('skin')
+    # async def notify_add_autocomplete(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
+    #     ...
+    #
+    # @notify.command(name=_T('list'), description=_T('View skins you have set a for notification.'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def notify_list(self, interaction: Interaction) -> None:
+    #     """View skins you have set a notification for"""
+    #     ...
+    #
+    # @notify.command(name=_T('mode'), description=_T('Change notification mode'))
+    # @app_commands.describe(mode=_T('Choose notification'))
+    # @app_commands.choices(
+    #     mode=[
+    #         app_commands.Choice(name=_T('Specified Skin'), value=1),
+    #         app_commands.Choice(name=_T('All Skin'), value=2),
+    #         app_commands.Choice(name=_T('Off'), value=0),
+    #     ]
+    # )
+    # @app_commands.rename(mode=_T('mode'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def notify_mode(self, interaction: Interaction, mode: app_commands.Choice[int]) -> None:
+    #     """Set Skin Notifications mode"""
+    #     ...
+    #
+    # @notify.command(name=_T('test'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def notify_test(self, interaction: Interaction) -> None:
+    #     """Test Notifications"""
+    #     ...

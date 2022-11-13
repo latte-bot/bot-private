@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, TypeAlias, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Union
 
 import discord
 from discord import AppCommandType, Interaction, app_commands, ui
@@ -27,10 +27,10 @@ if TYPE_CHECKING:
 
     from bot import LatteBot
 
-    ClientBot: TypeAlias = Union[Client, LatteBot]
+    ClientBot = Union[Client, LatteBot]
 
-    AppCommandType: TypeAlias = Union[AppCommand, AppCommandGroup]
-    AppCommandEntry: TypeAlias = Dict[Any, List[AppCommandType]]
+    AppCommandType = Union[AppCommand, AppCommandGroup]
+    AppCommandEntry = Dict[Any, List[AppCommandType]]
 
 MISSING = discord.utils.MISSING
 
