@@ -158,5 +158,6 @@ _test*.*
 
 # custom ignore directory
 _test/
+test.py
 tests.py
 0*/
