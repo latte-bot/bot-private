@@ -69,6 +69,11 @@ class ErrorHandler(commands.Cog):
     async def on_application_command_error(self, interaction: Interaction, error: AppCommandError):
         """Handles errors for all application commands associated with this CommandTree."""
 
+        # error = getattr(error, 'original', error)
+
+        if isinstance(error, (discord.Forbidden, discord.NotFound)):
+            return
+
         # traceback
         traceback.print_exception(type(error), error, error.__traceback__)  # TODO: remove this when release
 
@@ -105,7 +110,14 @@ class ErrorHandler(commands.Cog):
 
                 error_title = f"{self.display_emoji} Error"
                 if interaction.command:
-                    error_title += f" in command **/{interaction.command.qualified_name}**"
+
+                    _app_cmd = self.bot.get_app_command(interaction.command.qualified_name)
+                    if _app_cmd is not None:
+                        command = _app_cmd.mention
+                    else:
+                        command = f"**/{interaction.command.qualified_name}**"
+
+                    error_title += f" in command {command}"
 
                 embed = discord.Embed(
                     description=error_title, color=self.bot.theme.error, timestamp=interaction.created_at

@@ -89,5 +89,28 @@
     },
     "strings": {
         "Hello World!": "สวัสดี"
+    },
+    "errors": {
+        "invalid_command": "คำสั่งไม่ถูกต้อง",
+        "invalid_parameter": "พารามิเตอร์ไม่ถูกต้อง",
+        "invalid_choice": "ตัวเลือกไม่ถูกต้อง",
+        "invalid_number": "ตัวเลขไม่ถูกต้อง",
+        "invalid_boolean": "ค่าบูลีนไม่ถูกต้อง",
+        "invalid_user": "ผู้ใช้ไม่ถูกต้อง",
+        "invalid_channel": "ช่องไม่ถูกต้อง",
+        "invalid_role": "บทบาทไม่ถูกต้อง",
+        "invalid_member": "สมาชิกไม่ถูกต้อง",
+        "invalid_message": "ข้อความไม่ถูกต้อง",
+        "invalid_emoji": "อิโมจิไม่ถูกต้อง",
+        "invalid_invite": "ลิงก์เชิญไม่ถูกต้อง",
+        "invalid_color": "สีไม่ถูกต้อง",
+        "invalid_duration": "ระยะเวลาไม่ถูกต้อง",
+        "invalid_url": "URL ไม่ถูกต้อง",
+        "invalid_date": "วันที่ไม่ถูกต้อง",
+        "invalid_time": "เวลาไม่ถูกต้อง",
+        "invalid_regex": "รูปแบบไม่ถูกต้อง",
+        "invalid_attachment": "ไฟล์แนบไม่ถูกต้อง",
+        "invalid_command_on_cooldown": "คำสั่งนี้อยู่ในระหว่างการเซ็ตคูลดาวน์",
+        "invalid_command_disabled": "คำสั่งนี้ถูกปิดใช้งาน"
     }
 }

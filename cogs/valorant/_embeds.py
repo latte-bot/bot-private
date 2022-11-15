@@ -7,6 +7,7 @@ import valorantx
 from async_lru import alru_cache
 from discord import Interaction
 from valorantx.models import Bundle
+from valorantx import QueueID
 
 from utils.chat_formatting import bold
 from utils.formats import format_relative
@@ -52,7 +53,7 @@ class MakeEmbed:
         for skin in store.get_skins():
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
-                title=f"{emoji} {bold(skin.name_localizations.from_locale_code(str(locale)))}",
+                title=f"{emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",
                 description=f"{PointEmoji.valorant_point} {skin.price}",
                 colour=self.bot.theme.dark,
             )
@@ -79,7 +80,7 @@ class MakeEmbed:
             title=f"Battlepass for {bold(riot_acc.display_name)}",
             description=f"{bold('NEXT')}: {next_reward.display_name}",
         )
-        embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale_code(str(locale))}')
+        embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale(str(locale))}')
 
         if isinstance(next_reward, valorantx.SkinLevel):
             if next_reward.display_icon is not None:
@@ -186,50 +187,86 @@ def bundles_e(bundle: Bundle) -> List[Embed]:
 
 
 class MatchEmbed:
+    def __init__(self, match: valorantx.MatchDetails):
+        self._match = match
+        self._desktops: List[discord.Embed] = []
+        self._mobiles: List[discord.Embed] = []
 
-    # https://github.com/staciax/reinabot/blob/master/cogs/valorant/embeds.py
+        # map
+        self._map = self._match.map
 
-    def __init__(self):
-        self.client = ...
+        # me team
+        self._mt = self._match.get_me_team()
+        self._mt_players = self._mt.get_players()
 
-    @staticmethod
-    def static_embed(performance: bool = False) -> discord.Embed:
+        # enemy team
+        self._et = self._match.get_enemy_team()
+        self._et_players = self._et.get_players()
+
+    def __build_desktop(self) -> None:
+        self._desktops = [self.desktop_1(), self.desktop_2(), self.desktop_3()]
+
+    def __build_mobile(self, match: valorantx.MatchDetails) -> None:
+        ...
+
+    def static_embed(self, performance: bool = False) -> discord.Embed:
+
         e = discord.Embed(
-            title="{queue_emoji} {map_name_locale} - {match_score}",
+            title="{queue_emoji} {map} - {won}:{lose}".format(
+                queue_emoji='🔥',
+                map=self._map.display_name,
+                won=self._mt.rounds_won,
+                lose=self._et.rounds_won,
+            ),
+            timestamp=self._match.started_at,
             # color=color,
-            # timestamp=timestamp
         )
         e.set_footer(text="{match_result}")
 
-        # if not performance:
-        #     e.set_author(name="{your_name} - {queue['name']}", icon_url="your_agent['icon']['small']")
-        # else:
-        #     e.set_author(name='{your_name} - Performance', icon_url="your_agent['icon']['small']")
+        e.set_author(
+            name="{0} - {1}".format(self._match.me.display_name, (self._match.queue if performance else 'Performance')),
+            icon_url=self._match.me.agent.display_icon_small,
+        )
 
         return e
 
     # desktop section
+    def desktop_1(self) -> discord.Embed:
 
-    # page 1
-    def desktop_page_1(self) -> discord.Embed:
         e = self.static_embed()
-        # e.add_field(name='TEAM A', value='\n'.join(team_A['players']))
-        # e.add_field(name='ACS', value='\n'.join(team_A['acs']))
-        # e.add_field(name='KDA', value='\n'.join(team_A['kda']))
-        # e.add_field(name='TEAM B', value='\n'.join(team_B['players']))
-        # e.add_field(name='ACS', value='\n'.join(team_B['acs']))
-        # e.add_field(name='KDA', value='\n'.join(team_B['kda']))
-        # if not queue_id == 'ggteam':
-        #     if len(timelines) > 25:
-        #         e.add_field(name='Timeline:', value=''.join(timelines[:25]), inline=False)
-        #         e.add_field(name='Overtime:', value=''.join(timelines[25:]), inline=False)
-        #     else:
-        #         e.add_field(name='Timeline:', value=''.join(timelines), inline=False)
+
+        # MY TEAM
+        e.add_field(name='TEAM A', value='\n'.join([p.display_name for p in self._mt_players]))
+        e.add_field(name='ACS', value='\n'.join([str(p.acs) for p in self._mt_players]))
+        e.add_field(name='KDA', value='\n'.join([str(p.kda) for p in self._mt_players]))
+
+        # ENEMY TEAM
+        e.add_field(name='TEAM B', value='\n'.join([p.display_name for p in self._et_players]))
+        e.add_field(name='ACS', value='\n'.join([str(p.acs) for p in self._et_players]))
+        e.add_field(name='KDA', value='\n'.join([str(p.kda) for p in self._et_players]))
+
+        timelines = []
+
+        for r in self._match.round_results:
+            if r.result_code == valorantx.RoundResultCode.surrendered:
+                timelines.append('Surrendered')
+                break
+
+            if r.winning_team() == self._mt:
+                timelines.append('🔥')
+            else:
+                timelines.append('💀')
+
+        if not self._match.queue == QueueID.escalation:
+            if len(timelines) > 25:
+                e.add_field(name='Timeline:', value=''.join(timelines[:25]), inline=False)
+                e.add_field(name='Overtime:', value=''.join(timelines[25:]), inline=False)
+            else:
+                e.add_field(name='Timeline:', value=''.join(timelines), inline=False)
 
         return e
 
-    # page 2
-    def desktop_page_2(self) -> discord.Embed:
+    def desktop_2(self) -> discord.Embed:
         e = self.static_embed()
         # e.add_field(name='TEAM A', value='\n'.join(team_A['players']))
         # e.add_field(name='FK', value='\n'.join(team_A['first_blood']))
@@ -240,9 +277,7 @@ class MatchEmbed:
 
         return e
 
-    # page 3
-
-    def desktop_page_3(self) -> discord.Embed:
+    def desktop_3(self) -> discord.Embed:
         e = self.static_embed(performance=True)
         # e.add_field(name='KDA', value='\n'.join(opponent['kda']))
         # e.add_field(name='Opponent', value='\n'.join(opponent['players']))
@@ -252,7 +287,6 @@ class MatchEmbed:
         return e
 
     # mobile section
-
     # page 1
     # page 2
     # page 3

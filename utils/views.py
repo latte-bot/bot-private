@@ -32,17 +32,17 @@ class BaseView(ui.View):
     #
     #         item._refresh_state(interaction, interaction.data)
     #
-    #         if self.timeout:
-    #             self.__timeout_expiry = time.monotonic() + self.timeout
-    #
     #         allow = await self.interaction_check(interaction)
     #         if not allow:
     #             return
     #
+    #         if self.timeout:
+    #             self.__timeout_expiry = time.monotonic() + self.timeout
+    #
     #         await item.callback(interaction)
     #
-    #         if not interaction.response._response_type:
-    #             await interaction.response.defer()
+    #         # if not interaction.response._response_type:
+    #         #     await interaction.response.defer()
     #
     #     except Exception as e:
     #         return await self.on_error(interaction, e, item)
@@ -101,3 +101,6 @@ class ViewAuthor(BaseView):
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             return False
         return True
+
+
+# TODO: Url View

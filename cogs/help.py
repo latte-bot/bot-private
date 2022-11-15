@@ -196,9 +196,9 @@ class HelpCommand:
         self,
     ) -> Mapping[commands.Cog, List[Union[AppCommandGroup, AppCommand[Any, ..., Any]]]]:
         mapping = {
-            cog: sorted(cog.__cog_app_commands__, key=lambda c: c.qualified_name)
+            cog: sorted(cog.walk_app_commands(), key=lambda c: c.qualified_name)
             for cog in sorted(self.bot.cogs.values(), key=lambda c: c.qualified_name)
-            if cog.__cog_app_commands__ and cog.qualified_name not in IGNORE_EXTENSIONS
+            if cog.walk_app_commands() and cog.qualified_name not in IGNORE_EXTENSIONS
         }
         return mapping
 

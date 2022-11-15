@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Type, Union
 
 import aiohttp
 import asyncpg
@@ -26,7 +26,7 @@ os.environ['JISHAKU_NO_UNDERSCORE'] = 'True'
 os.environ['JISHAKU_HIDE'] = 'True'
 
 initial_extensions = [
-    # 'cogs.test',
+    'cogs.test',
     'cogs.dev',
     'cogs.events',
     'cogs.errors',
@@ -104,7 +104,7 @@ class LatteBot(commands.AutoShardedBot):
         self.session: aiohttp.ClientSession = utils.MISSING
 
         # app commands stuff
-        self._app_commands: Dict[str, app_commands.AppCommand] = {}
+        self._app_commands: Dict[str, Union[app_commands.AppCommand, app_commands.AppCommandGroup]] = {}
 
         # valorant
         self.fake_user_id: int = 000000000000000000
@@ -139,9 +139,20 @@ class LatteBot(commands.AutoShardedBot):
     @alru_cache(maxsize=1)
     async def fetch_app_commands(self) -> List[app_commands.AppCommand]:
         app_commands_list = await self.tree.fetch_commands()
-        for app_cmd in app_commands_list:
-            self._app_commands[app_cmd.name] = app_cmd
+
+        for fetch in app_commands_list:
+            if fetch.type == discord.AppCommandType.chat_input:
+                if len(fetch.options) > 0:
+                    for option in fetch.options:
+                        if isinstance(option, app_commands.AppCommandGroup):
+                            self._app_commands[option.qualified_name] = option
+                else:
+                    self._app_commands[fetch.name] = fetch
+
         return app_commands_list
+
+    def get_app_command(self, name: str) -> Optional[app_commands.AppCommand]:
+        return self._app_commands.get(name)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         # self.i18n.set_current_locale(interaction)
@@ -198,7 +209,7 @@ class LatteBot(commands.AutoShardedBot):
         await self.load_cogs()
 
         # tree sync application commands
-        await self.tree.sync()
+        # await self.tree.sync()
         # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
         # if 'cogs.admin' in self._initial_extensions and self.support_guild is not None:
         #     await self.tree.sync(guild=discord.Object(id=self.support_guild_id))

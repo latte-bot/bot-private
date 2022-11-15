@@ -49,12 +49,12 @@ class Testing(commands.Cog):
 
         await interaction.response.send_message(colour)
 
-    # test_group = app_commands.Group(name=_('test_group'), description=_('test_group_desc'))
+    test_group = app_commands.Group(name=_('test_group'), description=_('test_group_desc'))
 
-    # @test_group.command(name=_('test_group_cmd'), description=_('test_group_cmd_desc'))
-    # async def test_group_cmd(self, interaction: Interaction) -> None:
-    #     """Test command"""
-    #     await interaction.response.send_message("Test Group Command")
+    @test_group.command(name=_('test_group_cmd'), description=_('test_group_cmd_desc'))
+    async def test_group_cmd(self, interaction: Interaction) -> None:
+        """Test command"""
+        await interaction.response.send_message(interaction.command.qualified_name)
 
     # @test_group.command(name=_('test_group_command'), description=_('test_group_command_desc'))
     # @app_commands.rename(queue=_('queue'))

@@ -33,7 +33,7 @@ class Admin(MixinMeta):  # noqa
             Choice(name=_T('Riot Account'), value='riot_account'),
         ]
     )
-    async def cache_clear(self, interaction: Interaction, cache: Choice[str]) -> None:
+    async def cache_clears(self, interaction: Interaction, cache: Choice[str]) -> None:
 
         if cache.value == 'bundle' or cache.value == 'all':
             self.get_all_bundles.cache_clear()  # type: ignore

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
 from discord.utils import MISSING
 
 if TYPE_CHECKING:
+    import datetime
     import ssl
 
     import aiohttp
@@ -38,6 +39,11 @@ class GetRiotAccount(Protocol[C]):
     bot: LatteBot
     discord_id: int
     acc_num: int
+    date_signed: Optional[datetime.datetime]
+    hide_display_name: bool
+    notify_mode: bool
+    locale: discord.Locale
+    night_market_is_opened: bool
 
     def __call__(self, *, user_id: int) -> Awaitable[List[RiotAuth]]:
         pass
@@ -56,16 +62,16 @@ class MixinMeta(ABC):
         self.v_client: Client = MISSING
 
     @abstractmethod
-    async def get_valorant_user(self, *, user_id: int) -> ValorantUser:
+    async def fetch_user(self, *, id: int) -> ValorantUser:
         raise NotImplementedError()
 
     @abstractmethod
-    def clear_assets(self) -> Any:
+    def cache_clear(self) -> Any:
         """Clears the cache for assets."""
         raise NotImplementedError()
 
     @abstractmethod
-    def cache_get_invalidate(self, riot_auth: RiotAuth) -> Any:
+    def cache_invalidate(self, riot_auth: RiotAuth) -> Any:
         """Invalidates the cache for a user."""
         raise NotImplementedError()
 
@@ -127,7 +133,7 @@ class MixinMeta(ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def locale_converter(locale: discord.Locale) -> Any:
+    def v_locale(locale: discord.Locale) -> Any:
         raise NotImplementedError()
 
     @abstractmethod
@@ -135,7 +141,7 @@ class MixinMeta(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_user(self, _id: int) -> Optional[List[RiotAuth]]:
+    def _get_user(self, _id: int) -> Optional[ValorantUser]:
         raise NotImplementedError()
 
     @abstractmethod

@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import TYPE_CHECKING, Any, AnyStr, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, AnyStr, Callable, Dict, List, Optional, Union
 
 import discord
-from discord.enums import try_enum
-
-from utils.encryption import Encryption
 
 from ._client import RiotAuth
-from ._sql_statements import ACCOUNT_DELETE, ACCOUNT_SELECT, ACCOUNT_SELECT_ALL, ACCOUNT_UPSERT
+from ._sql_statements import ACCOUNT_DELETE, ACCOUNT_DELETE_BY_GUILD, ACCOUNT_SELECT, ACCOUNT_SELECT_ALL, ACCOUNT_UPSERT
 
 if TYPE_CHECKING:
     import asyncpg
@@ -21,16 +18,17 @@ if TYPE_CHECKING:
 
 class ValorantUser:
     def __init__(self, record: Union[asyncpg.Record, Dict[str, Any]], bot: LatteBot) -> None:
+        self._bot = bot
         self.user_id: int = record['user_id']
         self.guild_id: int = record['guild_id']
         self.locale: discord.Locale = (
-            try_enum(discord.Locale, record['locale'])
+            discord.enums.try_enum(discord.Locale, record['locale'])
             if not isinstance(record['locale'], discord.Locale)
             else record['locale']
         )
         self.date_signed: datetime.datetime = record['date_signed']
         self.extras: List[Dict[str, Any]] = (
-            json.loads(Encryption.decrypt(record['extras']))
+            self.data_decrypted(record['extras'], to_dict=True)
             if not isinstance(record['extras'], list)
             else record['extras']
         )
@@ -44,6 +42,12 @@ class ValorantUser:
             )
             for data in self.extras
         ]
+
+    def encrypt(self, args: str) -> AnyStr:
+        return self._bot.encryption.encrypt(args)
+
+    def decrypt(self, token: AnyStr) -> str:
+        return self._bot.encryption.decrypt(token)
 
     @property
     def id(self) -> int:
@@ -90,8 +94,13 @@ class ValorantUser:
         for index, acc in enumerate(sorted(self._riot_accounts, key=lambda x: x.acc_num)):
             acc.acc_num = index + 1
 
-    def extras_encrypted(self) -> AnyStr:
-        return Encryption.encrypt(json.dumps(self.extras))
+    def data_encrypted(self) -> AnyStr:
+        return self.encrypt(json.dumps(self.extras))
+
+    def data_decrypted(self, data: AnyStr, *, to_dict: bool = False) -> str:
+        if not to_dict:
+            return self.decrypt(data)
+        return json.loads(self.decrypt(data))
 
     @classmethod
     def from_login(
@@ -151,3 +160,7 @@ class Database:
             str(locale),
             user_id,
         )
+
+    async def delete_by_guild(self, guild_id: int, *, conn: Optional[asyncpg.Pool] = None) -> List[asyncpg.Record]:
+        conn = conn or self.pool
+        return await conn.fetch(ACCOUNT_DELETE_BY_GUILD, guild_id)

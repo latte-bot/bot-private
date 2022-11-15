@@ -14,7 +14,7 @@ class Encryption:
         Encryption._key = key
 
     @staticmethod
-    def encrypt(args: str) -> str:
+    def encrypt(args: str) -> AnyStr:
         """Encrypts a message with the key."""
         return str(Fernet(Encryption._key).encrypt(args.encode())).split("'")[1]
 

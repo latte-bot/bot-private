@@ -1,6 +1,10 @@
-from enum import Enum, IntEnum
+from __future__ import annotations
 
-from typing_extensions import Self
+from enum import Enum, IntEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 class ContentTier(Enum):
@@ -18,7 +22,7 @@ class ContentTier(Enum):
     def from_name(cls, name: str) -> str:
         value = getattr(cls, name.lower(), None)
         if value is None:
-            raise ValueError(f'Invalid content tier: {name}')
+            return ''
         return value.value
 
 
@@ -33,9 +37,9 @@ class Point(Enum):
 
 
 class ResultColor(IntEnum):
-    WIN = 0x60DCC4
-    LOSE = 0xFC5C5C
-    DRAW = 0xCBCCD6
+    win = 0x60DCC4
+    lose = 0xFC5C5C
+    draw = 0xCBCCD6
 
 
 class ValorantLocale(Enum):

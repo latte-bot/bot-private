@@ -13,7 +13,7 @@ from valorantx.http import HTTPClient
 from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
-from ._custom import Agent
+from ._custom import Agent, CompetitiveTier, ContentTier, Currency
 
 if TYPE_CHECKING:
     import datetime
@@ -218,6 +218,21 @@ class Client(valorantx.Client):
     def get_agent(self, *args: Any, **kwargs: Any) -> Optional[Agent]:
         data = self._assets.get_agent(*args, **kwargs)
         return Agent(client=self, data=data) if data else None
+
+    def get_content_tier(self, *args: Any, **kwargs: Any) -> Optional[ContentTier]:
+        """:class:`Optional[ContentTier]`: Gets a content tier from the assets."""
+        data = self._assets.get_content_tier(*args, **kwargs)
+        return ContentTier(client=self, data=data) if data else None
+
+    def get_currency(self, *args: Any, **kwargs: Any) -> Optional[Currency]:
+        """:class:`Optional[Currency]`: Gets a currency from the assets."""
+        data = self._assets.get_currency(*args, **kwargs)
+        return Currency(client=self, data=data) if data else None
+
+    def get_competitive_tier(self, *args: Any, **kwargs: Any) -> Optional[CompetitiveTier]:
+        """:class:`Optional[CompetitiveTier]`: Gets a competitive tier from the assets."""
+        data = self._assets.get_competitive_tier(*args, **kwargs)
+        return CompetitiveTier(client=self, data=data) if data else None
 
 
 class HTTPClientCustom(HTTPClient):

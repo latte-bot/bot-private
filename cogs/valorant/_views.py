@@ -8,13 +8,14 @@ import valorantx
 from async_lru import alru_cache
 from discord import ButtonStyle, Interaction, TextStyle, ui
 
+from utils.chat_formatting import bold
 from utils.views import ViewAuthor
 
 from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
     from valorantx import Client as ValorantClient
-    from valorantx.models import NightMarket
+    from valorantx.models import Collection, NightMarket, SkinCollection, SprayCollection
 
     from .valorant import RiotAuth
 
@@ -76,37 +77,39 @@ class SwitchAccountView(ViewAuthor):
     def __init__(
         self,
         interaction: Interaction,
-        riot_acc: List[RiotAuth],
+        riot_auth: List[RiotAuth],
         func: Callable[[RiotAuth, Union[str, ValorantLocale]], Awaitable[List[discord.Embed]]],
         *,
+        row: int = 0,
         timeout: Optional[float] = 600,
     ) -> None:
         self.interaction: Interaction = interaction
-        self.riot_acc: List[RiotAuth] = riot_acc
+        self.riot_auth: List[RiotAuth] = riot_auth
         self.func = func
         super().__init__(interaction, timeout=timeout)
-        self.build_buttons()
-        self.max_size = len(self.riot_acc)
+        self.build_buttons(row)
+        self.max_size = len(self.riot_auth)
 
     @staticmethod
     def locale_converter(locale: discord.Locale) -> str:
         return ValorantLocale.from_discord(str(locale))
 
-    def build_buttons(self) -> None:
-        for index, acc in enumerate(self.riot_acc, start=1):
+    def build_buttons(self, row: int = 0) -> None:
+        for index, acc in enumerate(self.riot_auth, start=1):
             self.add_item(
                 ButtonAccountSwitch(
                     label="Account #" + str(index) if acc.hide_display_name else acc.display_name,
                     custom_id=acc.puuid,
                     other_view=self,
                     disabled=True if index == 1 else False,
+                    row=row,
                 )
             )
 
     # alias for func + alru_cache
     # @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_acc: RiotAuth, locale: Union[str, ValorantLocale]) -> List[discord.Embed]:
-        return await self.func(riot_acc, locale)
+    async def get_embeds(self, riot_auth: RiotAuth, locale: Union[str, ValorantLocale]) -> List[discord.Embed]:
+        return await self.func(riot_auth, locale)
 
     async def on_timeout(self) -> None:
 
@@ -144,7 +147,7 @@ class ButtonAccountSwitch(ui.Button['SwitchAccountView']):
                 if item.custom_id != self.custom_id:
                     item.disabled = False
 
-        for acc in self.other_view.riot_acc:
+        for acc in self.other_view.riot_auth:
             if acc.puuid == self.custom_id:
                 locale = self.other_view.locale_converter(interaction.locale)
                 embeds = await self.other_view.get_embeds(acc, locale)
@@ -170,7 +173,7 @@ class FeaturedBundleView(ViewAuthor):
             self.add_item(
                 FeaturedBundleButton(
                     other_view=self,
-                    label=bundle.name_localizations.from_locale_code(self.locale),
+                    label=bundle.name_localizations.from_locale(self.locale),
                     custom_id=bundle.uuid,
                     style=discord.ButtonStyle.blurple,
                 )
@@ -366,7 +369,7 @@ class StatsView(ViewAuthor):
     #     await self.message.edit(embed=self.final_page, view=self)
 
 
-# match history
+# match history views
 
 
 class SelectMatchHistory(ui.Select['MatchHistoryView']):
@@ -376,12 +379,19 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
         self.__fill_options()
 
     def __fill_options(self) -> None:
+
         for index, match in enumerate(self.match_details):
+
+            enemy_team = match.get_enemy_team()
+            my_team = match.get_my_team()
+
+            rounds_won, rounds_lost = my_team.rounds_won, enemy_team.rounds_won
+
             self.add_option(
-                label=f'result score',
+                label='{won} - {lose}'.format(won=rounds_won, lose=rounds_lost),
                 value=str(index),
-                description=f'{match.map.display_name} - {str(match.queue).capitalize()}'
-                # emoji=agent_emoji
+                description=f'{match.map.display_name} - {str(match.queue).capitalize()}',
+                # emoji=match.me.agent.emoji  # type: ignore,
             )
 
     async def callback(self, interaction: Interaction) -> Any:
@@ -395,6 +405,11 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
         embeds, embeds_mobile = source[int(show_page)]
         view = MatchDetailsView(interaction, embeds, embeds_mobile)
         await view.start()
+
+
+class MatchPageSource:
+    def __init__(self) -> None:
+        ...
 
 
 class MatchHistoryView(ViewAuthor):
@@ -434,42 +449,41 @@ class MatchHistoryView(ViewAuthor):
 
     def default_page(self, match: valorantx.MatchDetails) -> discord.Embed:
 
-        # radiant_color = 0xffffaa
-        # immortal_color = 0xfd4554
+        radiant_color = 0xFFFFAA
+        immortal_color = 0xFD4554
 
-        # TEXT_VICTORY = _("VICTORY")
-        # TEXT_DEFEAT = _("DEFEAT")
-        # TEXT_TIED = _("TIED")
-        # TEXT_PLACE = _("PLACE")
-        # TEXT_DRAW = _("DRAW")
+        me = match.me
+        tier = me.get_competitive_rank()
+
+        TEXT_VICTORY = "VICTORY"
+        TEXT_DEFEAT = "DEFEAT"
+        TEXT_TIED = "TIED"
+        TEXT_PLACE = "PLACE"
+        TEXT_DRAW = "DRAW"
+
+        enemy_team = match.get_enemy_team()
+        my_team = match.get_my_team()
+
+        if enemy_team.rounds_won != my_team.rounds_won:
+            color = ResultColor.win if my_team.rounds_won > enemy_team.rounds_won else ResultColor.lose
+            result = TEXT_VICTORY if my_team.rounds_won > enemy_team.rounds_won else TEXT_DEFEAT
+        else:
+            color = ResultColor.draw
+            result = TEXT_TIED
+
+        rounds_won, rounds_lost = my_team.rounds_won, enemy_team.rounds_won
 
         embed = discord.Embed(
-            description=f"rank_emoji **KDA** {match.me.kills}/{match.me.deaths}/{match.me.assists}",
-            # color=kwargs.get('color'),
+            description=f"{tier.emoji} **KDA** {match.me.kills}/{match.me.deaths}/{match.me.assists}",  # type: ignore
+            color=color,
             timestamp=match.started_at,
         )
+        embed.set_author(name=f"{result} {rounds_won} - {rounds_lost}", icon_url=match.me.agent.display_icon)
 
-        # TEXT_VICTORY = _("VICTORY")
-        # TEXT_DEFEAT = _("DEFEAT")
-        # TEXT_TIED = _("TIED")
-        # TEXT_PLACE = _("PLACE")
-        # TEXT_DRAW = _("DRAW")
-
-        # score_info
-        # match_score = f'{winner_score}:{loser_score}' if your_has_won else f'{loser_score}:{winner_score}'
-
-        # if winner_score != loser_score:
-        #     color = ResultColor.WIN if your_has_won else ResultColor.LOSE
-        #     match_result = TEXT_VICTORY if your_has_won else TEXT_DEFEAT
-        # else:
-        #     color = ResultColor.DRAW
-        #     match_result = TEXT_TIED
-
-        embed.set_author(name="{match_result} {match_score}", icon_url=match.me.agent.display_icon)
         if match.map.splash is not None:
             embed.set_thumbnail(url=match.map.splash)
         embed.set_footer(
-            text=f"{match.map.name_localizations.from_locale_code(self.locale)} • {str(match.queue).capitalize()}"
+            text=f"{match.map.name_localizations.from_locale(self.locale)} • {str(match.queue).capitalize()}"
         )
         return embed
 
@@ -638,3 +652,116 @@ class MatchDetailsView(ViewAuthor):
             return
         await self.interaction.response.send_message(embed=self.embeds[0], view=self, ephemeral=True)
         self.message = await self.interaction.original_response()
+
+
+# collection views
+
+
+class CollectionView(SwitchAccountView):
+    def __init__(
+        self,
+        interaction: Interaction,
+        riot_auth: List[RiotAuth],
+        func: Callable[[RiotAuth, Union[str, ValorantLocale]], Awaitable[List[discord.Embed]]],
+        spray_pages: List[discord.Embed],
+        skin_pages: List[List[discord.Embed]],
+    ):
+        super().__init__(interaction, riot_auth, func, row=1, timeout=600)
+        self._spray_pages = spray_pages
+        self._skin_pages = skin_pages
+        self.current_embeds: Optional[List[discord.Embed]] = None
+
+    async def get_embeds(self, riot_auth: RiotAuth, locale: Union[str, ValorantLocale]) -> List[discord.Embed]:
+        embeds, sprays, skins = await self.func(riot_auth, locale)
+        self._spray_pages = sprays
+        self._skin_pages = skins
+        self.current_embeds = embeds
+        return embeds
+
+    def get_spray_pages(self):
+        return self._spray_pages
+
+    def get_skin_pages(self):
+        return self._skin_pages
+
+    @ui.button(label='Skin', style=ButtonStyle.blurple)
+    async def skin(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer()
+        embeds = self.get_skin_pages()
+        view = SkinCollectionView(interaction, self, embeds)
+        await view.start()
+
+    @ui.button(label='Spray', style=ButtonStyle.blurple)
+    async def spray(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer()
+        embeds = self.get_spray_pages()
+        view = SprayCollectionView(interaction, self, embeds)
+        await view.start()
+
+    async def start(self, embed: discord.Embed):
+        await self.interaction.response.send_message(embed=embed, view=self)
+
+
+class SkinCollectionView(ViewAuthor):
+    def __init__(self, interaction: Interaction, other_view: CollectionView, pages: List[List[discord.Embed]]) -> None:
+        super().__init__(interaction, timeout=600)
+        self.other_view = other_view
+        self._pages = pages
+        self._current_page: int = 0
+        self._update_buttons()
+
+    @ui.button(label='≪', custom_id='first_page')
+    async def first_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_page(interaction, 0)
+
+    @ui.button(label="Back", style=discord.ButtonStyle.blurple, custom_id='back_page')
+    async def back_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_page(interaction, -1)
+
+    @ui.button(label="Next", style=discord.ButtonStyle.blurple, custom_id='next_page')
+    async def next_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_page(interaction, +1)
+
+    @ui.button(label='≫', custom_id='last_page')
+    async def last_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_page(interaction, len(self._pages) - 1)
+
+    @ui.button(label='Back', style=discord.ButtonStyle.blurple, custom_id='back', row=1)
+    async def back(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.edit_message(embeds=self.other_view.current_embeds, view=self.other_view)
+
+    def _update_buttons(self) -> None:
+        page = self._current_page
+        total = len(self._pages) - 1
+        self.next_page.disabled = page == total
+        self.back_page.disabled = page == 0
+        self.first_page.disabled = page == 0
+        self.last_page.disabled = page == total
+
+    async def show_page(self, interaction: Interaction, page_number: int) -> None:
+        try:
+            if page_number <= 1 and page_number != 0:
+                page_number = self._current_page + page_number
+            self._current_page = page_number
+            self._update_buttons()
+            embeds = self._pages[self._current_page]
+            await interaction.response.edit_message(embeds=embeds, view=self)
+        except (IndexError, ValueError):
+            return
+
+    async def start(self) -> None:
+        await self.other_view.interaction.edit_original_response(embeds=self._pages[0], view=self)
+
+
+class SprayCollectionView(ViewAuthor):
+    def __init__(self, interaction: Interaction, other_view: CollectionView, pages: List[discord.Embed]) -> None:
+        super().__init__(interaction, timeout=600)
+        self.other_view = other_view
+        self._pages = pages
+
+    @ui.button(label='Back', style=discord.ButtonStyle.blurple, custom_id='back', row=0)
+    async def back(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.edit_message(embeds=self.other_view.current_embeds, view=self.other_view)
+
+    async def start(self) -> None:
+        await self.other_view.interaction.edit_original_response(embeds=self._pages, view=self)
