@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 
 import discord
 import valorantx
 from async_lru import alru_cache
 from discord import Interaction
-from valorantx import QueueID
 from valorantx.models import Bundle
+from valorantx import QueueID
 
 from utils.chat_formatting import bold
 from utils.formats import format_relative
 
-from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, ResultColor, ValorantLocale as VLocale
+from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, ValorantLocale as VLocale
 
 if TYPE_CHECKING:
     from discord import Client
@@ -68,11 +67,7 @@ class MakeEmbed:
 
     @alru_cache(maxsize=5)
     async def build_battlepass(
-        self,
-        contract: valorantx.Contracts,
-        riot_acc: RiotAuth,
-        *,
-        locale: Optional[Union[str, VLocale]] = None,
+        self, contract: valorantx.Contracts, riot_acc: RiotAuth, *, locale: Optional[Union[str, VLocale]] = None
     ) -> List[discord.Embed]:
 
         locale = locale or self.locale
@@ -82,7 +77,7 @@ class MakeEmbed:
         next_reward = btp.get_next_reward()
 
         embed = discord.Embed(
-            title=f'Battlepass for {bold(riot_acc.display_name)}',
+            title=f"Battlepass for {bold(riot_acc.display_name)}",
             description=f"{bold('NEXT')}: {next_reward.display_name}",
         )
         embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale(str(locale))}')
@@ -164,8 +159,8 @@ class Embed(discord.Embed):
 def bundles_e(bundle: Bundle) -> List[Embed]:
     def static_item_embed(partial_item: Any, *, color: Union[discord.Color, int] = 0x0F1923) -> Embed:
         embed = Embed(
-            title='EMOJI {}'.format(partial_item.name_localizations.american_english),
-            description='VP {}'.format(partial_item.price),
+            title="EMOJI {}".format(partial_item.name_localizations.american_english),
+            description="VP {}".format(partial_item.price),
             color=color,
         )
         if partial_item.icon is not None:
@@ -174,7 +169,7 @@ def bundles_e(bundle: Bundle) -> List[Embed]:
 
     base_e = Embed(
         title=bundle.name_localizations.american_english,
-        description='VP {}'.format(bundle.price),
+        description="VP {}".format(bundle.price),
     )
 
     e_list = [
@@ -202,22 +197,22 @@ class MatchEmbed:
 
         # me team
         self._mt = self._match.get_me_team()
-        self._mt_players = sorted(self._mt.get_players(), key=lambda p: p.acs, reverse=True)
+        self._mt_players = self._mt.get_players()
 
         # enemy team
         self._et = self._match.get_enemy_team()
-        self._et_players = sorted(self._et.get_players(), key=lambda p: p.acs, reverse=True)
+        self._et_players = self._et.get_players()
 
-    def get_desktop(self) -> List[discord.Embed]:
-        return [self.desktop_1(), self.desktop_2(), self.desktop_3()]
+    def __build_desktop(self) -> None:
+        self._desktops = [self.desktop_1(), self.desktop_2(), self.desktop_3()]
 
-    # def get_mobile(self) -> List[discord.Embed]:
-    #     return []
+    def __build_mobile(self, match: valorantx.MatchDetails) -> None:
+        ...
 
     def static_embed(self, performance: bool = False) -> discord.Embed:
 
         e = discord.Embed(
-            title='{queue_emoji} {map} - {won}:{lose}'.format(
+            title="{queue_emoji} {map} - {won}:{lose}".format(
                 queue_emoji='🔥',
                 map=self._map.display_name,
                 won=self._mt.rounds_won,
@@ -226,22 +221,12 @@ class MatchEmbed:
             timestamp=self._match.started_at,
             # color=color,
         )
-        e.set_footer(text='{match_result}')
+        e.set_footer(text="{match_result}")
 
         e.set_author(
-            name='{0} - {1}'.format(
-                self._match.me.display_name,
-                (self._match.queue if performance else 'Performance'),
-            ),
+            name="{0} - {1}".format(self._match.me.display_name, (self._match.queue if performance else 'Performance')),
             icon_url=self._match.me.agent.display_icon_small,
         )
-
-        if self._match.team_blue.rounds_won == self._match.team_red.rounds_won:
-            e.colour = ResultColor.draw
-        elif self._match.me.is_winner():
-            e.colour = ResultColor.win
-        else:
-            e.colour = ResultColor.lose
 
         return e
 
@@ -251,38 +236,26 @@ class MatchEmbed:
         e = self.static_embed()
 
         # MY TEAM
-        e.add_field(
-            name='MY TEAM',
-            value='\n'.join(
-                [(bold(p.display_name) if p == self._match.me else p.display_name) for p in self._mt_players]
-            ),
-        )
-        e.add_field(name='ACS', value="\n".join([str(int(p.acs)) for p in self._mt_players]))
-        e.add_field(name='KDA', value="\n".join([str(p.kda) for p in self._mt_players]))
+        e.add_field(name='TEAM A', value='\n'.join([p.display_name for p in self._mt_players]))
+        e.add_field(name='ACS', value='\n'.join([str(p.acs) for p in self._mt_players]))
+        e.add_field(name='KDA', value='\n'.join([str(p.kda) for p in self._mt_players]))
 
         # ENEMY TEAM
-        e.add_field(
-            name='ENEMY TEAM',
-            value='\n'.join([p.display_name for p in self._et_players]),
-        )
-        e.add_field(name='ACS', value="\n".join([str(int(p.acs)) for p in self._et_players]))
-        e.add_field(name='KDA', value="\n".join([str(p.kda) for p in self._et_players]))
+        e.add_field(name='TEAM B', value='\n'.join([p.display_name for p in self._et_players]))
+        e.add_field(name='ACS', value='\n'.join([str(p.acs) for p in self._et_players]))
+        e.add_field(name='KDA', value='\n'.join([str(p.kda) for p in self._et_players]))
 
         timelines = []
 
-        for i, r in enumerate(self._match.round_results, start=1):
-
+        for r in self._match.round_results:
             if r.result_code == valorantx.RoundResultCode.surrendered:
                 timelines.append('Surrendered')
                 break
 
-            if i == 12:
-                timelines.append(' | ')
-
             if r.winning_team() == self._mt:
-                timelines.append('🟢')
+                timelines.append('🔥')
             else:
-                timelines.append('🔴')
+                timelines.append('💀')
 
         if not self._match.queue == QueueID.escalation:
             if len(timelines) > 25:
@@ -294,69 +267,22 @@ class MatchEmbed:
         return e
 
     def desktop_2(self) -> discord.Embed:
-
         e = self.static_embed()
-
-        # MY TEAM
-        e.add_field(
-            name='MY TEAM',
-            value='\n'.join(
-                [(bold(p.display_name) if p == self._match.me else p.display_name) for p in self._mt_players]
-            ),
-        )
-        e.add_field(name='FK', value="\n".join([str(p.first_kills) for p in self._mt_players]))
-        e.add_field(
-            name='HS%',
-            value='\n'.join([(str(round(p.head_shot_percent, 1)) + '%') for p in self._mt_players]),
-        )
-
-        # ENEMY TEAM
-        e.add_field(
-            name='ENEMY TEAM',
-            value='\n'.join([p.display_name for p in self._et_players]),
-        )
-        e.add_field(name='FK', value='\n'.join([str(p.first_kills) for p in self._et_players]))
-        e.add_field(
-            name='HS%',
-            value='\n'.join([(str(round(p.head_shot_percent, 1)) + '%') for p in self._et_players]),
-        )
+        # e.add_field(name='TEAM A', value='\n'.join(team_A['players']))
+        # e.add_field(name='FK', value='\n'.join(team_A['first_blood']))
+        # e.add_field(name='HS%', value='\n'.join(team_A['headshots']))
+        # e.add_field(name='TEAM B', value='\n'.join(team_B['players']))
+        # e.add_field(name='FK', value='\n'.join(team_B['first_blood']))
+        # e.add_field(name='HS%', value='\n'.join(team_B['headshots']))
 
         return e
 
     def desktop_3(self) -> discord.Embed:
         e = self.static_embed(performance=True)
-        e.add_field(
-            name='KDA',
-            value='\n'.join(
-                [
-                    p.kda_opponent
-                    for p in sorted(
-                        self._match.me.opponents,
-                        key=lambda p: p.opponent.display_name.lower(),
-                    )
-                ]
-            ),
-        )
-        e.add_field(
-            name='Opponent',
-            value='\n'.join(
-                p.opponent.display_name
-                for p in sorted(
-                    self._match.me.opponents,
-                    key=lambda p: p.opponent.display_name.lower(),
-                )
-            ),
-        )
-
-        if not self._match.queue == QueueID.escalation:
-            abilities = self._match.me.ability_casts
-            text = '{c_casts} {q_casts} {e_casts} {x_casts}'.format(
-                c_casts=round(abilities.c_casts / self._match.me.rounds_played, 1),
-                e_casts=round(abilities.e_casts / self._match.me.rounds_played, 1),
-                q_casts=round(abilities.q_casts / self._match.me.rounds_played, 1),
-                x_casts=round(abilities.x_casts / self._match.me.rounds_played, 1),
-            )
-            e.add_field(name='Abilities', value=text, inline=False)
+        # e.add_field(name='KDA', value='\n'.join(opponent['kda']))
+        # e.add_field(name='Opponent', value='\n'.join(opponent['players']))
+        # if queue_id not in ['ggteam']:
+        #     e.add_field(name='Abilities', value=your_abilities, inline=False)
 
         return e
 
