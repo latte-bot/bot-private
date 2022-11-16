@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
 
 import discord
 import valorantx
-from async_lru import alru_cache
 from discord import ButtonStyle, Interaction, TextStyle, ui
 
 from utils.chat_formatting import bold
 from utils.views import ViewAuthor
 
+from ._embeds import MatchEmbed
 from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
@@ -204,7 +204,12 @@ class FeaturedBundleButton(ui.Button['FeaturedBundleView']):
 
 
 class NightMarketView(ViewAuthor):
-    def __init__(self, interaction: Interaction, valo_client: ValorantClient, night_market: NightMarket) -> None:
+    def __init__(
+        self,
+        interaction: Interaction,
+        valo_client: ValorantClient,
+        night_market: NightMarket,
+    ) -> None:
         self.interaction = interaction
         self.valo_client = valo_client
         self.night_market = night_market
@@ -379,51 +384,53 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
         self.__fill_options()
 
     def __fill_options(self) -> None:
-
         for index, match in enumerate(self.match_details):
-
             enemy_team = match.get_enemy_team()
-            my_team = match.get_my_team()
+            my_team = match.get_me_team()
 
             rounds_won, rounds_lost = my_team.rounds_won, enemy_team.rounds_won
 
             self.add_option(
                 label='{won} - {lose}'.format(won=rounds_won, lose=rounds_lost),
-                value=str(index),
-                description=f'{match.map.display_name} - {str(match.queue).capitalize()}',
+                value=str(match.id),
+                description='{map} - {queue}'.format(map=match.map.display_name, queue=str(match.queue).capitalize()),
                 # emoji=match.me.agent.emoji  # type: ignore,
             )
 
     async def callback(self, interaction: Interaction) -> Any:
         assert self.view is not None
         value = self.values[0]
-        source = self.view.pages_source
-        current_page = self.view.current_page
-
-        show_page = (current_page * 3) + int(value)
-
-        embeds, embeds_mobile = source[int(show_page)]
-        view = MatchDetailsView(interaction, embeds, embeds_mobile)
+        source = self.view.match_source
+        match = source.get(value)
+        view = MatchDetailsView(interaction, match)
         await view.start()
+        # current_page = self.view.current_page
+        # show_page = (current_page * 3) + int(value)
+        # match = source[int(show_page)][int(value)]
 
 
 class MatchPageSource:
-    def __init__(self) -> None:
-        ...
+    def __init__(self, pages: List[discord.Embed], source: List[valorantx.MatchDetails]) -> None:
+        self.pages = pages
+        self.source = source
 
 
 class MatchHistoryView(ViewAuthor):
     def __init__(
-        self, interaction: Interaction, match_details: List[valorantx.MatchDetails], *arg: Any, **kwargs: Any
+        self,
+        interaction: Interaction,
+        match_details: List[valorantx.MatchDetails],
+        *arg: Any,
+        **kwargs: Any,
     ) -> None:
-        self.interaction: Interaction = interaction
-        self.match_details: List[valorantx.MatchDetails] = match_details
-        self.other_view: Optional[MatchDetailsView] = kwargs.get('other_view', None)
         super().__init__(interaction, *arg, **kwargs)
+        self.match_details: List[valorantx.MatchDetails] = match_details
+        self.other_view: Optional[MatchDetailsView] = kwargs.get("other_view", None)
         self.locale = ValorantLocale.from_discord(str(interaction.locale))
         self.current_page: int = 0
-        self.pages_source: List[List[valorantx.MatchDetails]] = []
         self.pages: List[List[discord.Embed]] = []
+        self.pages_source: List[List[valorantx.MatchDetails]] = []
+        self.match_source: Dict[str, valorantx.MatchDetails] = {match.id: match for match in match_details}
         self.message: Optional[discord.InteractionMessage] = None
         self.__build_pages()
         self.__update_buttons()
@@ -462,7 +469,7 @@ class MatchHistoryView(ViewAuthor):
         TEXT_DRAW = "DRAW"
 
         enemy_team = match.get_enemy_team()
-        my_team = match.get_my_team()
+        my_team = match.get_me_team()
 
         if enemy_team.rounds_won != my_team.rounds_won:
             color = ResultColor.win if my_team.rounds_won > enemy_team.rounds_won else ResultColor.lose
@@ -478,7 +485,10 @@ class MatchHistoryView(ViewAuthor):
             color=color,
             timestamp=match.started_at,
         )
-        embed.set_author(name=f"{result} {rounds_won} - {rounds_lost}", icon_url=match.me.agent.display_icon)
+        embed.set_author(
+            name=f'{result} {rounds_won} - {rounds_lost}',
+            icon_url=match.me.agent.display_icon,
+        )
 
         if match.map.splash is not None:
             embed.set_thumbnail(url=match.map.splash)
@@ -535,7 +545,7 @@ class MatchHistoryView(ViewAuthor):
 
     def _get_kwargs_from_page(self, page: List[discord.Embed]) -> Dict[str, Any]:
         embeds = [embed for embed in page]
-        return {'embeds': embeds, 'view': self}
+        return {"embeds": embeds, "view": self}
 
     def __update_buttons(self) -> None:
         page = self.current_page
@@ -565,45 +575,40 @@ class MatchHistoryView(ViewAuthor):
 
 
 class MatchDetailsView(ViewAuthor):
-    def __init__(
-        self, interaction: Interaction, embeds_desktop: List[discord.Embed], embeds_mobile: List[discord.Embed]
-    ):
-        self.interaction = interaction
-        self.embeds_desktop = embeds_desktop
-        self.embeds_mobile = embeds_mobile
+    def __init__(self, interaction: Interaction, match: valorantx.MatchDetails):
         super().__init__(interaction, timeout=180)
+        embeds = MatchEmbed(match)
+        self.embeds_mobile: List[discord.Embed] = embeds.get_desktop()
+        self.embeds_desktop: List[discord.Embed] = embeds.get_desktop()
         self.current_page = 0
         self.is_on_mobile = False
-        self.embeds: List[discord.Embed] = []
+        self.pages: List[discord.Embed] = []
         self.message: Optional[discord.Message] = None
-        self.__update_embed()
+        self.__update_pages()
         self.__fill_items()
         self.__update_buttons()
 
     @ui.button(label='≪', style=ButtonStyle.blurple, custom_id='back_page')
     async def back_page(self, interaction: Interaction, button: ui.Button) -> None:
-        await self.show_checked_page(interaction, -1)
+        await self.show_page(interaction, -1)
 
     @ui.button(label='≫', style=ButtonStyle.blurple, custom_id='next_page')
     async def next_page(self, interaction: Interaction, button: ui.Button) -> None:
-        await self.show_checked_page(interaction, +1)
+        await self.show_page(interaction, +1)
 
     @ui.button(emoji='📱', style=ButtonStyle.green, custom_id='mobile')
     async def toggle_ui(self, interaction: Interaction, button: ui.Button) -> None:
-        if button.custom_id == 'mobile':
+        if self.is_on_mobile:
+            button.emoji = '🖥️'
             self.is_on_mobile = True
-            self.toggle_ui.emoji = '🖥️'
-            self.toggle_ui.custom_id = 'desktop'
-            await interaction.response.edit_message(embed=self.embeds_mobile[self.current_page], view=self)
         else:
+            button.emoji = '📱'
             self.is_on_mobile = False
-            self.toggle_ui.emoji = '📱'
-            self.toggle_ui.custom_id = 'mobile'
-            await interaction.response.edit_message(embed=self.embeds_desktop[self.current_page], view=self)
+        await self.show_page(interaction, 0)
 
     async def on_timeout(self) -> None:
         if self.message is not None:
-            await self.message.edit(embed=self.embeds[0], view=None)
+            await self.message.edit(embed=self.pages[0], view=None)
 
     def __fill_items(self):
         self.clear_items()
@@ -611,46 +616,34 @@ class MatchDetailsView(ViewAuthor):
         self.add_item(self.next_page)
         self.add_item(self.toggle_ui)
 
-    def __update_embed(self):
-        self.embeds = self.embeds_desktop if not self.is_on_mobile else self.embeds_mobile
+    def __update_pages(self):
+        self.pages = self.embeds_desktop if not self.is_on_mobile else self.embeds_mobile
 
-    # @ui.button(label='Share to friends', style=ButtonStyle.primary)
-    # async def share_button(self, interaction: Interaction, button: ui.Button):
-    #     self.remove_item(self.share_button)
-    #     self.message = await interaction.channel.send(embed=self.current_embed, view=self)
-    #     await interaction.response.edit_message(view=None, embed=None, content='\u200b')
+    def get_page(self, page_number: int) -> Union[discord.Embed, List[discord.Embed]]:
+        """:class:`list`: The page at the given page number."""
+        return self.pages[page_number]
 
-    async def show_checked_page(self, interaction: Interaction, page_number: int):
-        self.__update_embed()
-        try:
-            if page_number <= 1 and page_number != 0:
-                page_number = self.current_page + page_number
-            self.__update_buttons()
-            await self.show_page(interaction, page_number)
-        except IndexError:
-            # An error happened that can be handled, so ignore it.
-            pass
-
-    async def show_page(self, interaction: Interaction, page_number: int) -> None:
-        self.current_page = page_number
-        kwargs = self._get_kwargs_from_page()
+    async def show_page(self, interaction: Interaction, page_number: 0) -> None:
+        self.__update_pages()
+        if page_number != 0:
+            self.current_page = self.current_page + page_number
+        page = self.get_page(self.current_page)
+        self.__update_buttons()
+        kwargs = self._get_kwargs_from_page(page)
         await interaction.response.edit_message(**kwargs)
 
-    def _get_kwargs_from_page(self) -> Dict[str, Any]:
-        embed = self.embeds[self.current_page]
-        return {'embed': embed, 'view': self}
+    def _get_kwargs_from_page(self, page: Union[discord.Embed, List[discord.Embed]]) -> Dict[str, Any]:
+        embeds = [embed for embed in page] if isinstance(page, list) else [page]
+        return {'embeds': embeds, 'view': self}
 
     def __update_buttons(self) -> None:
         page = self.current_page
-        total = len(self.embeds) - 1
+        total = len(self.pages) - 1
         self.back_page.disabled = page == 0
         self.next_page.disabled = page == total
 
     async def start(self):
-        if self.interaction.response.is_done():
-            self.message = await self.interaction.followup.send(embed=self.embeds[0], view=self)
-            return
-        await self.interaction.response.send_message(embed=self.embeds[0], view=self, ephemeral=True)
+        await self.interaction.response.edit_message(embed=self.pages[0], view=self)
         self.message = await self.interaction.original_response()
 
 
@@ -703,7 +696,12 @@ class CollectionView(SwitchAccountView):
 
 
 class SkinCollectionView(ViewAuthor):
-    def __init__(self, interaction: Interaction, other_view: CollectionView, pages: List[List[discord.Embed]]) -> None:
+    def __init__(
+        self,
+        interaction: Interaction,
+        other_view: CollectionView,
+        pages: List[List[discord.Embed]],
+    ) -> None:
         super().__init__(interaction, timeout=600)
         self.other_view = other_view
         self._pages = pages
@@ -754,7 +752,12 @@ class SkinCollectionView(ViewAuthor):
 
 
 class SprayCollectionView(ViewAuthor):
-    def __init__(self, interaction: Interaction, other_view: CollectionView, pages: List[discord.Embed]) -> None:
+    def __init__(
+        self,
+        interaction: Interaction,
+        other_view: CollectionView,
+        pages: List[discord.Embed],
+    ) -> None:
         super().__init__(interaction, timeout=600)
         self.other_view = other_view
         self._pages = pages
