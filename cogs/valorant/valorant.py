@@ -523,7 +523,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         )
         embed.add_field(
             name=f'{rad.name_localizations.from_locale(str(locale))}',
-            value=f"{rad.emoji} {wallet.radiant_points}",
+            value=f'{rad.emoji} {wallet.radiant_points}',
         )
 
         return [embed]
@@ -656,7 +656,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embeds = []
 
             def sort_skins(
-                skin_sort: Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]
+                skin_sort: Union[
+                    valorantx.SkinLoadout,
+                    valorantx.SkinLevelLoadout,
+                    valorantx.SkinChromaLoadout,
+                ]
             ) -> int:
 
                 skin_ = skin_sort if isinstance(skin_sort, valorantx.SkinLoadout) else skin_sort.get_skin()
@@ -808,7 +812,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # encryption
         encrypt_payload = self.bot.encryption.encrypt(json.dumps(payload))
 
-        await self.db.upsert_user(encrypt_payload, interaction.user.id, interaction.guild_id, interaction.locale)
+        await self.db.upsert_user(
+            encrypt_payload,
+            interaction.user.id,
+            interaction.guild_id,
+            interaction.locale,
+        )
 
         # invalidate cache
         self.fetch_user.invalidate(self, id=interaction.user.id)
@@ -1135,7 +1144,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
 
         view = discord.ui.View()  # TODO: URLButton class
-        view.add_item(discord.ui.Button(label=patch_notes.see_article_title, url=latest.url, emoji=Emoji.link_standard))
+        view.add_item(
+            discord.ui.Button(
+                label=patch_notes.see_article_title,
+                url=latest.url,
+                emoji=Emoji.link_standard,
+            )
+        )
 
         await interaction.followup.send(embed=embed, view=view)
 
@@ -1320,9 +1335,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 if get_spray.animation_gif:
                     view.add_item(ui.Button(label="Animation Gif", url=get_spray.animation_gif.url))
                 if get_spray.full_transparent_icon:
-                    view.add_item(ui.Button(label="Full Transparent Icon", url=get_spray.full_transparent_icon.url))
+                    view.add_item(
+                        ui.Button(
+                            label='Full Transparent Icon',
+                            url=get_spray.full_transparent_icon.url,
+                        )
+                    )
                 if get_spray.display_icon:
-                    view.add_item(ui.Button(label="Display Icon", url=get_spray.display_icon.url))
+                    view.add_item(ui.Button(label='Display Icon', url=get_spray.display_icon.url))
 
             elif isinstance(get_spray, SprayLevel):
                 base_spray = get_spray.get_base_spray()
@@ -1341,7 +1361,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 if base_spray.animation_gif:
                     view.add_item(ui.Button(label="Animation Gif", url=base_spray.animation_gif.url))
                 if base_spray.full_transparent_icon:
-                    view.add_item(ui.Button(label="Full Transparent Icon", url=base_spray.full_transparent_icon.url))
+                    view.add_item(
+                        ui.Button(
+                            label='Full Transparent Icon',
+                            url=base_spray.full_transparent_icon.url,
+                        )
+                    )
                 if base_spray.display_icon:
                     view.add_item(ui.Button(label="Display Icon", url=base_spray.display_icon.url))
 
