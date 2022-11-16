@@ -1,50 +1,13 @@
 from __future__ import annotations
 
 from enum import Enum, IntEnum
-from typing import TYPE_CHECKING, Union
-
-import valorantx
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing_extensions import Self
 
 
-class AgentEmoji(str, Enum):
-
-    astra = ''
-    breach = ''
-    brimstone = ''
-    chamber = ''
-    cypher = ''
-    fade = ''
-    harbor = ''
-    jett = ''
-    kay_o = ''
-    killjoy = ''
-    neon = ''
-    omen = ''
-    phoenix = ''
-    raze = ''
-    reyna = ''
-    sage = ''
-    skye = ''
-    sova = ''
-    viper = ''
-    yoru = ''
-
-    def __str__(self) -> str:
-        return str(self.value)
-
-    @classmethod
-    def from_agent(cls, agent: Union[valorantx.Agent, str]) -> str:
-        try:
-            display_name = agent.display_name if isinstance(agent, valorantx.Agent) else agent
-            return cls[display_name.lower().replace("/", "_").replace(" ", "_")]
-        except KeyError:
-            return ''
-
-
-class ContentTier(str, Enum):
+class ContentTier(Enum):
 
     deluxe = '<:Content_Deluxe:1000264410637545602>'
     exclusive = '<:Content_Exclusive:1000264453226516510>'
@@ -56,12 +19,11 @@ class ContentTier(str, Enum):
         return str(self.value)
 
     @classmethod
-    def from_name(cls, content_tier: Union[valorantx.ContentTier, str]) -> str:
-        try:
-            name = content_tier.dev_name if isinstance(content_tier, valorantx.ContentTier) else content_tier
-            return cls[name.lower()]
-        except KeyError:
+    def from_name(cls, name: str) -> str:
+        value = getattr(cls, name.lower(), None)
+        if value is None:
             return ''
+        return value.value
 
 
 class Point(Enum):
