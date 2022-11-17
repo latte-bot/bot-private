@@ -4,6 +4,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Union
 
 import discord
+import datetime
 import valorantx
 from discord import ButtonStyle, Interaction, TextStyle, ui
 
@@ -14,9 +15,7 @@ from ._embeds import MatchEmbed
 from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
-    from valorantx import Client as ValorantClient
-    from valorantx.models import Collection, NightMarket, SkinCollection, SprayCollection
-
+    from valorantx import Client as ValorantClient, Collection, NightMarket, SkinCollection, SprayCollection
     from .valorant import RiotAuth
 
 
@@ -63,7 +62,6 @@ class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
     async def on_error(self, interaction: Interaction, error: Exception) -> None:
         # TODO: supress error
         await interaction.response.send_message('Oops! Something went wrong.', ephemeral=True)
-
         # Make sure we know what the error actually is
         traceback.print_tb(error.__traceback__)
 
@@ -101,12 +99,11 @@ class SwitchAccountView(ViewAuthor):
                     label="Account #" + str(index) if acc.hide_display_name else acc.display_name,
                     custom_id=acc.puuid,
                     other_view=self,
-                    disabled=True if index == 1 else False,
+                    disabled=(index == 1),
                     row=row,
                 )
             )
 
-    # alias for func + alru_cache
     # @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth, locale: Union[str, ValorantLocale]) -> List[discord.Embed]:
         return await self.func(riot_auth, locale)
@@ -420,11 +417,13 @@ class MatchHistoryView(ViewAuthor):
         self,
         interaction: Interaction,
         match_details: List[valorantx.MatchDetails],
+        mmr: Optional[valorantx.MMR],
         *arg: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(interaction, *arg, **kwargs)
         self.match_details: List[valorantx.MatchDetails] = match_details
+        self.mmr = mmr
         self.other_view: Optional[MatchDetailsView] = kwargs.get("other_view", None)
         self.locale = ValorantLocale.from_discord(str(interaction.locale))
         self.current_page: int = 0
@@ -478,29 +477,51 @@ class MatchHistoryView(ViewAuthor):
             color = ResultColor.draw
             result = TEXT_TIED
 
-        rounds_won, rounds_lost = my_team.rounds_won, enemy_team.rounds_won
-
         embed = discord.Embed(
             description=f"{tier.emoji} **KDA** {match.me.kills}/{match.me.deaths}/{match.me.assists}",  # type: ignore
             color=color,
             timestamp=match.started_at,
         )
         embed.set_author(
-            name=f'{result} {rounds_won} - {rounds_lost}',
+            name=f'{result} {my_team.rounds_won} - {enemy_team.rounds_won}',
             icon_url=match.me.agent.display_icon,
         )
 
         if match.map.splash is not None:
             embed.set_thumbnail(url=match.map.splash)
         embed.set_footer(
-            text=f"{match.map.name_localizations.from_locale(self.locale)} • {str(match.queue).capitalize()}"
+            text=f"{match.map.name_localizations.from_locale(self.locale)} • {str(match.queue).capitalize()}",
+            icon_url=tier.large_icon if tier is not None and match.queue == valorantx.QueueID.competitive else None,
         )
         return embed
+
+    def tier_embed(self) -> Optional[discord.Embed]:
+        if self.mmr is None:
+            return None
+        competitive = self.mmr.get_latest_competitive_season()
+        if competitive is not None:
+            parent_season = competitive.season.parent
+            e = discord.Embed(colour=int(competitive.tier.background_color[:-2], 16), timestamp=datetime.datetime.now())
+            e.set_author(
+                name=competitive.tier.display_name,
+                icon_url=competitive.tier.large_icon)
+            e.set_footer(
+                text=str(competitive.ranked_rating)
+                + '/100'
+                + ' • '
+                + parent_season.display_name
+                + ' '
+                + competitive.season.display_name
+            )
+            return e
+        return None
 
     def __build_pages(self) -> None:
 
         source = []
         embeds = []
+
+        tier_embed = self.tier_embed()
 
         for index, match in enumerate(self.match_details, start=1):
             embed = self.default_page(match)
@@ -508,11 +529,15 @@ class MatchHistoryView(ViewAuthor):
             source.append(match)
 
             if not index % 3:
+                if tier_embed is not None:
+                    embeds.insert(0, tier_embed)
                 self.pages_source.append(source)
                 self.pages.append(embeds)
                 source = []
                 embeds = []
             elif index == len(self.match_details):
+                if tier_embed is not None:
+                    embeds.insert(0, tier_embed)
                 self.pages_source.append(source)
                 self.pages.append(embeds)
 
@@ -600,10 +625,10 @@ class MatchDetailsView(ViewAuthor):
     async def toggle_ui(self, interaction: Interaction, button: ui.Button) -> None:
         if self.is_on_mobile:
             button.emoji = '🖥️'
-            self.is_on_mobile = True
+            self.is_on_mobile = False
         else:
             button.emoji = '📱'
-            self.is_on_mobile = False
+            self.is_on_mobile = True
         await self.show_page(interaction, 0)
 
     async def on_timeout(self) -> None:

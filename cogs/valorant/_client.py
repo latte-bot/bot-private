@@ -8,12 +8,13 @@ import aiohttp
 import discord
 import valorantx
 from valorantx.http import HTTPClient
+from valorantx.client import _authorize_required
 
 # ext valorant
 from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
-from ._custom import Agent, CompetitiveTier, ContentTier, Currency
+from ._custom import Agent, CompetitiveTier, ContentTier, Currency, MatchDetails, GameMode
 
 if TYPE_CHECKING:
     import datetime
@@ -233,6 +234,30 @@ class Client(valorantx.Client):
         """:class:`Optional[CompetitiveTier]`: Gets a competitive tier from the assets."""
         data = self._assets.get_competitive_tier(*args, **kwargs)
         return CompetitiveTier(client=self, data=data) if data else None
+
+    def get_game_mode(self, *args: Any, **kwargs: Any) -> Optional[GameMode]:
+        """:class:`Optional[GameMode]`: Gets a game mode from the assets."""
+        data = self._assets.get_game_mode(*args, **kwargs)
+        return GameMode(client=self, data=data) if data else None
+
+    @_authorize_required
+    async def fetch_match_details(self, match_id: str) -> Optional[MatchDetails]:
+        """|coro|
+
+        Fetches the match details for a given match.
+
+        Parameters
+        ----------
+        match_id: :class:`str`
+            The match ID to fetch the match details for.
+
+        Returns
+        -------
+        Optional[:class:`MatchDetails`]
+            The match details for a given match.
+        """
+        match_details = await self.http.fetch_match_details(match_id)
+        return MatchDetails(client=self, data=match_details)
 
 
 class HTTPClientCustom(HTTPClient):

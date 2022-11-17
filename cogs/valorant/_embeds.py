@@ -13,7 +13,7 @@ from valorantx.models import Bundle
 from utils.chat_formatting import bold
 from utils.formats import format_relative
 
-from ._enums import ContentTier as ContentTierEmoji, Point as PointEmoji, ResultColor, ValorantLocale as VLocale
+from ._enums import ContentTierEmoji, PointEmoji, ResultColor, ValorantLocale as VLocale
 
 if TYPE_CHECKING:
     from discord import Client
@@ -55,7 +55,7 @@ class MakeEmbed:
             emoji = ContentTierEmoji.from_name(skin.rarity.dev_name)
             e = Embed(
                 title=f"{emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",
-                description=f"{PointEmoji.valorant_point} {skin.price}",
+                description=f"{PointEmoji.valorant} {skin.price}",
                 colour=self.bot.theme.dark,
             )
             if skin.display_icon is not None:
@@ -216,32 +216,45 @@ class MatchEmbed:
 
     def static_embed(self, performance: bool = False) -> discord.Embed:
 
+        TEXT_VICTORY = "VICTORY"
+        TEXT_DEFEAT = "DEFEAT"
+        TEXT_TIED = "TIED"
+        TEXT_PLACE = "PLACE"
+        TEXT_DRAW = "DRAW"
+
         e = discord.Embed(
-            title='{queue_emoji} {map} - {won}:{lose}'.format(
-                queue_emoji='🔥',
+            title='{mode} {map} - {won}:{lose}'.format(
+                mode=self._match.game_mode.emoji,  # type: ignore
                 map=self._map.display_name,
                 won=self._mt.rounds_won,
                 lose=self._et.rounds_won,
             ),
-            timestamp=self._match.started_at,
-            # color=color,
+            timestamp=self._match.started_at
         )
-        e.set_footer(text='{match_result}')
 
         e.set_author(
-            name='{0} - {1}'.format(
-                self._match.me.display_name,
-                (self._match.queue if performance else 'Performance'),
+            name='{author} - {page}'.format(
+                author=self._match.me.display_name,
+                page=(self._match.queue if performance else 'Performance'),
             ),
             icon_url=self._match.me.agent.display_icon_small,
         )
 
-        if self._match.team_blue.rounds_won == self._match.team_red.rounds_won:
-            e.colour = ResultColor.draw
-        elif self._match.me.is_winner():
+        if self._match.me.is_winner():
             e.colour = ResultColor.win
+            result = TEXT_VICTORY
         else:
             e.colour = ResultColor.lose
+            result = TEXT_DEFEAT
+            # if self._match.is_tied():
+            #     result = TEXT_TIED
+
+        if self._match.team_blue is not None and self._match.team_red is not None:
+            if self._match.team_blue.rounds_won == self._match.team_red.rounds_won:
+                e.colour = ResultColor.draw
+                result = TEXT_DRAW
+
+        e.set_footer(text=result)
 
         return e
 
@@ -254,7 +267,7 @@ class MatchEmbed:
         e.add_field(
             name='MY TEAM',
             value='\n'.join(
-                [(bold(p.display_name) if p == self._match.me else p.display_name) for p in self._mt_players]
+                [(p.agent.emoji + ' ' + (bold(p.display_name) if p == self._match.me else p.display_name)) for p in self._mt_players]  # type: ignore
             ),
         )
         e.add_field(name='ACS', value="\n".join([str(int(p.acs)) for p in self._mt_players]))
@@ -263,7 +276,7 @@ class MatchEmbed:
         # ENEMY TEAM
         e.add_field(
             name='ENEMY TEAM',
-            value='\n'.join([p.display_name for p in self._et_players]),
+            value='\n'.join([(p.agent.emoji + ' ' + p.display_name) for p in self._et_players]),  # type: ignore
         )
         e.add_field(name='ACS', value="\n".join([str(int(p.acs)) for p in self._et_players]))
         e.add_field(name='KDA', value="\n".join([str(p.kda) for p in self._et_players]))
@@ -272,17 +285,17 @@ class MatchEmbed:
 
         for i, r in enumerate(self._match.round_results, start=1):
 
-            if r.result_code == valorantx.RoundResultCode.surrendered:
-                timelines.append('Surrendered')
-                break
+            # if r.result_code == valorantx.RoundResultCode.surrendered:
+            #     timelines.append('Surrendered')
+            #     break
 
             if i == 12:
                 timelines.append(' | ')
 
             if r.winning_team() == self._mt:
-                timelines.append('🟢')
+                timelines.append(r.emoji)  # type: ignore
             else:
-                timelines.append('🔴')
+                timelines.append(r.emoji)  # type: ignore
 
         if not self._match.queue == QueueID.escalation:
             if len(timelines) > 25:
@@ -301,7 +314,7 @@ class MatchEmbed:
         e.add_field(
             name='MY TEAM',
             value='\n'.join(
-                [(bold(p.display_name) if p == self._match.me else p.display_name) for p in self._mt_players]
+                [(p.agent.emoji + ' ' + (bold(p.display_name) if p == self._match.me else p.display_name)) for p in self._mt_players]  # type: ignore
             ),
         )
         e.add_field(name='FK', value="\n".join([str(p.first_kills) for p in self._mt_players]))
@@ -313,7 +326,7 @@ class MatchEmbed:
         # ENEMY TEAM
         e.add_field(
             name='ENEMY TEAM',
-            value='\n'.join([p.display_name for p in self._et_players]),
+            value='\n'.join([(p.agent.emoji + ' ' + p.display_name) for p in self._et_players]),  # type: ignore
         )
         e.add_field(name='FK', value='\n'.join([str(p.first_kills) for p in self._et_players]))
         e.add_field(

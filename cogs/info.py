@@ -161,14 +161,14 @@ class About(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=view)
 
-    # @app_commands.command(name=_("i18n"))
-    # @dynamic_cooldown(cooldown_5s)
-    # async def i18n(self, interaction: Interaction) -> None:
-    #     """Shows the current language of the bot."""
-    #
-    #     repository = self.bot.i18n_repository
-    #
-    #     view = ui.View()
+    @app_commands.command(name=_T("i18n"))
+    @dynamic_cooldown(cooldown_5s)
+    async def i18n(self, interaction: Interaction) -> None:
+        """Shows the current language of the bot."""
+
+        view = ui.View()
+
+        await interaction.response.send_message('')
 
     # @app_commands.command(name=_('donate'))
     # @dynamic_cooldown(cooldown_5s)
