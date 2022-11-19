@@ -9,7 +9,6 @@ from discord.ext import commands, tasks
 
 from ._abc import MixinMeta
 from ._client import RiotAuth
-from ._sql_statements import ACCOUNT_DELETE_BY_GUILD
 
 _log = logging.getLogger(__name__)
 

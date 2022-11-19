@@ -65,13 +65,13 @@
                 "name": "agents",
                 "description": "เปิดตัวละคร Valorant"
             },
-            "match": {
-                "name": "match",
-                "description": "เปิดการแข่งขัน Valorant",
+            "carrier": {
+                "name": "carrier",
+                "description": "ประวัติการเล่น",
                 "parameters": {
-                    "queue": {
-                        "name": "คิว",
-                        "description": "เลือกคิว",
+                    "mode": {
+                        "name": "โหมด",
+                        "description": "เลือกโหมดที่ต้องการตรวจสอบ",
                         "choices": {
                             "Unrated": "Unrated",
                             "Competitive": "Competitive",

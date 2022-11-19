@@ -165,16 +165,19 @@ class About(commands.Cog):
     @dynamic_cooldown(cooldown_5s)
     async def i18n(self, interaction: Interaction) -> None:
         """Shows the current language of the bot."""
-
-        view = ui.View()
-
         await interaction.response.send_message('')
 
-    # @app_commands.command(name=_('donate'))
-    # @dynamic_cooldown(cooldown_5s)
-    # async def donate(self, interaction: Interaction) -> None:
-    #     """ บริจาค | Donate to the bot."""
-    #     ...
+    @app_commands.command(name=_T('partnership'))
+    @dynamic_cooldown(cooldown_5s)
+    async def partnership(self, interaction: Interaction) -> None:
+        """Shows the partnership information of the bot."""
+        ...
+
+    @app_commands.command(name=_T('donate'))
+    @dynamic_cooldown(cooldown_5s)
+    async def donate(self, interaction: Interaction) -> None:
+        """บริจาค | Donate to the bot."""
+        ...
 
 
 async def setup(bot: LatteBot) -> None:

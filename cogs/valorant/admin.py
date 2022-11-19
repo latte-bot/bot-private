@@ -66,14 +66,14 @@ class Admin(MixinMeta):  # noqa
         await interaction.response.defer(ephemeral=True)
 
         try:
-            riot_acc = await self.get_riot_account(user_id=self.bot.owner_id)
+            riot_auth = await self.fetch_user(id=self.bot.owner_id)
         except NoAccountsLinked:
-            riot_acc = RiotAuth(self.bot.owner_id, bot=self.bot)
-            await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
+            riot_auth = RiotAuth(self.bot.owner_id, bot=self.bot)
+            await riot_auth.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
-            riot_acc = riot_acc[0]
+            riot_auth = riot_auth.get_1st()
 
-        client = await self.v_client.set_authorize(riot_acc)
+        client = await self.v_client.set_authorize(riot_auth)
         await client.fetch_assets(reload=reload, force=force)
 
         await interaction.followup.send('Asset has been fetched', ephemeral=True)

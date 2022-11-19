@@ -11,7 +11,7 @@ from discord.ext import commands
 if TYPE_CHECKING:
     from bot import LatteBot
 
-log = logging.getLogger(__name__)
+_log = logging.getLogger(__name__)
 
 
 class Event(commands.Cog):

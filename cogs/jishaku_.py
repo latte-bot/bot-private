@@ -42,7 +42,13 @@ class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.msg_jsk_py = app_commands.ContextMenu(
-            name=_T('Python'), callback=self.message_jishaku_python, guild_ids=[self.bot.support_guild_id]
+            name=_T('Python'),
+            callback=self.message_jishaku_python,
+            guild_ids=[
+                self.bot.support_guild_id,
+                1042503061454729289,
+                1042502960921452734,
+            ],
         )
         self.bot.tree.add_command(self.msg_jsk_py)
 

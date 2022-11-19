@@ -3,18 +3,17 @@ from __future__ import annotations
 import asyncio
 import enum
 from io import BytesIO
-from typing import TYPE_CHECKING, Optional, TypeAlias, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import chardet
 import discord
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from valorantx import Collection, SkinChromaLoadout, SkinLevelLoadout, SkinLoadout
-from valorantx.utils import MISSING
 
 from utils.useful import LatteFonts, LatteImages
 
 if TYPE_CHECKING:
-    SkinL: TypeAlias = Union[SkinLoadout, SkinLevelLoadout, SkinChromaLoadout]
+    SkinL = Union[SkinLoadout, SkinLevelLoadout, SkinChromaLoadout]
 
 
 class Colors(enum.Enum):

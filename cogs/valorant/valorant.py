@@ -30,7 +30,6 @@ from valorantx import (
     MissionType,
     PatchNotes,
     PlayerCard,
-    QueueID,
     RiotMultifactorError,
     Skin,
     Spray,
@@ -111,42 +110,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # colors thief
         self.colors: Dict[str, List[Tuple[int, int, int]]] = {}
 
-        # context menu
-        # self.ctx_user_store = app_commands.ContextMenu(
-        #     name=_T('store'),
-        #     callback=self.store_user_context,
-        # )
-        # self.ctx_user_nightmarket = app_commands.ContextMenu(
-        #     name=_T('nightmarket'),
-        #     callback=self.nightmarket_user_context,
-        # )
-        # self.ctx_user_point = app_commands.ContextMenu(
-        #     name=_T('point'),
-        #     callback=self.point_user_context,
-        # )
-
-        # self.ctx_user_party_request = app_commands.ContextMenu(
-        #     name=_T('Party: Request to join'),
-        #     callback=self.party_request_user_context,
-        # )
-        # self.ctx_user_party_invite = app_commands.ContextMenu(
-        #     name=_T('party_invite'),
-        #     callback=self.party_invite_user_context,
-        # )
-        # self.ctx_user_party_join = app_commands.ContextMenu(
-        #     name=_T('party_join'),
-        #     callback=self.party_join_user_context,
-        # )
-        # self.ctx_user_party_leave = app_commands.ContextMenu(
-        #     name=_T('party_leave'),
-        #     callback=self.party_leave_user_context
-        # )
-        # self.ctx_user_party_kick = app_commands.ContextMenu(
-        #     name=_T('party_kick'),
-        #     callback=self.party_kick_user_context
-        # )
-
-        # add context menus to bot
+        # add context menus
         # self.bot.tree.add_command(self.ctx_user_store)
         # self.bot.tree.add_command(self.ctx_user_nightmarket)
         # self.bot.tree.add_command(self.ctx_user_point)
@@ -177,12 +141,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 except Exception as e:
                     await client.fetch_assets(force=True, reload=True)
                     _log.error(f'Failed to fetch assets: {e}')
-                finally:
-                    _log.info('Valorant client loaded.')
 
                 if client.is_ready():
                     content = await self.v_client.fetch_content()
-                    for season in content.get_seasons():
+                    for season in reversed(content.get_seasons()):
                         if season.is_active():
                             self.v_client.season = self.v_client.get_season(uuid=season.id)
                             break
@@ -328,10 +290,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.colors[id] = color
 
     async def fetch_color(
-            self,
-            id: str,
-            image: Union[valorantx.Asset, str],
-            palette: int = 0,
+        self,
+        id: str,
+        image: Union[valorantx.Asset, str],
+        palette: int = 0,
     ) -> List[Tuple[int]]:
 
         color = self.get_color(id)
@@ -359,7 +321,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         return self.valorant_users.pop(_id, None)
 
     def set_valorant_user(
-            self, user_id: int, guild_id: int, locale: discord.Locale, riot_auth: RiotAuth
+        self, user_id: int, guild_id: int, locale: discord.Locale, riot_auth: RiotAuth
     ) -> ValorantUser:
         self.valorant_users[user_id] = v_user = ValorantUser.from_login(riot_auth, user_id, guild_id, locale, self.bot)
         return v_user
@@ -414,7 +376,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         embeds = [
             Embed(
                 description=f"Daily store for {bold(client.user.display_name)}\n"
-                            f"Resets {format_relative(store.reset_at)}"
+                f"Resets {format_relative(store.reset_at)}"
             )
         ]
 
@@ -437,7 +399,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @alru_cache(maxsize=1024)
     async def get_battlepass(
-            self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
+        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> List[discord.Embed]:
 
         client = await self.v_client.set_authorize(riot_auth)
@@ -468,7 +430,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @alru_cache(maxsize=1024)
     async def get_nightmarket(
-            self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
+        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> List[discord.Embed]:
 
         client = await self.v_client.set_authorize(riot_auth)
@@ -482,7 +444,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         embeds = [
             Embed(
                 description=f"NightMarket for {bold(client.user.display_name)}\n"
-                            f"Expires {format_relative(nightmarket.expire_at)}",
+                f"Expires {format_relative(nightmarket.expire_at)}",
                 colour=self.bot.theme.purple,
             )
         ]
@@ -491,7 +453,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             e = Embed(
                 title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",  # type: ignore
                 description=f"{PointEmoji.valorant} {bold(str(skin.discount_price))}\n"
-                            f"{PointEmoji.valorant}  {strikethrough(str(skin.price))} (-{skin.discount_percent}%)",
+                f"{PointEmoji.valorant}  {strikethrough(str(skin.price))} (-{skin.discount_percent}%)",
                 colour=self.bot.theme.dark,
             )
             if skin.display_icon is not None:
@@ -511,8 +473,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         client = await self.v_client.set_authorize(riot_auth)
         wallet = await client.fetch_wallet()
 
-        vp = client.get_currency(uuid=str(CurrencyID.valorant_point))
-        rad = client.get_currency(uuid=str(CurrencyID.radianite_point))
+        vp = client.get_currency(uuid=str(CurrencyID.valorant))
+        rad = client.get_currency(uuid=str(CurrencyID.radianite))
 
         vp_display_name = vp.name_localizations.from_locale(str(locale))
 
@@ -530,7 +492,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @alru_cache(maxsize=1024)
     async def get_mission(
-            self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
+        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> List[discord.Embed]:
 
         client = await self.v_client.set_authorize(riot_auth)
@@ -579,7 +541,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embed.add_field(
                 name=f"**Weekly**",
                 value='\n'.join(weekly)
-                      + ('\n\n' + "Refill Time: " + weekly_refill_time if weekly_refill_time is not None else ''),
+                + ('\n\n' + "Refill Time: " + weekly_refill_time if weekly_refill_time is not None else ''),
                 inline=False,
             )
 
@@ -601,7 +563,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @alru_cache(maxsize=1024)
     async def get_collection(
-            self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
+        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> Tuple[List[discord.Embed], List[discord.Embed], List[List[discord.Embed]]]:
 
         client = await self.v_client.set_authorize(riot_auth)
@@ -612,8 +574,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         # wallet
         wallet = await client.fetch_wallet()
-        vp = client.get_currency(uuid=str(CurrencyID.valorant_point))
-        rad = client.get_currency(uuid=str(CurrencyID.radianite_point))
+        vp = client.get_currency(uuid=str(CurrencyID.valorant))
+        rad = client.get_currency(uuid=str(CurrencyID.radianite))
 
         # loadout
         collection = await client.fetch_collection()
@@ -657,11 +619,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embeds = []
 
             def sort_skins(
-                    skin_sort: Union[
-                        valorantx.SkinLoadout,
-                        valorantx.SkinLevelLoadout,
-                        valorantx.SkinChromaLoadout,
-                    ]
+                skin_sort: Union[
+                    valorantx.SkinLoadout,
+                    valorantx.SkinLevelLoadout,
+                    valorantx.SkinChromaLoadout,
+                ]
             ) -> int:
 
                 skin_ = skin_sort if isinstance(skin_sort, valorantx.SkinLoadout) else skin_sort.get_skin()
@@ -720,8 +682,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
                 embed = discord.Embed(
                     description=(skin.rarity.emoji if skin.rarity is not None else '')  # type: ignore
-                                + ' '
-                                + bold(
+                    + ' '
+                    + bold(
                         (
                             skin.display_name
                             if not isinstance(skin, valorantx.SkinChromaLoadout)
@@ -763,10 +725,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
     async def login(
-            self,
-            interaction: Interaction,
-            username: app_commands.Range[str, 1, 24],
-            password: app_commands.Range[str, 1, 128],
+        self,
+        interaction: Interaction,
+        username: app_commands.Range[str, 1, 24],
+        password: app_commands.Range[str, 1, 128],
     ) -> None:
 
         v_user = self._get_user(interaction.user.id)
@@ -919,8 +881,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('nightmarket'), description=_T('Show skin offers on the nightmarket'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
     async def nightmarket(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
@@ -947,8 +909,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('point'), description=_T('View your remaining Valorant and Riot Points (VP/RP)'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
     async def point(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
@@ -961,8 +923,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('bundles'), description=_T('Show the current featured bundles'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
     async def bundles(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
@@ -999,8 +961,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embeds = []
             embed = Embed(
                 description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale(str(locale))} Collection')}\n"  # noqa: E501
-                            f"{PointEmoji.valorant} {bold(str(bundle.discount_price))} {strikethrough(str(bundle.price))} "
-                            f"{italics(f'(Expires {format_relative(bundle.expires_at)})')}",
+                f"{PointEmoji.valorant} {bold(str(bundle.discount_price))} {strikethrough(str(bundle.price))} "
+                f"{italics(f'(Expires {format_relative(bundle.expires_at)})')}",
                 colour=self.bot.theme.purple,
             )
             if bundle.display_icon_2 is not None:
@@ -1066,8 +1028,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
     @app_commands.command(name=_T('collection'), description=_T('Shows your collection'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
     async def collection(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
@@ -1087,46 +1049,46 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.followup.send(embeds=embeds, view=switch_view)
         switch_view.current_embeds = embeds
 
-    @app_commands.command(name=_T('match'), description=_T('Last match history'))
+    @app_commands.command(name=_T('carrier'), description=_T('Shows your carrier'))
     @app_commands.choices(
-        queue=[
+        mode=[
             Choice(name=_T('Unrated'), value='unrated'),
             Choice(name=_T('Competitive'), value='competitive'),
             Choice(name=_T('Deathmatch'), value='deathmatch'),
             Choice(name=_T('Spike Rush'), value='spikerush'),
-            Choice(name=_T('Escalation'), value='escalation'),
-            Choice(name=_T('Replication'), value='replication'),
+            Choice(name=_T('Escalation'), value='ggteam'),
+            Choice(name=_T('Replication'), value='onefa'),
             Choice(name=_T('Snowball Fight'), value='snowball'),
             Choice(name=_T('Custom'), value='custom'),
         ]
     )
-    @app_commands.describe(queue=_T('Choose the queue'))
-    @app_commands.rename(queue=_T('queue'))
-    @dynamic_cooldown(cooldown_5s)
+    @app_commands.describe(mode=_T('The queue to show your carrier for'))
+    @app_commands.rename(mode=_T('mode'))
     @app_commands.guild_only()
-    async def match(self, interaction: Interaction, queue: Optional[Choice[str]] = None) -> None:
+    @dynamic_cooldown(cooldown_5s)
+    async def carrier(self, interaction: Interaction, mode: Optional[Choice[str]] = None) -> None:
 
-        if queue is None:
-            queue = Choice(name='null', value='null')
+        if mode is not None:
+            mode = mode.value
 
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
         client = await self.v_client.set_authorize(v_user.get_1st())
-        match_history = await client.fetch_match_history(queue=queue.value)
+        match_history = await client.fetch_match_history(queue=mode)
 
         if len(match_history) <= 0:
             # raise NoMatchHistory('No match history found')
             raise CommandError('No match history found')
 
-        mmr = await client.fetch_mmr() if queue.value == 'competitive' else None
+        matchmaking_rating = await client.fetch_mmr() if mode == 'competitive' else None
 
-        view = MatchHistoryView(interaction, match_history.get_match_details(), mmr)
+        view = MatchHistoryView(interaction, match_history.get_match_details(), matchmaking_rating)
         await view.start()
 
     @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
     async def patchnote(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
@@ -1280,7 +1242,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             embed = Embed(
                 description=f"Featured Bundle: {bold(f'{get_bundle.name_localizations.from_locale(str(locale))} Collection')}\n"  # noqa: E501
-                            f"{PointEmoji.valorant} {get_bundle.price}",
+                f"{PointEmoji.valorant} {get_bundle.price}",
                 colour=self.bot.theme.purple,
             )
             if get_bundle.display_icon_2 is not None:
@@ -1360,9 +1322,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 )
                 embed.set_image(
                     url=base_spray.animation_gif
-                        or base_spray.full_transparent_icon
-                        or base_spray.display_icon
-                        or get_spray.display_icon
+                    or base_spray.full_transparent_icon
+                    or base_spray.display_icon
+                    or get_spray.display_icon
                 )
 
                 if base_spray.animation_gif:
@@ -1384,8 +1346,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     player = app_commands.Group(name=_T('player'), description=_T('Player commands'), guild_only=True)
 
     @player.command(name=_T('card'), description=_T('View player card'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.rename(card='card')
+    @dynamic_cooldown(cooldown_5s)
     async def player_card(self, interaction: Interaction, card: str):
 
         await interaction.response.defer()
@@ -1410,8 +1372,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await interaction.followup.send(embed=embed, view=view)
 
     @player.command(name=_T('title'), description=_T('View player title'))
-    @dynamic_cooldown(cooldown_5s)
     @app_commands.rename(title='title')
+    @dynamic_cooldown(cooldown_5s)
     async def player_title(self, interaction: Interaction, title: str):
 
         await interaction.response.defer()
@@ -1516,37 +1478,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     break
 
         return results[:mex_index]
-
-    # @app_commands.command(name=_T('match'), description=_T('Last match history'))
-    # @app_commands.choices(
-    #     queue=[
-    #         Choice(name=_T('Unrated'), value='unrated'),
-    #         Choice(name=_T('Competitive'), value='competitive'),
-    #         Choice(name=_T('Deathmatch'), value='deathmatch'),
-    #         Choice(name=_T('Spike Rush'), value='spikerush'),
-    #         Choice(name=_T('Escalation'), value='escalation'),
-    #         Choice(name=_T('Replication'), value='replication'),
-    #         Choice(name=_T('Snowball Fight'), value='snowball'),
-    #         Choice(name=_T('Custom'), value='custom'),
-    #     ]
-    # )
-    # @app_commands.describe(queue=_T('Choose the queue'))
-    # @app_commands.rename(queue=_T('queue'))
-    # @dynamic_cooldown(cooldown_5s)
-    # @app_commands.guild_only()
-    # async def match(self, interaction: Interaction, queue: Choice[str] = "null") -> None:
-    #     await interaction.response.defer()
-    #
-    #     get_riot_acc = await self.get_riot_account(user_id=interaction.user.id)
-    #     client = await self.v_client.set_authorize(get_riot_acc[0])
-    #     match_history = await client.fetch_match_history(queue_id=QueueID.competitive)
-    #
-    #     if len(match_history) == 0:
-    #         await interaction.followup.send('No match history found')
-    #         return
-    #
-    #     view = MatchHistoryView(interaction, match_history.get_match_details())
-    #     await view.start()
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(

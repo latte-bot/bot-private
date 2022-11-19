@@ -11,6 +11,8 @@ _asset_font_path = _asset_path + 'fonts/'
 
 # thanks stella_bot ---
 
+__all__ = ('LatteEmbed', 'LatteFonts', 'LatteImages', 'LatteCDN')
+
 
 class LatteEmbed(discord.Embed):
     """Main purpose is to get the usual setup of Embed for a command or an error embed"""

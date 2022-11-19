@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
 import aiohttp
 import discord
 import valorantx
-from valorantx.http import HTTPClient
 from valorantx.client import _authorize_required
+from valorantx.http import HTTPClient
 
 # ext valorant
 from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
-from ._custom import Agent, CompetitiveTier, ContentTier, Currency, MatchDetails, GameMode
+from ._custom import Agent, CompetitiveTier, ContentTier, Currency, GameMode, MatchDetails
 
 if TYPE_CHECKING:
     import datetime
@@ -238,7 +238,7 @@ class Client(valorantx.Client):
     def get_game_mode(self, *args: Any, **kwargs: Any) -> Optional[GameMode]:
         """:class:`Optional[GameMode]`: Gets a game mode from the assets."""
         data = self._assets.get_game_mode(*args, **kwargs)
-        return GameMode(client=self, data=data) if data else None
+        return GameMode(client=self, data=data, **kwargs) if data else None
 
     @_authorize_required
     async def fetch_match_details(self, match_id: str) -> Optional[MatchDetails]:

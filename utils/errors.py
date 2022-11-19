@@ -8,8 +8,9 @@ class LatteAppError(AppCommandError):
     """Base class for all Latte errors."""
 
     def __init__(self, error, *args, **kwargs):
-        super().__init__(error, *args, **kwargs)
+        super().__init__(error, *args)
         self.original = error
+        self.extras = kwargs
 
 
 class CommandError(LatteAppError):
@@ -73,16 +74,24 @@ class NotOwner(LatteAppError):
 
 
 class LatteAPIError(AppCommandError):
+    """Base class for all Latte API errors."""
+
     pass
 
 
 class TokenInvalid(LatteAPIError):
+    """Raised when a token is invalid."""
+
     pass
 
 
 class TokenExpired(LatteAPIError):
+    """Raised when a token is expired."""
+
     pass
 
 
 class TokenNotFound(LatteAPIError):
+    """Raised when a token is not found."""
+
     pass

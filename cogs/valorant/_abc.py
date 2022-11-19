@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from discord.utils import MISSING
 
 if TYPE_CHECKING:
-    import datetime
-    import ssl
-
-    import aiohttp
     import discord
     import valorantx
 
@@ -18,47 +14,16 @@ if TYPE_CHECKING:
     from ._client import Client, RiotAuth
     from ._database import Database, ValorantUser
 
-C = TypeVar('C', bound=Callable)
-
-
-@runtime_checkable
-class GetRiotAccount(Protocol[C]):
-    """Protocol for getting a user's Riot account."""
-
-    _auth_ssl_ctx: ssl.SSLContext
-    _cookie_jar: aiohttp.CookieJar
-    access_token: Optional[str]
-    scope: Optional[str]
-    id_token: Optional[str]
-    token_type: Optional[str]
-    expires_at: int
-    user_id: Optional[str]
-    entitlements_token: Optional[str]
-    name: Optional[str]
-    tag: Optional[str]
-    bot: LatteBot
-    discord_id: int
-    acc_num: int
-    date_signed: Optional[datetime.datetime]
-    hide_display_name: bool
-    notify_mode: bool
-    locale: discord.Locale
-    night_market_is_opened: bool
-
-    def __call__(self, *, user_id: int) -> Awaitable[List[RiotAuth]]:
-        pass
-
 
 class MixinMeta(ABC):
     """Metaclass for mixin classes."""
 
     if TYPE_CHECKING:
-        get_riot_account: GetRiotAccount
         valorant_users: Dict[int, ValorantUser] = {}
         db: Database
+        bot: LatteBot
 
     def __init__(self, *_args):
-        self.bot: LatteBot = MISSING
         self.v_client: Client = MISSING
 
     @abstractmethod

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import datetime
 import traceback
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Union
 
 import discord
-import datetime
 import valorantx
 from discord import ButtonStyle, Interaction, TextStyle, ui
 
@@ -16,10 +16,13 @@ from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
     from valorantx import Client as ValorantClient, Collection, NightMarket, SkinCollection, SprayCollection
+
     from .valorant import RiotAuth
 
 
 # - multi-factor modal
+
+# TODO: view cooldowns
 
 
 class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
@@ -383,15 +386,13 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
     def __fill_options(self) -> None:
         for index, match in enumerate(self.match_details):
             enemy_team = match.get_enemy_team()
-            my_team = match.get_me_team()
-
-            rounds_won, rounds_lost = my_team.rounds_won, enemy_team.rounds_won
+            me_team = match.get_me_team()
 
             self.add_option(
-                label='{won} - {lose}'.format(won=rounds_won, lose=rounds_lost),
+                label='{won} - {lose}'.format(won=me_team.rounds_won, lose=enemy_team.rounds_won),
                 value=str(match.id),
-                description='{map} - {queue}'.format(map=match.map.display_name, queue=str(match.queue).capitalize()),
-                # emoji=match.me.agent.emoji  # type: ignore,
+                description='{map} - {queue}'.format(map=match.map.display_name, queue=match.game_mode.display_name),
+                emoji=match.me.agent.emoji,  # type: ignore
             )
 
     async def callback(self, interaction: Interaction) -> Any:
@@ -417,13 +418,13 @@ class MatchHistoryView(ViewAuthor):
         self,
         interaction: Interaction,
         match_details: List[valorantx.MatchDetails],
-        mmr: Optional[valorantx.MMR],
+        matchmaking_rating: Optional[valorantx.MMR],
         *arg: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(interaction, *arg, **kwargs)
         self.match_details: List[valorantx.MatchDetails] = match_details
-        self.mmr = mmr
+        self.mmr = matchmaking_rating
         self.other_view: Optional[MatchDetailsView] = kwargs.get("other_view", None)
         self.locale = ValorantLocale.from_discord(str(interaction.locale))
         self.current_page: int = 0
@@ -468,30 +469,30 @@ class MatchHistoryView(ViewAuthor):
         TEXT_DRAW = "DRAW"
 
         enemy_team = match.get_enemy_team()
-        my_team = match.get_me_team()
+        me_team = match.get_me_team()
 
-        if enemy_team.rounds_won != my_team.rounds_won:
-            color = ResultColor.win if my_team.rounds_won > enemy_team.rounds_won else ResultColor.lose
-            result = TEXT_VICTORY if my_team.rounds_won > enemy_team.rounds_won else TEXT_DEFEAT
+        if enemy_team.rounds_won != me_team.rounds_won:
+            color = ResultColor.win if me_team.rounds_won > enemy_team.rounds_won else ResultColor.lose
+            result = TEXT_VICTORY if me_team.rounds_won > enemy_team.rounds_won else TEXT_DEFEAT
         else:
             color = ResultColor.draw
             result = TEXT_TIED
 
         embed = discord.Embed(
-            description=f"{tier.emoji} **KDA** {match.me.kills}/{match.me.deaths}/{match.me.assists}",  # type: ignore
+            description=f"{tier.emoji} {bold('KDA')} {match.me.kills}/{match.me.deaths}/{match.me.assists}",  # type: ignore
             color=color,
             timestamp=match.started_at,
         )
         embed.set_author(
-            name=f'{result} {my_team.rounds_won} - {enemy_team.rounds_won}',
+            name=f'{result} {me_team.rounds_won} - {enemy_team.rounds_won}',
             icon_url=match.me.agent.display_icon,
         )
 
         if match.map.splash is not None:
             embed.set_thumbnail(url=match.map.splash)
         embed.set_footer(
-            text=f"{match.map.name_localizations.from_locale(self.locale)} • {str(match.queue).capitalize()}",
-            icon_url=tier.large_icon if tier is not None and match.queue == valorantx.QueueID.competitive else None,
+            text=f"{match.map.name_localizations.from_locale(self.locale)} • {match.game_mode.display_name}",
+            icon_url=tier.large_icon if tier is not None and match.queue == valorantx.QueueType.competitive else None,
         )
         return embed
 
@@ -502,9 +503,7 @@ class MatchHistoryView(ViewAuthor):
         if competitive is not None:
             parent_season = competitive.season.parent
             e = discord.Embed(colour=int(competitive.tier.background_color[:-2], 16), timestamp=datetime.datetime.now())
-            e.set_author(
-                name=competitive.tier.display_name,
-                icon_url=competitive.tier.large_icon)
+            e.set_author(name=competitive.tier.display_name, icon_url=competitive.tier.large_icon)
             e.set_footer(
                 text=str(competitive.ranked_rating)
                 + '/100'
@@ -603,7 +602,7 @@ class MatchDetailsView(ViewAuthor):
     def __init__(self, interaction: Interaction, match: valorantx.MatchDetails):
         super().__init__(interaction, timeout=180)
         embeds = MatchEmbed(match)
-        self.embeds_mobile: List[discord.Embed] = embeds.get_desktop()
+        self.embeds_mobile: List[discord.Embed] = embeds.get_mobile()
         self.embeds_desktop: List[discord.Embed] = embeds.get_desktop()
         self.current_page = 0
         self.is_on_mobile = False

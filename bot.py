@@ -211,6 +211,8 @@ class LatteBot(commands.AutoShardedBot):
         # tree sync application commands
         # await self.tree.sync()
         # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
+        # await self.tree.sync(guild=discord.Object(id=1042503061454729289))
+        # await self.tree.sync(guild=discord.Object(id=1042502960921452734))
         # if 'cogs.admin' in self._initial_extensions and self.support_guild is not None:
         #     await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
 

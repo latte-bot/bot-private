@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import TYPE_CHECKING, Any, AnyStr, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, AnyStr, Dict, List, Optional, Union
 
 import discord
 
