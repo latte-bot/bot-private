@@ -1,4 +1,7 @@
-def bold(text: str) -> str:
+from typing import Union
+
+
+def bold(text: Union[str, int]) -> str:
     """Returns a bolded string"""
     return f"**{text}**"
 

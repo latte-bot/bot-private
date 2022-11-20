@@ -7,11 +7,10 @@ from typing import TYPE_CHECKING, Literal
 
 import discord
 from discord import Interaction, app_commands
-
-# i18n
 from discord.app_commands import locale_str as _T
 from discord.ext import commands
 
+from utils.chat_formatting import bold
 from utils.checks import owner_only
 from utils.errors import CommandError
 
@@ -40,13 +39,11 @@ class Developers(commands.Cog):
         ),
     )
 
-    @latte_log.command(name=_T('read'))
+    @latte_log.command(name=_T('read'), description=_T('Read the log'))
     @app_commands.describe(to_file=_T('send the log file as a file'))
     @app_commands.rename(to_file=_T('to_file'))
     @owner_only()
     async def latte_log_read(self, interaction: discord.Interaction, to_file: bool = False) -> None:
-        """Read the latte log"""
-
         await interaction.response.defer(ephemeral=True)
         if not to_file:
             ctx = await commands.Context.from_interaction(interaction)
@@ -58,11 +55,9 @@ class Developers(commands.Cog):
                 fp = io.BytesIO(f.read().encode('utf-8'))
                 await interaction.followup.send(file=discord.File(fp, 'lattebot.log'))
 
-    @latte_log.command(name=_T('clear'))
+    @latte_log.command(name=_T('clear'), description=_T('Clear the log'))
     @owner_only()
     async def latte_log_clear(self, interaction: discord.Interaction) -> None:
-        """Clear the latte log"""
-
         await interaction.response.defer(ephemeral=True)
 
         with open('_lattebot.log', mode='r+', encoding='utf-8') as f:
@@ -75,12 +70,11 @@ class Developers(commands.Cog):
 
         await interaction.followup.send("Log file cleared.\n`check backup file for old log data.`", file=file)
 
-    @app_commands.command(name=_T('_load'))
+    @app_commands.command(name=_T('_load'), description=_T('Loads an extension.'))
     @app_commands.describe(extension=_T('extension name'))
     @app_commands.rename(extension=_T('extension'))
     @owner_only()
     async def load(self, interaction: Interaction, extension: initial_extensions) -> None:
-        """Loads an extension."""
 
         try:
             await self.bot.load_extension(f'{extension}')
@@ -94,12 +88,11 @@ class Developers(commands.Cog):
             embed = discord.Embed(description=f"Load : `{extension}`", color=0x8BE28B)
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name=_T('_unload'))
+    @app_commands.command(name=_T('_unload'), description=_T('Unload an extension'))
     @app_commands.describe(extension=_T('extension name'))
     @app_commands.rename(extension=_T('extension'))
     @owner_only()
     async def unload(self, interaction: Interaction, extension: initial_extensions) -> None:
-        """Unloads an extension."""
 
         try:
             await self.bot.unload_extension(f'{extension}')
@@ -173,56 +166,51 @@ class Developers(commands.Cog):
         name=_T('_blacklist'), description=_T('Blacklist commands'), guild_ids=[SUPPORT_GUILD_ID]
     )
 
-    @blacklist.command(name='add')
+    @blacklist.command(name='add', description=_T('Add user or guild to blacklist'))
     @app_commands.describe(snowflake_id=_T('Snowflake ID'), reason=_T('The reason for blacklisting the user'))
     @owner_only()
     async def blacklist_add(self, interaction: Interaction, snowflake_id: int, reason: str):
-        """Blacklist a user or guild"""
 
         await interaction.response.defer(ephemeral=True)
 
         await self.bot.add_blacklist(snowflake_id, reason)
-        embed = discord.Embed(description=f"**{snowflake_id}** are now blacklisted.")
+        embed = discord.Embed(description=f"{bold(snowflake_id)}are now blacklisted.")
 
         await interaction.followup.send(embed=embed)
 
-    @blacklist.command(name=_T('remove'))
+    @blacklist.command(name=_T('remove'), description=_T('Remove a user or guild from the blacklist'))
     @app_commands.describe(snowflake_id=_T('Snowflake ID'))
     @owner_only()
     async def blacklist_remove(self, interaction: Interaction, snowflake_id: int):
-        """Remove a user or guild from the blacklist"""
 
         await interaction.response.defer(ephemeral=True)
 
         await self.bot.remove_blacklist(snowflake_id)
-        embed = discord.Embed(description=f"**{snowflake_id}** are now removed from the blacklist.")
+        embed = discord.Embed(description=f"{bold(snowflake_id)} are now removed from the blacklist.")
 
         await interaction.followup.send(embed=embed)
 
-    @blacklist.command(name=_T('check'))
+    @blacklist.command(name=_T('check'), description=_T('Check if a user or guild is blacklisted'))
     @app_commands.describe(snowflake_id=_T('Snowflake ID'))
     @owner_only()
     async def blacklist_check(self, interaction: Interaction, snowflake_id: int):
-        """Check if a user or guild is blacklisted"""
         await interaction.response.defer(ephemeral=True)
 
         if await self.bot.is_blacklisted(snowflake_id):
-            embed = discord.Embed(description=f"**{snowflake_id}** is blacklisted.")
+            embed = discord.Embed(description=f"{bold(snowflake_id)} is blacklisted.")
             await interaction.response.send_message(embed=embed)
         else:
-            embed = discord.Embed(description=f"**{snowflake_id}** is not blacklisted.")
+            embed = discord.Embed(description=f"{bold(snowflake_id)} is not blacklisted.")
 
         await interaction.followup.send(embed=embed)
 
-    @blacklist.command(name=_T('list'))
+    @blacklist.command(name=_T('list'), description=_T('Lists all blacklisted users'))
     @owner_only()
     async def blacklist_list(self, interaction: Interaction):
-        """Lists all blacklisted users"""
 
         await interaction.response.defer(ephemeral=True)
 
         blacklist = await self.bot.get_blacklist()
-        # todo paginate
 
 
 async def setup(bot: LatteBot) -> None:

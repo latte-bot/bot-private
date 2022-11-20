@@ -6,7 +6,7 @@ import valorantx
 from valorantx import CurrencyID, GameModeType, RoundResultCode
 from valorantx.models.match import RoundResult
 
-from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji
+from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 
 if TYPE_CHECKING:
     from ._client import Client
@@ -61,7 +61,7 @@ class Tier(valorantx.Tier):
 
     @property
     def emoji(self) -> str:
-        return ''
+        return TierEmoji.get(self.display_name)
 
 
 class CompetitiveTier(valorantx.CompetitiveTier):

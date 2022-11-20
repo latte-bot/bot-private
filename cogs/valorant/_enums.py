@@ -170,18 +170,57 @@ class ContentTierEmoji(str, Enum):
 
 
 class RoundResultEmoji(str, Enum):
-    diffuse_loss = '<:diffuseloss:1042809400592715816>'
-    diffuse_win = '<:diffusewin:1042809402526281778>'
-    elimination_loss = '<:eliminationloss:1042809418661761105>'
-    elimination_win = '<:eliminationwin:1042809420549206026>'
-    explosion_loss = '<:explosionloss:1042809464274812988>'
-    explosion_win = '<:explosionwin:1042809466137083996>'
-    time_loss = '<:timeloss:1042809483270832138>'
-    time_win = '<:timewin:1042809485128896582>'
+    diffuse_loss = '<:diffuse_loss:1042809400592715816>'
+    diffuse_win = '<:diffuse_win:1042809402526281778>'
+    elimination_loss = '<:elimination_loss:1042809418661761105>'
+    elimination_win = '<:elimination_win:1042809420549206026>'
+    explosion_loss = '<:explosion_loss:1042809464274812988>'
+    explosion_win = '<:explosion_win:1042809466137083996>'
+    time_loss = '<:time_loss:1042809483270832138>'
+    time_win = '<:time_win:1042809485128896582>'
     surrendered = '<:EarlySurrender_Flag:1042829113741819996>'
 
     def __str__(self) -> str:
         return str(self.value)
+
+
+class TierEmoji(str, Enum):
+
+    radiant = '<:tier_radiant:1043967005956509760>'
+    immortal_3 = '<:tier_immortal_3:1043966994665443398>'
+    immortal_2 = '<:tier_immortal_2:1043966983068209243>'
+    immortal_1 = '<:tier_immortal_1:1043966961782112316>'
+    immortal = '<:tier_immortal_3:1043966994665443398>'
+    ascendant_3 = '<:tier_ascendant_3:1043966927468503111>'
+    ascendant_2 = '<:tier_ascendant_2:1043966916865310751>'
+    ascendant_1 = '<:tier_ascendant_1:1043966907180646521>'
+    diamond_3 = '<:tier_diamond_3:1043966895201718453>'
+    diamond_2 = '<:tier_diamond_2:1043966882518151260>'
+    diamond_1 = '<:tier_diamond_1:1043966868756635708>'
+    platinum_3 = '<:tier_platinum_3:1043966856983228418>'
+    platinum_2 = '<:tier_platinum_2:1043966847139196999>'
+    platinum_1 = '<:tier_platinum_1:1043966836498235452>'
+    gold_3 = '<:tier_gold_3:1043966825815355443>'
+    gold_2 = '<:tier_gold_2:1043966814301999205>'
+    gold_1 = '<:tier_gold_1:1043966803023511602>'
+    silver_3 = '<:tier_silver_3:1043966751643275324>'
+    silver_2 = '<:tier_silver_2:1043966739773411338>'
+    silver_1 = '<:tier_silver_1:1043966727081427105>'
+    bronze_3 = '<:tier_bronze_3:1043966716222394428>'
+    bronze_2 = '<:tier_bronze_2:1043966705875034182>'
+    bronze_1 = '<:tier_bronze_1:1043966695527694497>'
+    iron_3 = '<:tier_iron_3:1043966681032183908>'
+    iron_2 = '<:tier_iron_2:1043966668298260550>'
+    iron_1 = '<:tier_iron_1:1043966655753113680>'
+    unranked = '<:tier_unranked:1043966640674574366>'
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+    @classmethod
+    def get(cls, tier: Union[valorantx.Tier, str]) -> str:
+        name = tier.display_name if isinstance(tier, valorantx.Tier) else tier
+        return cls.__members__.get(name.replace(' ', '_').lower(), '')
 
 
 class PointEmoji(Enum):

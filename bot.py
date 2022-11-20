@@ -10,6 +10,7 @@ import asyncpg
 import discord
 from async_lru import alru_cache
 from discord import app_commands, utils
+from discord.app_commands import Command, Group, TranslationContext, TranslationContextLocation
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -62,7 +63,7 @@ class LatteBot(commands.AutoShardedBot):
 
         # bot stuff
         self.launch_time: str = f'<t:{round(datetime.now().timestamp())}:R>'
-        self.maintenance: bool = False
+        self._maintenance: bool = False
         self.version: str = '2.0.0a'
 
         # bot theme
@@ -136,6 +137,9 @@ class LatteBot(commands.AutoShardedBot):
         hook = discord.Webhook.partial(id=wh_id, token=wh_token, session=self.session)
         return hook
 
+    def is_maintenance(self) -> bool:
+        return self._maintenance
+
     @alru_cache(maxsize=1)
     async def fetch_app_commands(self) -> List[app_commands.AppCommand]:
         app_commands_list = await self.tree.fetch_commands()
@@ -155,15 +159,14 @@ class LatteBot(commands.AutoShardedBot):
         return self._app_commands.get(name)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # self.i18n.set_current_locale(interaction)
-        # # self.locale = str(interaction.locale)
-        #
-        # if await self.is_owner(interaction.user):
-        #     return True
-        #
-        # if not self.maintenance:  # if bot is in maintenance mode
-        #     # todo maintenance message
-        #     return True
+        self.translator.set_locale(interaction.locale)
+
+        if await self.is_owner(interaction.user):
+            return True
+
+        if not self.is_maintenance():
+            return True
+
         return True
 
     async def on_ready(self) -> None:
@@ -205,19 +208,35 @@ class LatteBot(commands.AutoShardedBot):
         self.bot_app_info = await self.application_info()
         self.owner_id = self.bot_app_info.owner.id
 
+        # localizations
+        self.translator.load_string_localize()
+
         # load cogs
         await self.load_cogs()
+
+        # tree translator app commands
+        # tree_app_commands = self.tree.get_commands()
+        # for command in tree_app_commands:
+        #     await command.get_translated_payload(self.translator)
 
         # tree sync application commands
         # await self.tree.sync()
         # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
         # await self.tree.sync(guild=discord.Object(id=1042503061454729289))
         # await self.tree.sync(guild=discord.Object(id=1042502960921452734))
-        # if 'cogs.admin' in self._initial_extensions and self.support_guild is not None:
-        #     await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
+        # await self.tree.sync(guild=discord.Object(id=1043965050630705182))
+        # await self.tree.sync(guild=discord.Object(id=1042501718958669965))
+        # await self.tree.sync(guild=discord.Object(id=1042809126624964651))
 
         # fetch app commands to cache
-        await self.fetch_app_commands()
+        # await self.fetch_app_commands()
+
+        # await Translator.get_i18n(
+        #     cogs=self.cogs,
+        #     excludes=['developers', 'jishaku', 'testing'],  # exclude cogs
+        #     only_public=True,  # exclude @app_commands.guilds()
+        #     set_locale=[discord.Locale.american_english, discord.Locale.thai],  # locales to create
+        # )
 
     async def close(self) -> None:
         await super().close()

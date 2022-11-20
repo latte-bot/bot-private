@@ -235,9 +235,18 @@ class MatchEmbed:
         else:
             return ''
 
+    def _tier_display(self, player: MatchPlayer) -> str:
+        tier = player.get_competitive_rank()
+        return (
+            (' ' + tier.emoji + ' ')  # type: ignore
+            if self._match.game_mode == valorantx.GameModeType.competitive and tier is not None
+            else ''
+        )
+
     def _player_display(self, player: MatchPlayer, is_bold: bool = True) -> str:
         return (
             player.agent.emoji  # type: ignore
+            + self._tier_display(player)
             + ' '
             + (bold(player.display_name) if is_bold and player == self._match.me else player.display_name)
         )

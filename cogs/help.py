@@ -236,10 +236,9 @@ class Help(commands.Cog):
     def __init__(self, bot: LatteBot):
         self.bot: LatteBot = bot
 
-    @app_commands.command(name=_T('help'))
+    @app_commands.command(name=_T('help'), description=_T('help command'))
     @dynamic_cooldown(cooldown_5s)
     async def help_command(self, interaction: Interaction):
-        """Help command"""
         help_command = HelpCommand(interaction)
         await help_command.callback()
 

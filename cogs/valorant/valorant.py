@@ -42,6 +42,7 @@ from utils.checks import cooldown_5s
 from utils.emojis import LatteEmoji as Emoji
 from utils.errors import CommandError
 from utils.formats import format_relative
+from utils.i18n import _
 from utils.views import BaseView
 
 # local
@@ -50,12 +51,11 @@ from ._database import Database, ValorantUser
 from ._embeds import Embed
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
-from ._views import (
+from ._views import (  # StatsView,
     CollectionView,
     FeaturedBundleView,
     MatchHistoryView,
     RiotMultiFactorModal,
-    StatsView,
     SwitchAccountView,
 )
 
@@ -208,7 +208,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         if v_user is None:
             self.fetch_user.invalidate(self, id=id)
-            raise NoAccountsLinked('You have no accounts linked.')
+            raise NoAccountsLinked(_('You have no accounts linked.'))
 
         self.valorant_users[id] = v_user
 
@@ -375,8 +375,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         embeds = [
             Embed(
-                description=f"Daily store for {bold(client.user.display_name)}\n"
-                f"Resets {format_relative(store.reset_at)}"
+                description=_("Daily store for {user}\n").format(user=bold(client.user.display_name))
+                + f"Resets {format_relative(store.reset_at)}"
             )
         ]
 

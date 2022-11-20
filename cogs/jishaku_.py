@@ -48,6 +48,9 @@ class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
                 self.bot.support_guild_id,
                 1042503061454729289,
                 1042502960921452734,
+                1043965050630705182,
+                1042501718958669965,
+                1042809126624964651,
             ],
         )
         self.bot.tree.add_command(self.msg_jsk_py)

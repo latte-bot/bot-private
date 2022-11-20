@@ -64,11 +64,9 @@ class About(commands.Cog):
         commits = list(itertools.islice(repo.walk(repo.head.target, pygit2.GIT_SORT_TOPOLOGICAL), limit))
         return '\n'.join(self.format_commit(c) for c in commits)
 
-    @app_commands.command(name=_T('invite'))
+    @app_commands.command(name=_T('invite'), description=_T('Invite bot'))
     @dynamic_cooldown(cooldown_5s)
     async def invite(self, interaction: Interaction) -> None:
-        """Invite bot"""
-
         embed = discord.Embed(color=self.bot.theme.secondary)
         embed.set_author(
             name='{bot} ɪɴᴠɪᴛᴇ'.format(bot=self.bot.user.name),
@@ -83,11 +81,9 @@ class About(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.command(name=_T('about'))
+    @app_commands.command(name=_T('about'), description=_T('Shows basic information'))
     @dynamic_cooldown(cooldown_5s)
     async def about(self, interaction: Interaction) -> None:
-        """Shows basic information"""
-
         core_dev = await self.bot.dev
         bot_version = self.bot.version
         server_count = len(self.bot.guilds)
@@ -142,11 +138,9 @@ class About(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.command(name=_T('support'))
+    @app_commands.command(name=_T('support'), description=_T('Sends the support server of the bot.'))
     @dynamic_cooldown(cooldown_5s)
     async def support(self, interaction: Interaction) -> None:
-        """Sends the support server of the bot."""
-
         embed = discord.Embed(color=self.bot.theme.primacy)
         embed.set_author(name='ꜱᴜᴘᴘᴏʀᴛ:', icon_url=self.bot.user.avatar, url=self.bot.support_invite_url)
         embed.set_thumbnail(url=self.bot.user.avatar)
@@ -161,22 +155,19 @@ class About(commands.Cog):
 
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.command(name=_T("i18n"))
+    @app_commands.command(name=_T("i18n"), description=_T("Shows the current language of the bot."))
     @dynamic_cooldown(cooldown_5s)
     async def i18n(self, interaction: Interaction) -> None:
-        """Shows the current language of the bot."""
         await interaction.response.send_message('')
 
-    @app_commands.command(name=_T('partnership'))
+    @app_commands.command(name=_T('partnership'), description=_T('Shows the partnership information of the bot.'))
     @dynamic_cooldown(cooldown_5s)
     async def partnership(self, interaction: Interaction) -> None:
-        """Shows the partnership information of the bot."""
         ...
 
-    @app_commands.command(name=_T('donate'))
+    @app_commands.command(name=_T('donate'), description=_T('Donate to the bot.'))
     @dynamic_cooldown(cooldown_5s)
     async def donate(self, interaction: Interaction) -> None:
-        """บริจาค | Donate to the bot."""
         ...
 
 

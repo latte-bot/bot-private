@@ -7,6 +7,7 @@ import discord
 from discord import Interaction, ui
 from discord.ext import commands
 
+from .i18n import _
 from .useful import LatteEmbed
 
 _log = logging.getLogger(__name__)
@@ -93,9 +94,11 @@ class ViewAuthor(BaseView):
                     else:
                         app_cmd = f'/`{command_name}`'
 
-                    content = f"Only {author.mention} can use this. If you want to use it," f" use {app_cmd}"
+                    content = _("Only {author} can use this. If you want to use it, use {app_cmd}").format(
+                        author=author.mention, app_cmd=app_cmd
+                    )
                 else:
-                    content = f"Only `{author}` can use this."
+                    content = _("Only `{author}` can use this.").format(author=author.mention)
                 embed = LatteEmbed.to_error(description=content)
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             return False

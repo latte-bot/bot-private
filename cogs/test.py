@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from discord import Interaction, app_commands
-from discord.app_commands import locale_str as _
+from discord.app_commands import locale_str as _T
 from discord.ext import commands
+
+from utils.i18n import _
 
 if TYPE_CHECKING:
     from bot import LatteBot
@@ -36,25 +38,24 @@ class Testing(commands.Cog):
     #
     #     await interaction.response.send_message(msg)
 
-    @app_commands.command(name=_('test_choice'), description=_('test_choice_desc'))
+    @app_commands.command(name=_T('test_choice'), description=_T('test_choice_desc'))
     @app_commands.choices(
         colour=[  # param name
-            app_commands.Choice(name=_("Red"), value="red"),
-            app_commands.Choice(name=_("Green"), value="green"),
-            app_commands.Choice(name=_("Blue"), value="blue"),
+            app_commands.Choice(name=_T("Red"), value="red"),
+            app_commands.Choice(name=_T("Green"), value="green"),
+            app_commands.Choice(name=_T("Blue"), value="blue"),
         ]
     )
     async def test_choice(self, interaction: Interaction, colour: app_commands.Choice[str]) -> None:
         """Test command"""
+        await interaction.response.send_message(_('test'))
 
-        await interaction.response.send_message(colour)
+    test_group = app_commands.Group(name=_T('test_group'), description=_T('test_group_desc'))
 
-    test_group = app_commands.Group(name=_('test_group'), description=_('test_group_desc'))
-
-    @test_group.command(name=_('test_group_cmd'), description=_('test_group_cmd_desc'))
-    async def test_group_cmd(self, interaction: Interaction) -> None:
-        """Test command"""
-        await interaction.response.send_message(interaction.command.qualified_name)
+    # @test_group.command(name=_T('test_group_cmd'), description=_T('test_group_cmd_desc'))
+    # async def test_group_cmd(self, interaction: Interaction) -> None:
+    #     """Test command"""
+    #     await interaction.response.send_message(interaction.command.qualified_name)
 
     # @test_group.command(name=_('test_group_command'), description=_('test_group_command_desc'))
     # @app_commands.rename(queue=_('queue'))

@@ -9,6 +9,7 @@ import valorantx
 from discord import ButtonStyle, Interaction, TextStyle, ui
 
 from utils.chat_formatting import bold
+from utils.i18n import _
 from utils.views import ViewAuthor
 
 from ._embeds import MatchEmbed
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 # TODO: view cooldowns
 
 
-class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
+class RiotMultiFactorModal(ui.Modal, title=_('Two-factor authentication')):
     """Modal for riot login with multifactorial authentication"""
 
     def __init__(self, try_auth: RiotAuth) -> None:
@@ -34,16 +35,16 @@ class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
         self.code: Optional[str] = None
         self.interaction: Optional[Interaction] = None
         self.two2fa = ui.TextInput(
-            label='Input 2FA Code',
+            label=_('Input 2FA Code'),
             max_length=6,
             # min_length=6,
             style=TextStyle.short,
             custom_id=self.custom_id + '_2fa',
         )
         if self.try_auth.multi_factor_email is not None:
-            self.two2fa.placeholder = 'Riot sent a code to ' + self.try_auth.multi_factor_email
+            self.two2fa.placeholder = _('Riot sent a code to ') + self.try_auth.multi_factor_email
         else:
-            self.two2fa.placeholder = 'You have 2FA enabled!'
+            self.two2fa.placeholder = _('You have 2FA enabled!')
 
         self.add_item(self.two2fa)
 
@@ -51,11 +52,11 @@ class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
         code = self.two2fa.value
 
         if not code:
-            await interaction.response.send_message('Please input 2FA code', ephemeral=True)
+            await interaction.response.send_message(_('Please input 2FA code'), ephemeral=True)
             return
 
         if not code.isdigit():
-            await interaction.response.send_message('Invalid code', ephemeral=True)
+            await interaction.response.send_message(_('Invalid code'), ephemeral=True)
             return
 
         self.code = code
@@ -64,7 +65,7 @@ class RiotMultiFactorModal(ui.Modal, title='Two-factor authentication'):
 
     async def on_error(self, interaction: Interaction, error: Exception) -> None:
         # TODO: supress error
-        await interaction.response.send_message('Oops! Something went wrong.', ephemeral=True)
+        await interaction.response.send_message(_('Oops! Something went wrong.'), ephemeral=True)
         # Make sure we know what the error actually is
         traceback.print_tb(error.__traceback__)
 
@@ -380,7 +381,7 @@ class StatsView(ViewAuthor):
 class SelectMatchHistory(ui.Select['MatchHistoryView']):
     def __init__(self, match_details: List[valorantx.MatchDetails]) -> None:
         self.match_details = match_details
-        super().__init__(placeholder="Select Match to see details", max_values=1, min_values=1, row=1)
+        super().__init__(placeholder=_("Select Match to see details"), max_values=1, min_values=1, row=1)
         self.__fill_options()
 
     def __fill_options(self) -> None:
@@ -442,11 +443,11 @@ class MatchHistoryView(ViewAuthor):
     async def first_page(self, interaction: Interaction, button: ui.Button):
         await self.show_checked_page(interaction, 0)
 
-    @ui.button(label="Back", style=ButtonStyle.blurple)
+    @ui.button(label=_("Back"), style=ButtonStyle.blurple)
     async def back_page(self, interaction: Interaction, button: ui.Button):
         await self.show_checked_page(interaction, self.current_page - 1)
 
-    @ui.button(label="Next", style=ButtonStyle.blurple)
+    @ui.button(label=_("Next"), style=ButtonStyle.blurple)
     async def next_page(self, interaction: Interaction, button: ui.Button):
         await self.show_checked_page(interaction, self.current_page + 1)
 
@@ -462,21 +463,20 @@ class MatchHistoryView(ViewAuthor):
         me = match.me
         tier = me.get_competitive_rank()
 
-        TEXT_VICTORY = "VICTORY"
-        TEXT_DEFEAT = "DEFEAT"
-        TEXT_TIED = "TIED"
-        TEXT_PLACE = "PLACE"
-        TEXT_DRAW = "DRAW"
+        # TEXT_DEFEAT = "DEFEAT"
+        # TEXT_TIED = "TIED"
+        # TEXT_PLACE = "PLACE"
+        # TEXT_DRAW = "DRAW"
 
         enemy_team = match.get_enemy_team()
         me_team = match.get_me_team()
 
         if enemy_team.rounds_won != me_team.rounds_won:
             color = ResultColor.win if me_team.rounds_won > enemy_team.rounds_won else ResultColor.lose
-            result = TEXT_VICTORY if me_team.rounds_won > enemy_team.rounds_won else TEXT_DEFEAT
+            result = _("VICTORY") if me_team.rounds_won > enemy_team.rounds_won else _("DEFEAT")
         else:
             color = ResultColor.draw
-            result = TEXT_TIED
+            result = _("DRAW")
 
         embed = discord.Embed(
             description=f"{tier.emoji} {bold('KDA')} {match.me.kills}/{match.me.deaths}/{match.me.assists}",  # type: ignore
@@ -701,14 +701,14 @@ class CollectionView(SwitchAccountView):
     def get_skin_pages(self):
         return self._skin_pages
 
-    @ui.button(label='Skin', style=ButtonStyle.blurple)
+    @ui.button(label=_('Skin'), style=ButtonStyle.blurple)
     async def skin(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer()
         embeds = self.get_skin_pages()
         view = SkinCollectionView(interaction, self, embeds)
         await view.start()
 
-    @ui.button(label='Spray', style=ButtonStyle.blurple)
+    @ui.button(label=_('Spray'), style=ButtonStyle.blurple)
     async def spray(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer()
         embeds = self.get_spray_pages()
@@ -736,11 +736,11 @@ class SkinCollectionView(ViewAuthor):
     async def first_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, 0)
 
-    @ui.button(label="Back", style=discord.ButtonStyle.blurple, custom_id='back_page')
+    @ui.button(label=_("Back"), style=discord.ButtonStyle.blurple, custom_id='back_page')
     async def back_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, -1)
 
-    @ui.button(label="Next", style=discord.ButtonStyle.blurple, custom_id='next_page')
+    @ui.button(label=_("Next"), style=discord.ButtonStyle.blurple, custom_id='next_page')
     async def next_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, +1)
 
@@ -786,7 +786,7 @@ class SprayCollectionView(ViewAuthor):
         self.other_view = other_view
         self._pages = pages
 
-    @ui.button(label='Back', style=discord.ButtonStyle.blurple, custom_id='back', row=0)
+    @ui.button(label=_('Back'), style=discord.ButtonStyle.blurple, custom_id='back', row=0)
     async def back(self, interaction: Interaction, button: ui.Button):
         await interaction.response.edit_message(embeds=self.other_view.current_embeds, view=self.other_view)
 
