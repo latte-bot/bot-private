@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
 import aiohttp
 import discord
 import valorantx
-from valorantx.client import _authorize_required
+from valorantx.client import _authorize_required # noqa
 from valorantx.http import HTTPClient
 
 # ext valorant

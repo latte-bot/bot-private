@@ -70,10 +70,10 @@ class LatteBot(commands.AutoShardedBot):
         self.theme: Type[Theme] = Theme
 
         # bot invite link
-        self.invite_permission: int = 280576
+        self._permission_invite: int = 280576
         self.invite_url = discord.utils.oauth_url(
             self.application_id,
-            permissions=discord.Permissions(self.invite_permission),
+            permissions=discord.Permissions(self._permission_invite),
         )
 
         # extensions
@@ -222,14 +222,11 @@ class LatteBot(commands.AutoShardedBot):
         # tree sync application commands
         # await self.tree.sync()
         # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
-        # await self.tree.sync(guild=discord.Object(id=1042503061454729289))
-        # await self.tree.sync(guild=discord.Object(id=1042502960921452734))
-        # await self.tree.sync(guild=discord.Object(id=1043965050630705182))
-        # await self.tree.sync(guild=discord.Object(id=1042501718958669965))
-        # await self.tree.sync(guild=discord.Object(id=1042809126624964651))
-
-        # fetch app commands to cache
-        # await self.fetch_app_commands()
+        # await self.tree.sync(guild=discord.Object(id=1042503061454729289))  # EMOJI ABILITY 2
+        # await self.tree.sync(guild=discord.Object(id=1042502960921452734)) # EMOJI ABILITY 1
+        # await self.tree.sync(guild=discord.Object(id=1043965050630705182))  # EMOJI TIER
+        # await self.tree.sync(guild=discord.Object(id=1042501718958669965)) # EMOJI AGENT
+        # await self.tree.sync(guild=discord.Object(id=1042809126624964651)) # EMOJI MATCH
 
         # await Translator.get_i18n(
         #     cogs=self.cogs,
@@ -237,6 +234,9 @@ class LatteBot(commands.AutoShardedBot):
         #     only_public=True,  # exclude @app_commands.guilds()
         #     set_locale=[discord.Locale.american_english, discord.Locale.thai],  # locales to create
         # )
+
+        # fetch app commands to cache
+        # await self.fetch_app_commands()
 
     async def close(self) -> None:
         await super().close()

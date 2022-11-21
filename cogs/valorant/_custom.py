@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
 
 import valorantx
-from valorantx import CurrencyID, GameModeType, RoundResultCode
-from valorantx.models.match import RoundResult
+from valorantx import CurrencyType, GameModeType, RoundResultCode
+from valorantx.models.match import RoundResult # noqa
 
 from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 
@@ -52,7 +52,7 @@ class Currency(valorantx.Currency):
 
     @property
     def emoji(self) -> str:
-        return str(PointEmoji.valorant) if self.uuid == str(CurrencyID.valorant) else str(PointEmoji.radianite)
+        return str(PointEmoji.valorant) if self.uuid == str(CurrencyType.valorant) else str(PointEmoji.radianite)
 
 
 class Tier(valorantx.Tier):

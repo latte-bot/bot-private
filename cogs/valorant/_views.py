@@ -235,20 +235,16 @@ class StatsSelect(ui.Select['StatsView']):
     def __fill_options(self) -> None:
         self.add_option(label="Overview", value='__overview', emoji='🌟')
 
-        MATCH_HISTORY = "Match History!"
-        YOUR_ACCURASY = "Your Accuracy!"
-        TOP_AGENTS = "Top Agents!"
-        TOP_MAPS = "Top Maps!"
-        TOP_WEAPONS = "Top Weapons!"
-
         self.add_option(
-            label="Match's", value="match's", description=MATCH_HISTORY, emoji='<:newmember:973160072425377823>'
+            label="Match's", value="match's", description=_("Match History!"), emoji='<:newmember:973160072425377823>'
         )
-        self.add_option(label='Agents', value='agents', description=TOP_AGENTS, emoji='<:jetthappy:973158900679442432>')
-        self.add_option(label='Maps', value='maps', description=TOP_MAPS, emoji='🗺️')
-        self.add_option(label='Weapons', value='weapons', description=TOP_WEAPONS, emoji='🔫')
         self.add_option(
-            label='Accuracy', value='accuracy', description=YOUR_ACCURASY, emoji='<:accuracy:973252558925742160>'
+            label='Agents', value='agents', description=_("Top Agents!"), emoji='<:jetthappy:973158900679442432>'
+        )
+        self.add_option(label='Maps', value='maps', description=_("Top Maps!"), emoji='🗺️')
+        self.add_option(label='Weapons', value='weapons', description=_("Top Weapons!"), emoji='🔫')
+        self.add_option(
+            label='Accuracy', value='accuracy', description=_("Your Accuracy!"), emoji='<:accuracy:973252558925742160>'
         )
 
     async def callback(self, interaction: Interaction) -> Any:
@@ -389,8 +385,24 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
             enemy_team = match.get_enemy_team()
             me_team = match.get_me_team()
 
+            players = match.get_players()
+
+            left_team_score = me_team.rounds_won
+            right_team_score = enemy_team.rounds_won
+
+            if match.game_mode == valorantx.GameModeType.deathmatch:
+                if match.me.is_winner():
+                    _2nd_place = (sorted(players, key=lambda p: p.kills, reverse=True)[1]) if len(players) > 1 else None
+                    _1st_place = match.me
+                else:
+                    _2nd_place = match.me
+                    _1st_place = (sorted(players, key=lambda p: p.kills, reverse=True)[0]) if len(players) > 0 else None
+
+                left_team_score = (_1st_place.kills if match.me.is_winner() else _2nd_place.kills) if _1st_place else 0
+                right_team_score = (_2nd_place.kills if match.me.is_winner() else _1st_place.kills) if _2nd_place else 0
+
             self.add_option(
-                label='{won} - {lose}'.format(won=me_team.rounds_won, lose=enemy_team.rounds_won),
+                label='{won} - {lose}'.format(won=left_team_score, lose=right_team_score),
                 value=str(match.id),
                 description='{map} - {queue}'.format(map=match.map.display_name, queue=match.game_mode.display_name),
                 emoji=match.me.agent.emoji,  # type: ignore
@@ -463,36 +475,81 @@ class MatchHistoryView(ViewAuthor):
         me = match.me
         tier = me.get_competitive_rank()
 
-        # TEXT_DEFEAT = "DEFEAT"
-        # TEXT_TIED = "TIED"
-        # TEXT_PLACE = "PLACE"
-        # TEXT_DRAW = "DRAW"
-
         enemy_team = match.get_enemy_team()
         me_team = match.get_me_team()
 
-        if enemy_team.rounds_won != me_team.rounds_won:
-            color = ResultColor.win if me_team.rounds_won > enemy_team.rounds_won else ResultColor.lose
-            result = _("VICTORY") if me_team.rounds_won > enemy_team.rounds_won else _("DEFEAT")
-        else:
-            color = ResultColor.draw
-            result = _("DRAW")
+        left_team_score = me_team.rounds_won
+        right_team_score = enemy_team.rounds_won
+
+        result = _("VICTORY")
 
         embed = discord.Embed(
-            description=f"{tier.emoji} {bold('KDA')} {match.me.kills}/{match.me.deaths}/{match.me.assists}",  # type: ignore
-            color=color,
+            # title=match.game_mode.emoji + ' ' + match.game_mode.display_name,  # type: ignore
+            description="{tier}{kda} {kills}/{deaths}/{assists}".format(
+                tier=((tier.emoji + ' ') if match.queue == valorantx.QueueType.competitive else ''),  # type: ignore
+                kda=bold('KDA'),
+                kills=me.kills,
+                deaths=me.deaths,
+                assists=me.assists,
+            ),
+            color=ResultColor.win,
             timestamp=match.started_at,
         )
+
+        if match.game_mode == valorantx.GameModeType.deathmatch:
+            players = match.get_players()
+
+            if match.me.is_winner():
+                _2nd_place = (sorted(players, key=lambda p: p.kills, reverse=True)[1]) if len(players) > 1 else None
+                _1st_place = me
+            else:
+                _2nd_place = me
+                _1st_place = (sorted(players, key=lambda p: p.kills, reverse=True)[0]) if len(players) > 0 else None
+
+            left_team_score = (_1st_place.kills if match.me.is_winner() else _2nd_place.kills) if _1st_place else 0
+            right_team_score = (_2nd_place.kills if match.me.is_winner() else _1st_place.kills) if _2nd_place else 0
+
+            if match.me.is_winner():
+                result = '1ST PLACE'
+            else:
+                players = sorted(match.get_players(), key=lambda p: p.kills, reverse=True)
+                for index, player in enumerate(players, start=1):
+                    player_before = players[index - 1]
+                    player_after = players[index] if len(players) > index else None
+                    if player == me:
+                        if index == 2:
+                            result = '2ND PLACE'
+                        elif index == 3:
+                            result = '3RD PLACE'
+                        else:
+                            result = '{}TH PLACE'.format(index)
+
+                        if player_before is not None or player_after is not None:
+                            if player_before.kills == player.kills:
+                                result += ' (TIED)'
+                            elif player_after.kills == player.kills:
+                                result += ' (TIED)'
+
+        elif not match.me.is_winner():
+            embed.colour = ResultColor.lose
+            result = _("DEFEAT")
+
+        if match.team_blue is not None and match.team_red is not None:
+            if match.team_blue.rounds_won == match.team_red.rounds_won:
+                embed.colour = ResultColor.draw
+                result = 'DRAW'
+
         embed.set_author(
-            name=f'{result} {me_team.rounds_won} - {enemy_team.rounds_won}',
-            icon_url=match.me.agent.display_icon,
+            name=f'{result} {left_team_score} - {right_team_score}',
+            icon_url=me.agent.display_icon,
         )
 
         if match.map.splash is not None:
             embed.set_thumbnail(url=match.map.splash)
         embed.set_footer(
-            text=f"{match.map.name_localizations.from_locale(self.locale)} • {match.game_mode.display_name}",
-            icon_url=tier.large_icon if tier is not None and match.queue == valorantx.QueueType.competitive else None,
+            text=f"{match.game_mode.display_name} • {match.map.name_localizations.from_locale(self.locale)}",
+            icon_url=match.game_mode.display_icon
+            # icon_url=tier.large_icon if tier is not None and match.queue == valorantx.QueueType.competitive else None,
         )
         return embed
 
@@ -748,8 +805,8 @@ class SkinCollectionView(ViewAuthor):
     async def last_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, len(self._pages) - 1)
 
-    @ui.button(label='Back', style=discord.ButtonStyle.blurple, custom_id='back', row=1)
-    async def back(self, interaction: Interaction, button: ui.Button):
+    @ui.button(label=_('Home'), style=discord.ButtonStyle.blurple, custom_id='back', row=1)
+    async def home(self, interaction: Interaction, button: ui.Button):
         await interaction.response.edit_message(embeds=self.other_view.current_embeds, view=self.other_view)
 
     def _update_buttons(self) -> None:

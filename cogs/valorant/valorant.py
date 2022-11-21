@@ -26,7 +26,7 @@ from discord.ext import commands
 from valorantx import (
     Buddy,
     BuddyLevel,
-    CurrencyID,
+    CurrencyType,
     MissionType,
     PatchNotes,
     PlayerCard,
@@ -473,8 +473,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         client = await self.v_client.set_authorize(riot_auth)
         wallet = await client.fetch_wallet()
 
-        vp = client.get_currency(uuid=str(CurrencyID.valorant))
-        rad = client.get_currency(uuid=str(CurrencyID.radianite))
+        vp = client.get_currency(uuid=str(CurrencyType.valorant))
+        rad = client.get_currency(uuid=str(CurrencyType.radianite))
 
         vp_display_name = vp.name_localizations.from_locale(str(locale))
 
@@ -574,23 +574,29 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         # wallet
         wallet = await client.fetch_wallet()
-        vp = client.get_currency(uuid=str(CurrencyID.valorant))
-        rad = client.get_currency(uuid=str(CurrencyID.radianite))
+        vp = client.get_currency(uuid=str(CurrencyType.valorant))
+        rad = client.get_currency(uuid=str(CurrencyType.radianite))
 
         # loadout
         collection = await client.fetch_collection()
         player_title = collection.get_player_title()
         player_card = collection.get_player_card()
         account_level = collection.get_account_level()
-        level_border = collection.get_level_border()
+        # level_border = collection.get_level_border()
 
         e = discord.Embed()
-        e.description = f"{vp.emoji} {wallet.valorant_points}" + ' ' + f"{rad.emoji} {wallet.radiant_points}"
+        e.description = '{vp_emoji} {wallet_vp} {rad_emoji} {wallet_rad}'.format(
+            vp_emoji=vp.emoji,
+            wallet_vp=wallet.valorant_points,
+            rad_emoji=rad.emoji,
+            wallet_rad=wallet.radiant_points,
+        )
+
         e.set_author(
-            name=f'{riot_auth.display_name} - Collection',
+            name='{display_name} - Collection'.format(display_name=riot_auth.display_name),
             icon_url=latest_tier.large_icon if latest_tier is not None else None,
         )
-        e.set_footer(text=f'Lv. {account_level}')
+        e.set_footer(text='Lv. {level}'.format(level=account_level))
 
         if player_title is not None:
             e.title = player_title.text_localizations.from_locale(locale)
@@ -1079,7 +1085,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         if len(match_history) <= 0:
             # raise NoMatchHistory('No match history found')
-            raise CommandError('No match history found')
+            raise CommandError(_('No match history found'))
 
         matchmaking_rating = await client.fetch_mmr() if mode == 'competitive' else None
 

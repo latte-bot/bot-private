@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, TypedDict, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, TypedDict, Union, Callable
 
 import discord
 from discord import Locale, app_commands
@@ -349,4 +349,4 @@ class Translator(app_commands.Translator):
         return cls._strings[locale].get(key, untranslate)
 
 
-_ = Translator.get_string
+_: Callable[[str], str] = Translator.get_string

@@ -198,6 +198,8 @@ class MatchEmbed:
         self._desktops: List[discord.Embed] = []
         self._mobiles: List[discord.Embed] = []
 
+        self.me: Optional[MatchPlayer] = self._match.me
+
         # map
         self._map = self._match.map
 
@@ -209,31 +211,22 @@ class MatchEmbed:
         self._et = self._match.get_enemy_team()
         self._et_players = sorted(self._et.get_players(), key=lambda p: p.acs, reverse=True)
 
-        # mvp player
-        self._1st_mvp: Optional[MatchPlayer] = None
-        self._2nd_mvp: Optional[MatchPlayer] = None
-        self.get_mvp_player()
+    def get_desktop(self) -> List[discord.Embed]:
+        if self._match.game_mode == GameModeType.deathmatch:
+            return [self.desktop_1(), self.desktop_3()]
+        return [self.desktop_1(), self.desktop_2(), self.desktop_3()]
 
-    def get_mvp_player(self):
-        max_acs_player = max(self._match.get_players(), key=lambda p: p.acs)
-        _2nd_acs_player = max(
-            [p for p in self._match.get_players() if p.team != max_acs_player.team], key=lambda p: p.acs
-        )
+    def get_mobile(self) -> List[discord.Embed]:
+        if self._match.game_mode == GameModeType.deathmatch:
+            return [self.mobile_1(), self.mobile_3()]
+        return [self.mobile_1(), self.mobile_2(), self.mobile_3()]
 
-        if max_acs_player.is_winner():
-            self._1st_mvp = max_acs_player
-            self._2nd_mvp = _2nd_acs_player
-        else:
-            self._1st_mvp = _2nd_acs_player
-            self._2nd_mvp = max_acs_player
-
-    def _get_star(self, player: MatchPlayer) -> str:
-        if player == self._1st_mvp:
+    def _get_mvp_star(self, player: MatchPlayer) -> str:
+        if player == self._match.get_match_mvp():
             return '★'
-        elif player == self._2nd_mvp:
+        elif player == self._match.get_team_mvp():
             return '☆'
-        else:
-            return ''
+        return ''
 
     def _tier_display(self, player: MatchPlayer) -> str:
         tier = player.get_competitive_rank()
@@ -248,25 +241,16 @@ class MatchEmbed:
             player.agent.emoji  # type: ignore
             + self._tier_display(player)
             + ' '
-            + (bold(player.display_name) if is_bold and player == self._match.me else player.display_name)
+            + (bold(player.display_name) if is_bold and player == self.me else player.display_name)
         )
 
     def _acs_display(self, player: MatchPlayer, star: bool = True) -> str:
         acs = str(int(player.acs))
         if star:
-            acs += ' ' + self._get_star(player)
+            acs += ' ' + self._get_mvp_star(player)
         return acs
 
-    def get_desktop(self) -> List[discord.Embed]:
-        if self._match.game_mode == GameModeType.deathmatch:
-            return [self.desktop_1(), self.desktop_3()]
-        return [self.desktop_1(), self.desktop_2(), self.desktop_3()]
-
-    def get_mobile(self) -> List[discord.Embed]:
-        if self._match.game_mode == GameModeType.deathmatch:
-            return [self.mobile_1(), self.mobile_3()]
-        return [self.mobile_1(), self.mobile_2(), self.mobile_3()]
-
+    # @lru_cache(maxsize=2)
     def static_embed(self, performance: bool = False) -> discord.Embed:
 
         e = discord.Embed(
@@ -283,39 +267,39 @@ class MatchEmbed:
         if self._match.game_mode == GameModeType.deathmatch:
             players = self._match.get_players()
 
-            if self._match.me.is_winner():
+            if self.me.is_winner():
                 _2nd_place = (sorted(players, key=lambda p: p.kills, reverse=True)[1]) if len(players) > 1 else None
-                _1st_place = self._match.me
+                _1st_place = self.me
             else:
-                _2nd_place = self._match.me
+                _2nd_place = self.me
                 _1st_place = (sorted(players, key=lambda p: p.kills, reverse=True)[0]) if len(players) > 0 else None
 
             e.title = '{mode} {map} - {won}:{lose}'.format(
                 mode=self._match.game_mode.emoji,  # type: ignore
                 map=self._map.display_name,
-                won=(_1st_place.kills if self._match.me.is_winner() else _2nd_place.kills) if _1st_place else 0,
-                lose=(_2nd_place.kills if self._match.me.is_winner() else _1st_place.kills) if _2nd_place else 0,
+                won=(_1st_place.kills if self.me.is_winner() else _2nd_place.kills) if _1st_place else 0,
+                lose=(_2nd_place.kills if self.me.is_winner() else _1st_place.kills) if _2nd_place else 0,
             )
 
         e.set_author(
             name='{author} - {page}'.format(
-                author=self._match.me.display_name,
+                author=self.me.display_name,
                 page=(self._match.game_mode.display_name if not performance else 'Performance'),
             ),
-            icon_url=self._match.me.agent.display_icon_small,
+            icon_url=self.me.agent.display_icon_small,
         )
 
         result = 'VICTORY'
 
         if self._match.game_mode == GameModeType.deathmatch:
-            if self._match.me.is_winner():
+            if self.me.is_winner():
                 result = '1ST PLACE'
             else:
                 players = sorted(self._match.get_players(), key=lambda p: p.kills, reverse=True)
                 for index, player in enumerate(players, start=1):
                     player_before = players[index - 1]
                     player_after = players[index] if len(players) > index else None
-                    if player == self._match.me:
+                    if player == self.me:
                         if index == 2:
                             result = '2ND PLACE'
                         elif index == 3:
@@ -329,7 +313,7 @@ class MatchEmbed:
                             elif player_after.kills == player.kills:
                                 result += ' (TIED)'
 
-        elif not self._match.me.is_winner():
+        elif not self.me.is_winner():
             e.colour = ResultColor.lose
             result = 'DEFEAT'
 
@@ -345,13 +329,13 @@ class MatchEmbed:
     def abilities_text(self, abilities: AbilityCasts) -> str:
         return '{c_emoji} {c_casts} {q_emoji} {q_casts} {e_emoji} {e_casts} {x_emoji} {x_casts}'.format(
             c_emoji=abilities.c.emoji,  # type: ignore
-            c_casts=round(abilities.c_casts / self._match.me.rounds_played, 1),
+            c_casts=round(abilities.c_casts / self.me.rounds_played, 1),
             e_emoji=abilities.e.emoji,  # type: ignore
-            e_casts=round(abilities.e_casts / self._match.me.rounds_played, 1),
+            e_casts=round(abilities.e_casts / self.me.rounds_played, 1),
             q_emoji=abilities.q.emoji,  # type: ignore
-            q_casts=round(abilities.q_casts / self._match.me.rounds_played, 1),
+            q_casts=round(abilities.q_casts / self.me.rounds_played, 1),
             x_emoji=abilities.x.emoji,  # type: ignore
-            x_casts=round(abilities.x_casts / self._match.me.rounds_played, 1),
+            x_casts=round(abilities.x_casts / self.me.rounds_played, 1),
         )
 
     # desktop section
