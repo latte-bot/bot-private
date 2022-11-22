@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Type, Union
+from typing import Dict, List, Optional, Type, Union, TYPE_CHECKING
 
 import aiohttp
 import asyncpg
@@ -17,6 +17,9 @@ from utils.encryption import Encryption
 from utils.enums import Theme
 from utils.i18n import Translator, _
 from utils.config import Config
+
+if TYPE_CHECKING:
+    from cogs.valorant._client import Client
 
 load_dotenv()
 
@@ -118,6 +121,9 @@ class LatteBot(commands.AutoShardedBot):
 
         # blacklisted users
         self.blacklist: Config[bool] = Config('blacklist.json')
+        self.app_command_stats: Config[int] = Config('app_command_stats.json')
+
+        self.v_client: Client = utils.MISSING
 
     @property
     def owner(self) -> discord.User:
@@ -275,7 +281,7 @@ class LatteBot(commands.AutoShardedBot):
         #     await command.get_translated_payload(self.translator)
 
         # tree sync application commands
-        await self.tree.sync()
+        # await self.tree.sync()
         sync_guilds = [
             self.support_guild_id,
             1042503061454729289,  # EMOJI ABILITY 2

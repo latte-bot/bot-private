@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 MISSING = discord.utils.MISSING
 
-IGNORE_EXTENSIONS = ['Developers', 'Events', 'Help', 'Jishaku']
+ONLY_EXTENSIONS = ['About', 'Valorant']
 
 
 @lru_cache(maxsize=1)
@@ -199,7 +199,7 @@ class HelpCommand:
         mapping = {
             cog: sorted(cog.walk_app_commands(), key=lambda c: c.qualified_name)
             for cog in sorted(self.bot.cogs.values(), key=lambda c: c.qualified_name)
-            if cog.walk_app_commands() and cog.qualified_name not in IGNORE_EXTENSIONS
+            if cog.walk_app_commands() and cog.qualified_name in ONLY_EXTENSIONS
         }
         return mapping
 

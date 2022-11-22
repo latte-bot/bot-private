@@ -14,9 +14,11 @@ from utils.views import ViewAuthor
 
 from ._embeds import MatchEmbed
 from ._enums import ResultColor, ValorantLocale
+from ._database import ValorantUser
 
 if TYPE_CHECKING:
-    from valorantx import Client as ValorantClient, Collection, NightMarket, SkinCollection, SprayCollection
+    from valorantx import Collection, NightMarket, SkinCollection, SprayCollection
+    from ._client import Client as ValorantClient
 
     from .valorant import RiotAuth
 
@@ -80,7 +82,7 @@ class SwitchAccountView(ViewAuthor):
         self,
         interaction: Interaction,
         riot_auth: List[RiotAuth],
-        func: Callable[[RiotAuth, Union[str, ValorantLocale]], Awaitable[List[discord.Embed]]],
+        func: Optional[Callable[[RiotAuth, Union[str, ValorantLocale]], Awaitable[List[discord.Embed]]]],
         *,
         row: int = 0,
         timeout: Optional[float] = 600,
@@ -132,7 +134,9 @@ class SwitchAccountView(ViewAuthor):
 
 
 class ButtonAccountSwitch(ui.Button['SwitchAccountView']):
-    def __init__(self, label: str, custom_id: str, other_view: SwitchAccountView, **kwargs) -> None:
+    def __init__(
+        self, label: str, custom_id: str, other_view: Union[SwitchAccountView, discord.ui.View], **kwargs
+    ) -> None:
         self.other_view = other_view
         super().__init__(label=label, custom_id=custom_id, style=discord.ButtonStyle.gray, **kwargs)
 
@@ -413,8 +417,8 @@ class SelectMatchHistory(ui.Select['MatchHistoryView']):
         value = self.values[0]
         source = self.view.match_source
         match = source.get(value)
-        view = MatchDetailsView(interaction, match)
-        await view.start()
+        view = MatchDetailsView(interaction)
+        await view.start(match)
         # current_page = self.view.current_page
         # show_page = (current_page * 3) + int(value)
         # match = source[int(show_page)][int(value)]
@@ -656,18 +660,14 @@ class MatchHistoryView(ViewAuthor):
 
 
 class MatchDetailsView(ViewAuthor):
-    def __init__(self, interaction: Interaction, match: valorantx.MatchDetails):
+    def __init__(self, interaction: Interaction):
         super().__init__(interaction, timeout=180)
-        embeds = MatchEmbed(match)
-        self.embeds_mobile: List[discord.Embed] = embeds.get_mobile()
-        self.embeds_desktop: List[discord.Embed] = embeds.get_desktop()
+        self.embeds_mobile: List[discord.Embed] = []
+        self.embeds_desktop: List[discord.Embed] = []
         self.current_page = 0
         self.is_on_mobile = False
         self.pages: List[discord.Embed] = []
         self.message: Optional[discord.Message] = None
-        self.__update_pages()
-        self.__fill_items()
-        self.__update_buttons()
 
     @ui.button(label='≪', style=ButtonStyle.blurple, custom_id='back_page')
     async def back_page(self, interaction: Interaction, button: ui.Button) -> None:
@@ -691,13 +691,7 @@ class MatchDetailsView(ViewAuthor):
         if self.message is not None:
             await self.message.edit(embed=self.pages[0], view=None)
 
-    def __fill_items(self):
-        self.clear_items()
-        self.add_item(self.back_page)
-        self.add_item(self.next_page)
-        self.add_item(self.toggle_ui)
-
-    def __update_pages(self):
+    def _update_pages(self):
         self.pages = self.embeds_desktop if not self.is_on_mobile else self.embeds_mobile
 
     def get_page(self, page_number: int) -> Union[discord.Embed, List[discord.Embed]]:
@@ -705,11 +699,11 @@ class MatchDetailsView(ViewAuthor):
         return self.pages[page_number]
 
     async def show_page(self, interaction: Interaction, page_number: 0) -> None:
-        self.__update_pages()
+        self._update_pages()
         if page_number != 0:
             self.current_page = self.current_page + page_number
         page = self.get_page(self.current_page)
-        self.__update_buttons()
+        self._update_buttons()
         kwargs = self._get_kwargs_from_page(page)
         await interaction.response.edit_message(**kwargs)
 
@@ -717,15 +711,110 @@ class MatchDetailsView(ViewAuthor):
         embeds = [embed for embed in page] if isinstance(page, list) else [page]
         return {'embeds': embeds, 'view': self}
 
-    def __update_buttons(self) -> None:
+    def _update_buttons(self) -> None:
         page = self.current_page
         total = len(self.pages) - 1
         self.back_page.disabled = page == 0
         self.next_page.disabled = page == total
 
-    async def start(self):
+    async def start(self, match: valorantx.MatchDetails) -> None:
+        embeds = MatchEmbed(match)
+        self.embeds_mobile: List[discord.Embed] = embeds.get_mobile()
+        self.embeds_desktop: List[discord.Embed] = embeds.get_desktop()
+        self.current_page = 0
+        self._update_pages()
+        self._update_buttons()
+        if self.interaction.response.is_done():
+            self.message = await self.interaction.edit_original_response(embed=self.pages[0], view=self)
+            return
         await self.interaction.response.edit_message(embed=self.pages[0], view=self)
         self.message = await self.interaction.original_response()
+
+
+class ButtonAccountSwitchX(ui.Button['SwitchingViewX']):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(style=discord.ButtonStyle.gray, **kwargs)
+
+    async def callback(self, interaction: Interaction) -> None:
+        assert self.view is not None
+
+        await interaction.response.defer()
+
+        # enable all buttons without self
+        self.disabled = True
+        for item in self.view.children:
+            if isinstance(item, ui.Button):
+                if item.custom_id != self.custom_id:
+                    item.disabled = False
+
+        for riot_auth in self.view.riot_auth_list:
+            if riot_auth.puuid == self.custom_id:
+                self.view._v_client.set_authorize(riot_auth)
+                await self.view.start_view()
+                break
+
+
+class SwitchingViewX(ViewAuthor):
+    def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient, row: int = 0) -> None:
+        super().__init__(interaction)
+        self.v_user = v_user
+        self._v_client: ValorantClient = client
+        self.riot_auth_list = v_user.get_riot_accounts()
+        self._build_buttons(row=row)
+
+    def _build_buttons(self, row: int = 0) -> None:
+        for index, acc in enumerate(self.riot_auth_list, start=1):
+            if index >= 4:
+                row = 1
+            self.add_item(
+                ButtonAccountSwitchX(
+                    label="Account #" + str(index) if acc.hide_display_name else acc.display_name,
+                    custom_id=acc.puuid,
+                    disabled=(index == 1),
+                    row=row,
+                )
+            )
+
+    async def start_view(self) -> None:
+        pass
+
+
+class MatchDetailsSwitchAccountView(MatchDetailsView):
+    def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
+        super().__init__(interaction)
+        self.v_user = v_user
+        self._v_client: ValorantClient = client
+        self.riot_auth_list = v_user.get_riot_accounts()
+        self._build_buttons(row=1)
+
+    def _build_buttons(self, row: int = 0) -> None:
+        for index, acc in enumerate(self.riot_auth_list, start=1):
+            self.add_item(
+                ButtonAccountSwitchX(
+                    label="Account #" + str(index) if acc.hide_display_name else acc.display_name,
+                    custom_id=acc.puuid,
+                    disabled=(index == 1),
+                    row=row,
+                )
+            )
+
+    async def start_view(self) -> None:
+
+        match_history = await self._v_client.fetch_match_history(start=0, end=1)
+
+        if len(match_history.get_match_details()) == 0:
+            self.disable_buttons()
+            embed = discord.Embed(
+                title="No matches found",
+                description="You have no matches in your match history",
+                color=discord.Color.red(),
+            )
+            return await self.interaction.response.edit_message(embed=embed, view=self)
+        self.current_page = 0
+        await super().start(match=match_history.get_match_details()[0])
+
+    def disable_buttons(self):
+        self.back_page.disabled = self.next_page.disabled = self.toggle_ui.disabled = True
 
 
 # collection views

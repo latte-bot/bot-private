@@ -232,7 +232,7 @@ class MatchEmbed:
         tier = player.get_competitive_rank()
         return (
             (' ' + tier.emoji + ' ')  # type: ignore
-            if self._match.game_mode == valorantx.GameModeType.competitive and tier is not None
+            if self._match.queue == valorantx.QueueType.competitive and tier is not None
             else ''
         )
 
@@ -378,10 +378,6 @@ class MatchEmbed:
 
         for i, r in enumerate(self._match.round_results, start=1):
 
-            # if r.result_code == valorantx.RoundResultCode.surrendered:
-            #     timelines.append('Surrendered')
-            #     break
-
             if i == 12:
                 timelines.append(' | ')
 
@@ -389,6 +385,9 @@ class MatchEmbed:
                 timelines.append(r.emoji)  # type: ignore
             else:
                 timelines.append(r.emoji)  # type: ignore
+
+            if r.result_code == valorantx.RoundResultCode.surrendered:
+                break
 
         if self._match.game_mode.uuid not in [str(GameModeType.escalation), str(GameModeType.deathmatch)]:
             if len(timelines) > 25:

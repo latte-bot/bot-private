@@ -34,8 +34,7 @@ class Developers(commands.Cog):
     """Developers commands"""
 
     def __init__(self, bot: LatteBot) -> None:
-        self.bot: LatteBot = bot
-        self.latte_log._guild_ids = self.blacklist._guild_ids = [self.bot.support_guild_id]
+        self.bot = bot
 
     latte_log = app_commands.Group(
         name="_log",
@@ -43,7 +42,6 @@ class Developers(commands.Cog):
         default_permissions=discord.Permissions(
             administrator=True,
         ),
-        guild_ids=[998168818092347404],
     )
 
     @latte_log.command(name=_T('read'), description=_T('Read the log'))
@@ -168,7 +166,13 @@ class Developers(commands.Cog):
     #     cogs = [extension.lower() for extension in self.bot._initial_extensions if extension.lower() != 'cogs.admin']
     #     return [app_commands.Choice(name=cog, value=cog) for cog in cogs]
 
-    blacklist = app_commands.Group(name=_T('_blacklist'), description=_T('Blacklist commands'))
+    blacklist = app_commands.Group(
+        name=_T('_blacklist'),
+        description=_T('Blacklist commands'),
+        default_permissions=discord.Permissions(
+            administrator=True,
+        ),
+    )
 
     @blacklist.command(name='add', description=_T('Add user or guild to blacklist'))
     @app_commands.describe(object_id=_T('Object ID'))
@@ -237,13 +241,22 @@ class Developers(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
-    @blacklist.command(name=_T('list'), description=_T('Lists all blacklisted users'))
-    @owner_only()
-    async def blacklist_list(self, interaction: Interaction):
+    # @blacklist.command(name=_T('list'), description=_T('Lists all blacklisted users'))
+    # @owner_only()
+    # async def blacklist_list(self, interaction: Interaction):
+    #
+    #     await interaction.response.defer(ephemeral=True)
+    #
+    #     blacklist = self.bot.blacklist.all()
 
-        await interaction.response.defer(ephemeral=True)
-
-        blacklist = self.bot.blacklist.all()
+    # stat = app_commands.Group(
+    #     name=_T('_stat'), description=_T('Stat commands'), default_permissions=discord.Permissions(administrator=True)
+    # )
+    #
+    # @stat.command(name=_T('app_commands'))
+    # @owner_only()
+    # async def stat_app_commands(self, interaction: Interaction, guild_id: int = None):
+    #     ...
 
 
 async def setup(bot: LatteBot) -> None:

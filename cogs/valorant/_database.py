@@ -59,7 +59,7 @@ class ValorantUser:
     def get_riot_accounts(self) -> List[RiotAuth]:
         return self._riot_accounts
 
-    def get_1st(self) -> Optional[RiotAuth]:
+    def get_first_account(self) -> Optional[RiotAuth]:
         if len(self._riot_accounts) == 0:
             return None
         return self._riot_accounts[0]

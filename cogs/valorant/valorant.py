@@ -57,6 +57,7 @@ from ._views import (  # StatsView,
     MatchHistoryView,
     RiotMultiFactorModal,
     SwitchAccountView,
+    MatchDetailsSwitchAccountView,
 )
 
 # cogs
@@ -127,6 +128,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             self.v_client = ValorantClient()
             await self.v_client.__aenter__()
+            self.bot.v_client = self.v_client
 
             if self.v_client.http.riot_auth is valorantx.utils.MISSING:
 
@@ -134,7 +136,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
                 await riot_auth.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
 
-                client = await self.v_client.set_authorize(riot_auth)
+                client = self.v_client.set_authorize(riot_auth)
 
                 try:
                     await client.fetch_assets(force=False, reload=True)
@@ -182,6 +184,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await self.v_client.close()
         self.valorant_users.clear()
         self.v_client = MISSING
+        # self.bot.v_client = MISSING
 
         _log.info('Valorant client unloaded.')
 
@@ -280,8 +283,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             riot_acc = RiotAuth(self.bot.owner_id, self.bot.support_guild_id, bot=self.bot)
             await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
-            riot_acc = v_user.get_1st()
-        client = await self.v_client.set_authorize(riot_acc)
+            riot_acc = v_user.get_first_account()
+        client = self.v_client.set_authorize(riot_acc)
         data = await client.fetch_store_front()
         return data.get_bundles()
 
@@ -375,7 +378,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @alru_cache(maxsize=1024)
     async def get_store(self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US) -> List[discord.Embed]:
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
         data = await client.fetch_store_front()
         store = data.get_store()
 
@@ -408,7 +411,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> List[discord.Embed]:
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
         contract = await client.fetch_contracts()
 
         btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
@@ -439,7 +442,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> List[discord.Embed]:
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
         data = await client.fetch_store_front()
 
         nightmarket = data.get_nightmarket()
@@ -476,7 +479,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @alru_cache(maxsize=1024)
     async def get_point(self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US) -> List[discord.Embed]:
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
         wallet = await client.fetch_wallet()
 
         vp = client.get_currency(uuid=str(CurrencyType.valorant))
@@ -501,7 +504,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> List[discord.Embed]:
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
         contracts = await client.fetch_contracts()
 
         daily = []
@@ -572,7 +575,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
     ) -> Tuple[List[discord.Embed], List[discord.Embed], List[List[discord.Embed]]]:
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
 
         # mmr
         mmr = await client.fetch_mmr()
@@ -887,7 +890,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        embeds = await self.get_store(v_user.get_1st(), self.v_locale(interaction.locale))
+        embeds = await self.get_store(v_user.get_first_account(), self.v_locale(interaction.locale))
 
         switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_store)
         await interaction.followup.send(embeds=embeds, view=switch_view)
@@ -901,7 +904,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        embeds = await self.get_nightmarket(v_user.get_1st(), self.v_locale(interaction.locale))
+        embeds = await self.get_nightmarket(v_user.get_first_account(), self.v_locale(interaction.locale))
 
         switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_nightmarket)
         await interaction.followup.send(embeds=embeds, view=switch_view)
@@ -915,7 +918,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        embeds = await self.get_battlepass(v_user.get_1st(), self.v_locale(interaction.locale))
+        embeds = await self.get_battlepass(v_user.get_first_account(), self.v_locale(interaction.locale))
         switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_battlepass)
 
         await interaction.followup.send(embeds=embeds, view=switch_view)
@@ -930,7 +933,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         v_user = await self.fetch_user(id=interaction.user.id)
 
         switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_point)
-        embeds = await self.get_point(v_user.get_1st(), self.v_locale(interaction.locale))
+        embeds = await self.get_point(v_user.get_first_account(), self.v_locale(interaction.locale))
 
         await interaction.followup.send(embeds=embeds, view=switch_view)
 
@@ -1034,7 +1037,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        embeds = await self.get_mission(v_user.get_1st(), self.v_locale(interaction.locale))
+        embeds = await self.get_mission(v_user.get_first_account(), self.v_locale(interaction.locale))
         switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_mission)
 
         await interaction.followup.send(embeds=embeds, view=switch_view)
@@ -1048,7 +1051,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        embeds, sprays, skins = await self.get_collection(v_user.get_1st(), self.v_locale(interaction.locale))
+        embeds, sprays, skins = await self.get_collection(v_user.get_first_account(), self.v_locale(interaction.locale))
 
         switch_view = CollectionView(
             interaction,
@@ -1080,13 +1083,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @dynamic_cooldown(cooldown_5s)
     async def carrier(self, interaction: Interaction, mode: Optional[Choice[str]] = None) -> None:
 
+        await interaction.response.defer()
+
         if mode is not None:
             mode = mode.value
 
-        await interaction.response.defer()
-
         v_user = await self.fetch_user(id=interaction.user.id)
-        client = await self.v_client.set_authorize(v_user.get_1st())
+        client = self.v_client.set_authorize(v_user.get_first_account())
         match_history = await client.fetch_match_history(queue=mode)
 
         if len(match_history) <= 0:
@@ -1097,6 +1100,47 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         view = MatchHistoryView(interaction, match_history.get_match_details(), matchmaking_rating)
         await view.start()
+
+    async def get_match_details(
+        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US, mode: Optional[str] = None
+    ) -> ...:
+        client = self.v_client.set_authorize(riot_auth)
+        match_history = await client.fetch_match_history(queue=mode)
+
+        if len(match_history) <= 0:
+            # raise NoMatchHistory('No match history found')
+            raise CommandError(_('No match history found'))
+
+    @app_commands.command(name=_T('match'), description=_T('Shows latest match details'))
+    @app_commands.choices(
+        mode=[
+            Choice(name=_T('Unrated'), value='unrated'),
+            Choice(name=_T('Competitive'), value='competitive'),
+            Choice(name=_T('Deathmatch'), value='deathmatch'),
+            Choice(name=_T('Spike Rush'), value='spikerush'),
+            Choice(name=_T('Escalation'), value='ggteam'),
+            Choice(name=_T('Replication'), value='onefa'),
+            Choice(name=_T('Snowball Fight'), value='snowball'),
+            Choice(name=_T('Custom'), value='custom'),
+        ]
+    )
+    @app_commands.describe(mode=_T('The queue to show your latest match for'))
+    @app_commands.rename(mode=_T('mode'))
+    @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
+    async def match(self, interaction: Interaction, mode: Optional[Choice[str]] = None) -> None:
+
+        await interaction.response.defer()
+
+        # if mode is not None:
+        #     mode = mode.value
+
+        v_user = await self.fetch_user(id=interaction.user.id)
+
+        client = self.v_client.set_authorize(v_user.get_first_account())
+
+        view = MatchDetailsSwitchAccountView(interaction, v_user, client)
+        await view.start_view()
 
     @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
     @app_commands.guild_only()
@@ -1186,7 +1230,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        await self.v_client.set_authorize(v_user.get_1st())
+        self.v_client.set_authorize(v_user.get_first_account())
 
         contracts = await self.v_client.fetch_contracts()
 

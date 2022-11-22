@@ -137,7 +137,7 @@ class RiotAuth(valorantx.RiotAuth):
     def to_dict(self) -> Dict[str, Any]:
 
         cookie_dict = {}
-        for domain, cookies in self._cookie_jar._cookies.items():  # type: ignore
+        for cookies in self._cookie_jar._cookies.values():  # type: ignore
             for cookie in cookies.values():
                 cookie_dict[cookie.key] = cookie.value
 
@@ -195,7 +195,7 @@ class Client(valorantx.Client):
     def http(self) -> HTTPClientCustom:
         return self._http
 
-    async def set_authorize(self, riot_auth: RiotAuth) -> Client:
+    def set_authorize(self, riot_auth: RiotAuth) -> Client:
 
         # set riot auth
         self.http._riot_auth = riot_auth
@@ -204,8 +204,7 @@ class Client(valorantx.Client):
 
         # build headers
         self.http.clear_headers()
-        await self.http.build_headers()
-
+        self.loop.create_task(self.http.build_headers())
         return self
 
     # valorantx-scraper
