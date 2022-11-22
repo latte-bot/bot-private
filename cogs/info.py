@@ -50,8 +50,8 @@ class About(commands.Cog):
         offset = format_dt(commit_time, style='R')
         return f'[`{short_sha2}`](https://github.com/latte-bot/latte-bot/commit/{commit.hex}) {short} ({offset})'
 
-    @property
-    def get_last_parent(self) -> str:
+    @staticmethod
+    def get_last_parent() -> str:
         """Get the last parent of the repo"""
         repo = pygit2.Repository('./.git')
         parent = repo.head.target.hex
@@ -84,9 +84,10 @@ class About(commands.Cog):
     @app_commands.command(name=_T('about'), description=_T('Shows basic information'))
     @dynamic_cooldown(cooldown_5s)
     async def about(self, interaction: Interaction) -> None:
+        # await interaction.response.defer()
+
         core_dev = await self.bot.dev
-        bot_version = self.bot.version
-        server_count = len(self.bot.guilds)
+        guild_count = len(self.bot.guilds)
         channel_count = len(list(self.bot.get_all_channels()))
         member_count = sum(guild.member_count for guild in self.bot.guilds)
         total_commands = len(self.bot.tree.get_commands())
@@ -100,31 +101,32 @@ class About(commands.Cog):
         embed.add_field(name='ʟᴀᴛᴇꜱᴛ ᴜᴘᴅᴀᴛᴇꜱ:', value=self.get_latest_commits(), inline=False)
         embed.add_field(
             name='ꜱᴛᴀᴛꜱ:',
-            value=f'{emoji.latte_icon} ꜱᴇʀᴠᴇʀꜱ: `{server_count}`\n'
-            f'{emoji.member_icon} ᴜꜱᴇʀꜱ: `{member_count}`\n'
-            f'{emoji.slash_command} ᴄᴏᴍᴍᴀɴᴅꜱ: `{total_commands}`\n'
-            f'{emoji.channel_icon} ᴄʜᴀɴɴᴇʟ: `{channel_count}`',
+            value='{emoji} ꜱᴇʀᴠᴇʀꜱ: `{guild_count}`\n'.format(emoji=emoji.latte_icon, guild_count=guild_count)
+            + '{emoji} ᴜꜱᴇʀꜱ: `{member_count}`\n'.format(emoji=emoji.member_icon, member_count=member_count)
+            + '{emoji} ᴄᴏᴍᴍᴀɴᴅꜱ: `{total_commands}`\n'.format(emoji=emoji.slash_command, total_commands=total_commands)
+            + '{emoji} ᴄʜᴀɴɴᴇʟ: `{channel_count}`'.format(emoji=emoji.channel_icon, channel_count=channel_count),
             inline=True,
         )
         embed.add_field(
             name='ʙᴏᴛ ɪɴꜰᴏ:',
-            value=f'{emoji.cursor} ʟɪɴᴇ ᴄᴏᴜɴᴛ: `{count_python(".")}`\n'
-            f'{emoji.latte_icon} ʟᴀᴛᴛᴇ_ʙᴏᴛ: `{bot_version}`\n'
-            f'{emoji.python} ᴘʏᴛʜᴏɴ: `{platform.python_version()}`\n'
-            f'{emoji.discord_py} ᴅɪꜱᴄᴏʀᴅ.ᴘʏ: `{discord.__version__}`',
+            value='{emoji} ʟɪɴᴇ ᴄᴏᴜɴᴛ: `{count_python}`\n'.format(emoji=emoji.cursor, count_python=count_python('.'))
+            + '{emoji} ʟᴀᴛᴛᴇ_ʙᴏᴛ: `{bot}`\n'.format(emoji=emoji.latte_icon, bot=self.bot.version)
+            + '{emoji} ᴘʏᴛʜᴏɴ: `{python}`\n'.format(emoji=emoji.python, python=platform.python_version())
+            + '{emoji} ᴅɪꜱᴄᴏʀᴅ.ᴘʏ: `{dpy}`'.format(emoji=emoji.discord_py, dpy=discord.__version__),
             inline=True,
         )
         embed.add_field(name='\u200b', value='\u200b', inline=True)
         embed.add_field(
             name='ᴘʀᴏᴄᴇꜱꜱ:',
-            value=f'ᴏꜱ: `{platform.system()}`\n'
-            f'ᴄᴘᴜ ᴜꜱᴀɢᴇ: `{cpu_usage}%`\n'
-            f'ᴍᴇᴍᴏʀʏ ᴜꜱᴀɢᴇ: `{memory_usage:.2f} MB`',
+            value='ᴏꜱ: `{os}`\n'.format(os=platform.system())
+            + 'ᴄᴘᴜ ᴜꜱᴀɢᴇ: `{cpu_usage}%`\n'.format(cpu_usage=cpu_usage)
+            + 'ᴍᴇᴍᴏʀʏ ᴜꜱᴀɢᴇ: `{memory_usage} MB`'.format(memory_usage=round(memory_usage, 2)),
             inline=True,
         )
         embed.add_field(
             name='ᴜᴘᴛɪᴍᴇ:',
-            value=f'ʙᴏᴛ: {self.bot.launch_time}\n' f'ꜱʏꜱᴛᴇᴍ: <t:{round(psutil.boot_time())}:R>',
+            value='ʙᴏᴛ: {launch_time}\n'.format(launch_time=self.bot.launch_time)
+            + 'ꜱʏꜱᴛᴇᴍ: <t:{boot_time}:R>'.format(boot_time=round(psutil.boot_time())),
             inline=True,
         )
         embed.add_field(name='\u200b', value='\u200b', inline=True)

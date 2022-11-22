@@ -10,13 +10,13 @@ import asyncpg
 import discord
 from async_lru import alru_cache
 from discord import app_commands, utils
-from discord.app_commands import Command, Group, TranslationContext, TranslationContextLocation
 from discord.ext import commands
 from dotenv import load_dotenv
 
 from utils.encryption import Encryption
 from utils.enums import Theme
-from utils.i18n import Translator
+from utils.i18n import Translator, _
+from utils.config import Config
 
 load_dotenv()
 
@@ -26,7 +26,9 @@ _log = logging.getLogger('latte_bot')
 os.environ['JISHAKU_NO_UNDERSCORE'] = 'True'
 os.environ['JISHAKU_HIDE'] = 'True'
 
-initial_extensions = [
+description = 'Hello, I am Latte, a bot made by @ꜱᴛᴀᴄɪᴀ.#7475'
+
+initial_extensions = (
     'cogs.test',
     'cogs.dev',
     'cogs.events',
@@ -35,7 +37,7 @@ initial_extensions = [
     'cogs.jishaku_',
     'cogs.info',
     'cogs.valorant',
-]
+)
 
 
 class LatteBot(commands.AutoShardedBot):
@@ -46,7 +48,6 @@ class LatteBot(commands.AutoShardedBot):
 
         # intents
         intents = discord.Intents.default()
-        intents.message_content = True
 
         # allowed_mentions
         allowed_mentions = discord.AllowedMentions(roles=False, everyone=False, users=True)
@@ -59,6 +60,7 @@ class LatteBot(commands.AutoShardedBot):
             intents=intents,
             # application_id=977433932146569216,
             application_id=989337541389987861,
+            description=description,
         )
 
         # bot stuff
@@ -80,20 +82,22 @@ class LatteBot(commands.AutoShardedBot):
         self._initial_extensions = initial_extensions
 
         # webhook
-        self._webhook_id: Optional[int] = os.getenv('WEBHOOK_ID')
+        self._webhook_id: Optional[int] = os.getenv(
+            'WEBHOOK_ID',
+        )
         self._webhook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
 
         # activity
         self.bot_activity: str = 'nyanpasu ♡ ₊˚'
 
         # support guild stuff
-        self.support_guild_id: int = int(os.getenv('SUPPORT_GUILD_ID'))
+        self.support_guild_id: Optional[int] = int(os.getenv('SUPPORT_GUILD_ID'))
 
         self.support_invite_url: str = 'https://discord.gg/xeVJYRDY'
 
         # bot interaction checker
         self.tree.interaction_check = self.interaction_check
-        self.maintenance_message: str = 'Bot is in maintenance mode.'  # TODO: localization support
+        self.maintenance_message: str = _('Bot is in maintenance mode.')
 
         # encryption
         self.encryption: Encryption = Encryption(os.getenv('CRYPTOGRAPHY'))
@@ -113,7 +117,7 @@ class LatteBot(commands.AutoShardedBot):
         self.riot_password: str = os.getenv('RIOT_PASSWORD')
 
         # blacklisted users
-        self.blacklisted: List[int] = []
+        self.blacklist: Config[bool] = Config('blacklist.json')
 
     @property
     def owner(self) -> discord.User:
@@ -128,17 +132,60 @@ class LatteBot(commands.AutoShardedBot):
     @property
     def support_guild(self) -> Optional[discord.Guild]:
         if self.support_guild_id is None:
-            return None
+            raise ValueError('Support guild ID is not set.')
         return self.get_guild(self.support_guild_id)
 
     @discord.utils.cached_property
     def webhook(self) -> discord.Webhook:
         wh_id, wh_token = int(self._webhook_id), self._webhook_token
+        if wh_id is None or wh_token is None:
+            raise ValueError('Webhook ID or Token is not set.')
         hook = discord.Webhook.partial(id=wh_id, token=wh_token, session=self.session)
         return hook
 
     def is_maintenance(self) -> bool:
         return self._maintenance
+
+    async def add_to_blacklist(self, object_id: int):
+        await self.blacklist.put(object_id, True)
+
+    async def remove_from_blacklist(self, object_id: int):
+        try:
+            await self.blacklist.remove(object_id)
+        except KeyError:
+            pass
+
+    async def get_or_fetch_member(self, guild: discord.Guild, member_id: int) -> Optional[discord.Member]:
+        """Looks up a member in cache or fetches if not found.
+        Parameters
+        -----------
+        guild: Guild
+            The guild to look in.
+        member_id: int
+            The member ID to search for.
+        Returns
+        ---------
+        Optional[Member]
+            The member or None if not found.
+        """
+
+        member = guild.get_member(member_id)
+        if member is not None:
+            return member
+
+        shard: discord.ShardInfo = self.get_shard(guild.shard_id)  # type: ignore  # will never be None
+        if shard.is_ws_ratelimited():
+            try:
+                member = await guild.fetch_member(member_id)
+            except discord.HTTPException:
+                return None
+            else:
+                return member
+
+        members = await guild.query_members(limit=1, user_ids=[member_id], cache=True)
+        if not members:
+            return None
+        return members[0]
 
     @alru_cache(maxsize=1)
     async def fetch_app_commands(self) -> List[app_commands.AppCommand]:
@@ -159,6 +206,14 @@ class LatteBot(commands.AutoShardedBot):
         return self._app_commands.get(name)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+
+        if interaction.user.id in self.blacklist:
+            await interaction.response.send_message(
+                _('You are blacklisted from using this bot.'),
+                ephemeral=True,
+            )
+            return False
+
         self.translator.set_locale(interaction.locale)
 
         if await self.is_owner(interaction.user):
@@ -191,7 +246,7 @@ class LatteBot(commands.AutoShardedBot):
             try:
                 await self.load_extension(extension)
             except Exception as e:
-                _log.error(f'Failed to load extension {extension}.', exc_info=e)
+                _log.exception('Failed to load extension %s.', extension)
 
     async def setup_hook(self) -> None:
 
@@ -220,13 +275,20 @@ class LatteBot(commands.AutoShardedBot):
         #     await command.get_translated_payload(self.translator)
 
         # tree sync application commands
-        # await self.tree.sync()
-        # await self.tree.sync(guild=discord.Object(id=self.support_guild_id))
-        # await self.tree.sync(guild=discord.Object(id=1042503061454729289))  # EMOJI ABILITY 2
-        # await self.tree.sync(guild=discord.Object(id=1042502960921452734)) # EMOJI ABILITY 1
-        # await self.tree.sync(guild=discord.Object(id=1043965050630705182))  # EMOJI TIER
-        # await self.tree.sync(guild=discord.Object(id=1042501718958669965)) # EMOJI AGENT
-        # await self.tree.sync(guild=discord.Object(id=1042809126624964651)) # EMOJI MATCH
+        await self.tree.sync()
+        sync_guilds = [
+            self.support_guild_id,
+            1042503061454729289,  # EMOJI ABILITY 2
+            1042502960921452734,  # EMOJI ABILITY 1
+            1043965050630705182,  # EMOJI TIER
+            1042501718958669965,  # EMOJI AGENT
+            1042809126624964651,  # EMOJI MATCH
+        ]
+        # for guild_id in sync_guilds:
+        #     try:
+        #         await self.tree.sync(guild=discord.Object(id=guild_id))
+        #     except Exception as e:
+        #         _log.exception(f'Failed to sync guild {guild_id}.')
 
         # await Translator.get_i18n(
         #     cogs=self.cogs,

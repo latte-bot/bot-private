@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
 
 import valorantx
 from valorantx import CurrencyType, GameModeType, RoundResultCode
-from valorantx.models.match import RoundResult # noqa
+from valorantx.models.match import RoundResult  # noqa
 
 from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 

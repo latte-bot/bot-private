@@ -3,13 +3,13 @@
         "help": {
             "help": {
                 "name": "help",
-                "description": "ดูคำสั่งทั้งหมด"
+                "description": "Help command"
             }
         },
         "about": {
             "invite": {
-                "name": "เชิญ",
-                "description": "เชิญบอทเข้าเซิฟเวอร์"
+                "name": "invite",
+                "description": "Invite bot"
             },
             "about": {
                 "name": "about",
@@ -178,8 +178,5 @@
                 }
             }
         }
-    },
-    "strings": {
-        "hello_world": "สวัสดีโลก"
     }
 }

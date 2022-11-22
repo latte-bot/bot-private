@@ -83,6 +83,9 @@ async def create_pool() -> asyncpg.Pool:
             format='text',
         )
 
+    uri = os.getenv('POSTGRESQL', None)
+    if uri is None:
+        raise RuntimeError('POSTGRESQL environment variable is not set')
     return await asyncpg.create_pool(
         os.getenv('POSTGRESQL'),
         init=init,

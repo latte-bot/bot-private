@@ -40,7 +40,7 @@ class Testing(commands.Cog):
 
     @app_commands.command(name=_T('test_choice'), description=_T('test_choice_desc'))
     @app_commands.choices(
-        colour=[  # param name
+        colour=[
             app_commands.Choice(name=_T("Red"), value="red"),
             app_commands.Choice(name=_T("Green"), value="green"),
             app_commands.Choice(name=_T("Blue"), value="blue"),

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import logging
-import os
 from typing import TYPE_CHECKING, Literal
 
 import discord
@@ -10,7 +9,7 @@ from discord import Interaction, app_commands
 from discord.app_commands import locale_str as _T
 from discord.ext import commands
 
-from utils.chat_formatting import bold
+from utils.chat_formatting import bold, inline
 from utils.checks import owner_only
 from utils.errors import CommandError
 
@@ -19,10 +18,16 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__file__)
 
-SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
-SUPPORT_GUILD = discord.Object(id=SUPPORT_GUILD_ID)
-
-initial_extensions = Literal['cogs.events', 'cogs.errors', 'cogs.help', 'cogs.jishaku', 'cogs.info', 'cogs.valorant']
+# fmt: off
+initial_extensions = Literal[
+    'cogs.events',
+    'cogs.errors',
+    'cogs.help',
+    'cogs.jishaku',
+    'cogs.info',
+    'cogs.valorant'
+]
+# fmt: on
 
 
 class Developers(commands.Cog):
@@ -30,6 +35,7 @@ class Developers(commands.Cog):
 
     def __init__(self, bot: LatteBot) -> None:
         self.bot: LatteBot = bot
+        self.latte_log._guild_ids = self.blacklist._guild_ids = [self.bot.support_guild_id]
 
     latte_log = app_commands.Group(
         name="_log",
@@ -37,6 +43,7 @@ class Developers(commands.Cog):
         default_permissions=discord.Permissions(
             administrator=True,
         ),
+        guild_ids=[998168818092347404],
     )
 
     @latte_log.command(name=_T('read'), description=_T('Read the log'))
@@ -161,46 +168,72 @@ class Developers(commands.Cog):
     #     cogs = [extension.lower() for extension in self.bot._initial_extensions if extension.lower() != 'cogs.admin']
     #     return [app_commands.Choice(name=cog, value=cog) for cog in cogs]
 
-    # TODO: blacklist command
-    blacklist = app_commands.Group(
-        name=_T('_blacklist'), description=_T('Blacklist commands'), guild_ids=[SUPPORT_GUILD_ID]
-    )
+    blacklist = app_commands.Group(name=_T('_blacklist'), description=_T('Blacklist commands'))
 
     @blacklist.command(name='add', description=_T('Add user or guild to blacklist'))
-    @app_commands.describe(snowflake_id=_T('Snowflake ID'), reason=_T('The reason for blacklisting the user'))
+    @app_commands.describe(object_id=_T('Object ID'))
     @owner_only()
-    async def blacklist_add(self, interaction: Interaction, snowflake_id: int, reason: str):
+    async def blacklist_add(self, interaction: Interaction, object_id: str) -> None:
 
         await interaction.response.defer(ephemeral=True)
 
-        await self.bot.add_blacklist(snowflake_id, reason)
-        embed = discord.Embed(description=f"{bold(snowflake_id)}are now blacklisted.")
+        if object_id in self.bot.blacklist:
+            raise CommandError(f'`{object_id}` is already in blacklist')
+
+        await self.bot.add_to_blacklist(int(object_id))
+
+        blacklist = (
+            await self.bot.fetch_user(int(object_id))
+            or self.bot.get_guild(int(object_id))
+            or await self.bot.fetch_guild(int(object_id))
+            or object_id
+        )
+        if isinstance(blacklist, (discord.User, discord.Guild)):
+            blacklist = f"{blacklist} {inline(f'({blacklist.id})')}"
+
+        embed = discord.Embed(description=f"{blacklist} are now blacklisted.", color=self.bot.theme.success)
 
         await interaction.followup.send(embed=embed)
 
     @blacklist.command(name=_T('remove'), description=_T('Remove a user or guild from the blacklist'))
-    @app_commands.describe(snowflake_id=_T('Snowflake ID'))
+    @app_commands.describe(object_id=_T('Object ID'))
     @owner_only()
-    async def blacklist_remove(self, interaction: Interaction, snowflake_id: int):
+    async def blacklist_remove(self, interaction: Interaction, object_id: str):
 
         await interaction.response.defer(ephemeral=True)
 
-        await self.bot.remove_blacklist(snowflake_id)
-        embed = discord.Embed(description=f"{bold(snowflake_id)} are now removed from the blacklist.")
+        if object_id not in self.bot.blacklist:
+            raise CommandError(f'`{object_id}` is not in blacklist')
+
+        await self.bot.remove_from_blacklist(int(object_id))
+
+        blacklist = (
+            await self.bot.fetch_user(int(object_id))
+            or self.bot.get_guild(int(object_id))
+            or await self.bot.fetch_guild(int(object_id))
+            or object_id
+        )
+
+        if isinstance(blacklist, (discord.User, discord.Guild)):
+            blacklist = f"{blacklist} {inline(f'({blacklist.id})')}"
+
+        embed = discord.Embed(description=f"{blacklist} are now unblacklisted.", colour=self.bot.theme.success)
 
         await interaction.followup.send(embed=embed)
 
     @blacklist.command(name=_T('check'), description=_T('Check if a user or guild is blacklisted'))
-    @app_commands.describe(snowflake_id=_T('Snowflake ID'))
+    @app_commands.describe(object_id=_T('Object ID'))
     @owner_only()
-    async def blacklist_check(self, interaction: Interaction, snowflake_id: int):
+    async def blacklist_check(self, interaction: Interaction, object_id: str):
         await interaction.response.defer(ephemeral=True)
 
-        if await self.bot.is_blacklisted(snowflake_id):
-            embed = discord.Embed(description=f"{bold(snowflake_id)} is blacklisted.")
-            await interaction.response.send_message(embed=embed)
+        embed = discord.Embed(colour=self.bot.theme.error)
+
+        if object_id in self.bot.blacklist:
+            embed.description = f"{bold(object_id)} is blacklisted."
         else:
-            embed = discord.Embed(description=f"{bold(snowflake_id)} is not blacklisted.")
+            embed.description = f"{bold(object_id)} is not blacklisted."
+            embed.colour = self.bot.theme.success
 
         await interaction.followup.send(embed=embed)
 
@@ -210,8 +243,11 @@ class Developers(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        blacklist = await self.bot.get_blacklist()
+        blacklist = self.bot.blacklist.all()
 
 
 async def setup(bot: LatteBot) -> None:
-    await bot.add_cog(Developers(bot), guilds=[SUPPORT_GUILD])
+    if bot.support_guild_id is not None:
+        await bot.add_cog(Developers(bot), guilds=[discord.Object(id=bot.support_guild_id)])
+    else:
+        _log.warning('Support guild id is not set. Developers cog will not be loaded.')

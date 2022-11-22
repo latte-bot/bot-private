@@ -3,10 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Union
 
+# discord
 import discord
 from discord import AppCommandType, Interaction, app_commands, ui
-
-# i18n
 from discord.app_commands import (  # ContextMenu as AppContextMenu,
     AppCommand as AppCommandBase,
     AppCommandGroup as AppCommandGroupBase,
@@ -17,10 +16,12 @@ from discord.app_commands import (  # ContextMenu as AppContextMenu,
 from discord.app_commands.checks import dynamic_cooldown
 from discord.ext import commands
 
+# utils
 from utils.checks import cooldown_5s
 from utils.errors import CommandError
 from utils.useful import LatteCDN
 from utils.views import ViewAuthor
+from utils.i18n import _
 
 if TYPE_CHECKING:
     from discord import Client
@@ -97,11 +98,11 @@ class HelpView(ViewAuthor):
     async def first_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, 0)
 
-    @ui.button(label="Back", style=discord.ButtonStyle.blurple, row=1)
+    @ui.button(label=_('Back'), style=discord.ButtonStyle.blurple, row=1)
     async def back_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, -1)
 
-    @ui.button(label="Next", style=discord.ButtonStyle.blurple, row=1)
+    @ui.button(label=_('Next'), style=discord.ButtonStyle.blurple, row=1)
     async def next_page(self, interaction: Interaction, button: ui.Button):
         await self.show_page(interaction, +1)
 
@@ -163,7 +164,7 @@ class HelpCommand:
         embed = discord.Embed(
             title=f"{emoji} {cog.qualified_name}",
             color=self.bot.theme.primacy,
-            description=cog.description + '\n' or "No description provided" + '\n',
+            description=cog.description + '\n' or _('No description provided') + '\n',
         )
         return embed
 

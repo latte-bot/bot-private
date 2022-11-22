@@ -1,5 +1,5 @@
 import json
-from typing import AnyStr
+from typing import AnyStr, Optional
 
 from cryptography.fernet import Fernet
 
@@ -9,8 +9,10 @@ class Encryption:
 
     _key: AnyStr
 
-    def __init__(self, key: AnyStr) -> None:
+    def __init__(self, key: Optional[AnyStr]) -> None:
         """Encryption class."""
+        if key is None:
+            raise ValueError('Encryption key is not set.')
         Encryption._key = key
 
     @staticmethod

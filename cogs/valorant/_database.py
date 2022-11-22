@@ -43,6 +43,9 @@ class ValorantUser:
             for data in self.extras
         ]
 
+    def __repr__(self) -> str:
+        return f"<ValorantUser id={self.id}>"
+
     def encrypt(self, args: str) -> AnyStr:
         return self._bot.encryption.encrypt(args)
 
@@ -164,3 +167,6 @@ class Database:
     async def delete_by_guild(self, guild_id: int, *, conn: Optional[asyncpg.Pool] = None) -> List[asyncpg.Record]:
         conn = conn or self.pool
         return await conn.fetch(ACCOUNT_DELETE_BY_GUILD, guild_id)
+
+    async def all(self) -> List[ValorantUser]:
+        return await self.select_users()

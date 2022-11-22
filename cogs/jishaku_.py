@@ -30,9 +30,6 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__file__)
 
-SUPPORT_GUILD_ID = int(os.getenv('SUPPORT_GUILD_ID'))
-SUPPORT_GUILD = discord.Object(id=SUPPORT_GUILD_ID)
-
 
 class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
 
@@ -50,7 +47,7 @@ class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
                 1042502960921452734,  # EMOJI ABILITY 1
                 1043965050630705182,  # EMOJI TIER
                 1042501718958669965,  # EMOJI AGENT
-                1042809126624964651  # EMOJI MATCH
+                1042809126624964651,  # EMOJI MATCH
             ],
         )
         self.bot.tree.add_command(self.msg_jsk_py)
@@ -361,4 +358,7 @@ class Jishaku(*OPTIONAL_FEATURES, *STANDARD_FEATURES):
 
 
 async def setup(bot: LatteBot) -> None:
-    await bot.add_cog(Jishaku(bot=bot), guilds=[SUPPORT_GUILD])
+    if bot.support_guild_id is not None:
+        await bot.add_cog(Jishaku(bot=bot), guilds=[discord.Object(id=bot.support_guild_id)])
+    else:
+        _log.warning('Support guild id is not set. Jishaku cog will not be loaded.')

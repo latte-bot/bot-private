@@ -22,6 +22,7 @@ from jishaku.paginators import PaginatorInterface, WrappedPaginator
 
 from utils.errors import LatteAppError
 from utils.views import ViewAuthor
+from utils.i18n import _
 
 if TYPE_CHECKING:
     from bot import LatteBot
@@ -69,7 +70,7 @@ class ErrorHandler(commands.Cog):
     async def on_application_command_error(self, interaction: Interaction, error: AppCommandError):
         """Handles errors for all application commands associated with this CommandTree."""
 
-        # error = getattr(error, 'original', error)
+        # content = getattr(error, 'original', error)
 
         if isinstance(error, (discord.Forbidden, discord.NotFound)):
             return
@@ -91,19 +92,19 @@ class ErrorHandler(commands.Cog):
         if isinstance(error, LatteAppError):
             content = getattr(error, 'original', error)
         elif isinstance(error, CommandNotFound):
-            content = 'Command not found'
+            content = _('Command not found')
         elif isinstance(error, MissingPermissions):
-            content = 'You do not have the required permissions to use this command'
+            content = _('You do not have the required permissions to use this command')
         elif isinstance(error, BotMissingPermissions):
-            content = 'I do not have the required permissions to use this command'
+            content = _('I do not have the required permissions to use this command')
         elif isinstance(error, CommandOnCooldown):
-            content = f'This command is on cooldown for {error.retry_after:.2f} seconds'
+            content = _('This command is on cooldown for {cd} seconds').format(cd=round(error.retry_after, 2))
         elif isinstance(error, Union[CommandSignatureMismatch, CommandNotFound]):
-            content = "Sorry, but this command seems to be unavailable! Please try again later..."
+            content = _("Sorry, but this command seems to be unavailable! Please try again later...")
         elif isinstance(error, CheckFailure):
-            content = "You can't use this command."
+            content = _("You can't use this command.")
         else:
-            content = "Sorry, but something went wrong! Please try again later..."
+            content = _("Sorry, but something went wrong! Please try again later...")
             if isinstance(error, CommandInvokeError):
 
                 traceback_formatted = f"```py\n{traceback.format_exc()}\n```"

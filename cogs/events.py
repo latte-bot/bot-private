@@ -68,7 +68,7 @@ class Event(commands.Cog):
     async def on_latte_join(self, guild: discord.Guild) -> None:
         """Called when LatteBot joins a guild"""
 
-        if guild.id in self.bot.blacklisted:
+        if guild.id in self.bot.blacklist:
             _log.info(f'Left guild {guild.id} because it is blacklisted')
             return await guild.leave()
 

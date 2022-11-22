@@ -227,8 +227,6 @@ class Translator(app_commands.Translator):
                 _log.warning(f'Invalid name for {string_msg!r} in {locale!r} ({tcl})')
                 return None
 
-        print(string_msg, string.message, locale)
-
         return string_msg
 
     @classmethod

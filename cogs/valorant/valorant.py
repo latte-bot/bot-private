@@ -192,8 +192,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     async def fetch_all_valorant_users(self) -> None:
         async with self.bot.pool.acquire(timeout=150.0) as conn:
             accounts = await self.db.select_users(conn=conn)
-            self.valorant_users = {account.id: account for account in accounts}
-            #  if account.id not in self.bot.blacklist # TODO: add blacklist
+
+            self.valorant_users.clear()
+
+            for account in accounts:
+                if account.id in self.bot.blacklist:
+                    await self.db.delete_user(user_id=account.id, conn=conn)
+                    continue
+                self.valorant_users[account.id] = account
 
     # - useful cache functions
 
