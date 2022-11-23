@@ -19,9 +19,9 @@ from discord.ext import commands
 # utils
 from utils.checks import cooldown_5s
 from utils.errors import CommandError
+from utils.i18n import _
 from utils.useful import LatteCDN
 from utils.views import ViewAuthor
-from utils.i18n import _
 
 if TYPE_CHECKING:
     from discord import Client

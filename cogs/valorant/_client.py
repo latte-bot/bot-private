@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Mapping, Optional, Union
 
 import aiohttp
 import discord
@@ -15,6 +15,7 @@ from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
 from ._custom import Agent, CompetitiveTier, ContentTier, Currency, GameMode, MatchDetails
+from ._errors import InvalidMultiFactorCode
 
 if TYPE_CHECKING:
     import datetime
@@ -190,6 +191,8 @@ class Client(valorantx.Client):
         super().__init__(locale=valorantx.Locale.american_english, **kwargs)
         self._http = HTTPClientCustom(self, self.loop)
         self._is_authorized = True
+        self.user = valorantx.utils.MISSING
+        self._store_cache: Dict[str, Any] = {}
 
     @property
     def http(self) -> HTTPClientCustom:
@@ -200,7 +203,13 @@ class Client(valorantx.Client):
         # set riot auth
         self.http._riot_auth = riot_auth
         self.http._puuid = riot_auth.user_id
-        self.user = riot_auth
+        payload = dict(
+            puuid=riot_auth.user_id,
+            username=riot_auth.name,
+            tagline=riot_auth.tag,
+            region=riot_auth.region,
+        )
+        self.user = valorantx.ClientPlayer(client=self, data=payload)
 
         # build headers
         self.http.clear_headers()
@@ -239,6 +248,25 @@ class Client(valorantx.Client):
         data = self._assets.get_game_mode(*args, **kwargs)
         return GameMode(client=self, data=data, **kwargs) if data else None
 
+    # in game
+
+    @_authorize_required
+    async def fetch_store_front(self) -> valorantx.StoreFront:
+        """|coro|
+
+        Fetches the storefront for the current user.
+
+        Returns
+        -------
+        :class:`StoreFront`
+            The storefront for the current user.
+        """
+        data = self._store_cache.get(self.user.puuid)
+        if data is None:
+            data = await self.http.store_fetch_storefront()
+            self._store_cache[self.user.puuid] = data
+        return valorantx.StoreFront(client=self, data=data)
+
     @_authorize_required
     async def fetch_match_details(self, match_id: str) -> Optional[MatchDetails]:
         """|coro|
@@ -257,6 +285,13 @@ class Client(valorantx.Client):
         """
         match_details = await self.http.fetch_match_details(match_id)
         return MatchDetails(client=self, data=match_details)
+
+    def cache_validate(self, puuid: Optional[str] = None) -> None:
+        if puuid is not None:
+            if puuid in self._store_cache:
+                del self._store_cache[puuid]
+        else:
+            self._store_cache = {}
 
 
 class HTTPClientCustom(HTTPClient):

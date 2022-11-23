@@ -6,6 +6,7 @@ import traceback
 from typing import TYPE_CHECKING, Union
 
 import discord
+import valorantx
 from discord import Interaction
 from discord.app_commands import (
     AppCommandError,
@@ -21,8 +22,8 @@ from discord.ext import commands
 from jishaku.paginators import PaginatorInterface, WrappedPaginator
 
 from utils.errors import LatteAppError
-from utils.views import ViewAuthor
 from utils.i18n import _
+from utils.views import ViewAuthor
 
 if TYPE_CHECKING:
     from bot import LatteBot
@@ -84,12 +85,17 @@ class ErrorHandler(commands.Cog):
             else:
                 await interaction.response.send_message(*args, **kwargs, ephemeral=True)
 
-            # if interaction.app_permissions.manage_messages:
-            #     todo safe error message
-
         view = ViewAuthor(interaction)
 
-        if isinstance(error, LatteAppError):
+        if isinstance(error, (valorantx.RateLimited, valorantx.RiotRatelimitError)):
+            content = _("You are being rate limited. Please try again later.")
+        elif isinstance(error, valorantx.RiotAuthenticationError):
+            content = _("Invalid Riot Username or Password")
+        elif isinstance(error, valorantx.HTTPException):
+            content = _("Error occurred while fetching data from Valorant API")
+        elif isinstance(error, valorantx.RiotUnknownErrorTypeError):
+            content = _("Unknown error occurred while fetching data from Valorant API")
+        elif isinstance(error, LatteAppError):
             content = getattr(error, 'original', error)
         elif isinstance(error, CommandNotFound):
             content = _('Command not found')

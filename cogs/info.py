@@ -130,7 +130,7 @@ class About(commands.Cog):
             inline=True,
         )
         embed.add_field(name='\u200b', value='\u200b', inline=True)
-        embed.set_footer(text='ᴍᴀᴅᴇ ʙʏ {dev}'.format(dev=core_dev), icon_url=core_dev.avatar)
+        embed.set_footer(text='ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ {dev}'.format(dev=core_dev), icon_url=core_dev.avatar)
 
         view = ui.View()
         view.add_item(ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(emoji.latte_icon)))

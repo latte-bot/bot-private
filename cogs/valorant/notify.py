@@ -15,17 +15,11 @@ from utils.checks import cooldown_5s
 
 from ._abc import MixinMeta
 
-if TYPE_CHECKING:
-    from ._abc import GetRiotAccount
-
 _log = logging.getLogger('cogs.valorant.notify')
 
 
 class Notify(MixinMeta):  # noqa
     """Notify cog"""
-
-    if TYPE_CHECKING:
-        get_riot_account: GetRiotAccount
 
     async def send_notify(self):
         ...  # todo webhook send

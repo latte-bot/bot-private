@@ -73,7 +73,7 @@ class Admin(MixinMeta):  # noqa
         else:
             riot_auth = riot_auth.get_first_account()
 
-        client = await self.v_client.set_authorize(riot_auth)
+        client = self.v_client.set_authorize(riot_auth)
         await client.fetch_assets(reload=reload, force=force)
 
         await interaction.followup.send('Asset has been fetched', ephemeral=True)

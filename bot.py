@@ -1,22 +1,25 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Type, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, Union
 
 import aiohttp
 import asyncpg
 import discord
+import valorantx
 from async_lru import alru_cache
+from colorthief import ColorThief
 from discord import app_commands, utils
 from discord.ext import commands
 from dotenv import load_dotenv
 
+from utils.config import Config
 from utils.encryption import Encryption
 from utils.enums import Theme
 from utils.i18n import Translator, _
-from utils.config import Config
 
 if TYPE_CHECKING:
     from cogs.valorant._client import Client
@@ -123,7 +126,8 @@ class LatteBot(commands.AutoShardedBot):
         self.blacklist: Config[bool] = Config('blacklist.json')
         self.app_command_stats: Config[int] = Config('app_command_stats.json')
 
-        self.v_client: Client = utils.MISSING
+        # colour
+        self.colors: Dict[str, List[Tuple[int, int, int]]] = {}
 
     @property
     def owner(self) -> discord.User:
@@ -200,6 +204,7 @@ class LatteBot(commands.AutoShardedBot):
         for fetch in app_commands_list:
             if fetch.type == discord.AppCommandType.chat_input:
                 if len(fetch.options) > 0:
+                    self._app_commands[fetch.name] = fetch
                     for option in fetch.options:
                         if isinstance(option, app_commands.AppCommandGroup):
                             self._app_commands[option.qualified_name] = option
@@ -229,6 +234,38 @@ class LatteBot(commands.AutoShardedBot):
             return True
 
         return True
+
+    def get_color(self, id: str) -> List[Tuple[int, int, int]]:
+        return self.colors.get(id)
+
+    def set_color(self, id: str, color: List[Tuple[int, int, int]]) -> None:
+        self.colors[id] = color
+
+    async def get_or_fetch_color(
+        self,
+        id: str,
+        image: Union[valorantx.Asset, discord.Asset, str],
+        palette: int = 0,
+    ) -> List[Tuple[int]]:
+
+        color = self.get_color(id)
+        if color is None:
+
+            if isinstance(image, valorantx.Asset):
+                _file = await image.to_file(filename=id)
+                to_bytes = _file.fp
+            else:
+                get_image = await self.session.get(image)
+                to_bytes = io.BytesIO(await get_image.read())
+
+            if palette > 0:
+                color = ColorThief(to_bytes).get_palette(color_count=palette)
+            else:
+                color = [ColorThief(to_bytes).get_color()]
+
+            self.set_color(id, color)
+
+        return color
 
     async def on_ready(self) -> None:
 
@@ -284,11 +321,11 @@ class LatteBot(commands.AutoShardedBot):
         # await self.tree.sync()
         sync_guilds = [
             self.support_guild_id,
-            1042503061454729289,  # EMOJI ABILITY 2
-            1042502960921452734,  # EMOJI ABILITY 1
-            1043965050630705182,  # EMOJI TIER
-            1042501718958669965,  # EMOJI AGENT
-            1042809126624964651,  # EMOJI MATCH
+            # 1042503061454729289,  # EMOJI ABILITY 2
+            # 1042502960921452734,  # EMOJI ABILITY 1
+            # 1043965050630705182,  # EMOJI TIER
+            # 1042501718958669965,  # EMOJI AGENT
+            # 1042809126624964651,  # EMOJI MATCH
         ]
         # for guild_id in sync_guilds:
         #     try:
@@ -304,7 +341,7 @@ class LatteBot(commands.AutoShardedBot):
         # )
 
         # fetch app commands to cache
-        # await self.fetch_app_commands()
+        await self.fetch_app_commands()
 
     async def close(self) -> None:
         await super().close()

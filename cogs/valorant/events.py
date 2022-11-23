@@ -84,9 +84,8 @@ class Events(MixinMeta):  # noqa
     @tasks.loop(time=datetime.time(hour=0, minute=0, second=5))
     async def reset_cache(self) -> None:
         """Called every day at 7am UTC+7"""
+        self.v_client.cache_validate()
         self.fetch_user.cache_clear()  # type: ignore
-        self.store_func.cache_clear()  # type: ignore
-        self.battlepass_func.cache_clear()  # type: ignore
 
     # @tasks.loop(time=time(hour=0))
     @tasks.loop(seconds=10)

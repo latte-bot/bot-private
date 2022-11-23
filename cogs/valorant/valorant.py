@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import logging
 import random
@@ -8,13 +7,12 @@ import re
 from abc import ABC
 from datetime import timezone
 from functools import lru_cache
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import aiohttp
 import discord
 import valorantx
 from async_lru import alru_cache
-from colorthief import ColorThief
 
 # discord
 from discord import Interaction, app_commands, ui, utils
@@ -23,18 +21,7 @@ from discord.app_commands.checks import dynamic_cooldown
 from discord.ext import commands
 
 # valorantx
-from valorantx import (
-    Buddy,
-    BuddyLevel,
-    CurrencyType,
-    MissionType,
-    PatchNotes,
-    PlayerCard,
-    RiotMultifactorError,
-    Skin,
-    Spray,
-    SprayLevel,
-)
+from valorantx import Buddy, BuddyLevel, PatchNotes, PlayerCard, RiotMultifactorError, Skin, Spray, SprayLevel
 
 # utils
 from utils.chat_formatting import bold, italics, strikethrough
@@ -52,12 +39,16 @@ from ._embeds import Embed
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
 from ._views import (  # StatsView,
-    CollectionView,
+    BattlePassSwitchX,
+    CarrierSwitchX,
+    CollectionSwitchX,
     FeaturedBundleView,
-    MatchHistoryView,
+    MatchDetailsSwitchX,
+    MissionSwitchX,
+    NightMarketSwitchX,
+    PointSwitchX,
     RiotMultiFactorModal,
-    SwitchAccountView,
-    MatchDetailsSwitchAccountView,
+    StoreSwitchX,
 )
 
 # cogs
@@ -108,9 +99,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # database
         self.db: Database = Database(bot)
 
-        # colors thief
-        self.colors: Dict[str, List[Tuple[int, int, int]]] = {}
-
         # add context menus
         # self.bot.tree.add_command(self.ctx_user_store)
         # self.bot.tree.add_command(self.ctx_user_nightmarket)
@@ -128,28 +116,31 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             self.v_client = ValorantClient()
             await self.v_client.__aenter__()
-            self.bot.v_client = self.v_client
 
             if self.v_client.http.riot_auth is valorantx.utils.MISSING:
 
                 riot_auth = RiotAuth(self.bot.owner_id, self.bot.support_guild_id, self.bot)
 
-                await riot_auth.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
-
-                client = self.v_client.set_authorize(riot_auth)
-
                 try:
-                    await client.fetch_assets(force=False, reload=True)
-                except Exception as e:
-                    await client.fetch_assets(force=True, reload=True)
-                    _log.error(f'Failed to fetch assets: {e}')
+                    await riot_auth.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
+                except aiohttp.ClientResponseError:
+                    _log.error('Failed to authorize the client.')
+                    return
+                else:
+                    client = self.v_client.set_authorize(riot_auth)
 
-                if client.is_ready():
-                    content = await self.v_client.fetch_content()
-                    for season in reversed(content.get_seasons()):
-                        if season.is_active():
-                            self.v_client.season = self.v_client.get_season(uuid=season.id)
-                            break
+                    try:
+                        await client.fetch_assets(force=False, reload=True)
+                    except Exception as e:
+                        await client.fetch_assets(force=True, reload=True)
+                        _log.error(f'Failed to fetch assets: {e}')
+
+                    if client.is_ready():
+                        content = await self.v_client.fetch_content()
+                        for season in reversed(content.get_seasons()):
+                            if season.is_active():
+                                self.v_client.season = self.v_client.get_season(uuid=season.id)
+                                break
 
         # start tasks
         self.notify_alert.start()
@@ -217,7 +208,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         if v_user is None:
             self.fetch_user.invalidate(self, id=id)
-            raise NoAccountsLinked(_('You have no accounts linked.'))
+
+            login_command = self.bot.get_app_command('login')
+            if login_command is not None:
+                raise NoAccountsLinked(
+                    _('You have no accounts linked. Use {command} to link an account.').format(
+                        command=login_command.mention
+                    )
+                )
+            else:
+                raise NoAccountsLinked(_('You have no accounts linked. Use `/login` to link an account.'))
 
         self.valorant_users[id] = v_user
 
@@ -292,37 +292,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     def v_locale(locale: discord.Locale) -> VLocale:
         return VLocale.from_discord(str(locale))
 
-    def get_color(self, id: str) -> List[Tuple[int, int, int]]:
-        return self.colors.get(id)
-
-    def set_color(self, id: str, color: List[Tuple[int, int, int]]) -> None:
-        self.colors[id] = color
-
-    async def fetch_color(
-        self,
-        id: str,
-        image: Union[valorantx.Asset, str],
-        palette: int = 0,
-    ) -> List[Tuple[int]]:
-
-        color = self.get_color(id)
-        if color is None:
-
-            if isinstance(image, valorantx.Asset):
-                _file = await image.to_file(filename=id)
-                to_bytes = _file.fp
-            else:
-                to_bytes = io.BytesIO(await self.v_client.http.read_from_url(image))
-
-            if palette > 0:
-                color = ColorThief(to_bytes).get_palette(color_count=palette)
-            else:
-                color = [ColorThief(to_bytes).get_color()]
-
-            self.set_color(id, color)
-
-        return color
-
     def _get_user(self, _id: int) -> Optional[ValorantUser]:
         return self.valorant_users.get(_id)
 
@@ -358,13 +327,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.get_featured_bundle.cache_clear()
 
     def cache_invalidate(self, riot_auth: RiotAuth):
-
-        for locale in VLocale:
-            self.get_store.invalidate(self, riot_auth, locale)
-            self.get_battlepass.invalidate(self, riot_auth, locale)
-            self.get_nightmarket.invalidate(self, riot_auth, locale)
-            self.get_point.invalidate(self, riot_auth, locale)
-            self.get_mission.invalidate(self, riot_auth, locale)
+        self.v_client.cache_validate(riot_auth.puuid)
 
     async def invite_by_display_name(self, party: valorantx.Party, display_name: str) -> None:
 
@@ -372,365 +335,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             raise CommandError('Invalid Riot ID.')
 
         await party.invite_by_display_name(display_name=display_name)
-
-    # functions
-
-    @alru_cache(maxsize=1024)
-    async def get_store(self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US) -> List[discord.Embed]:
-
-        client = self.v_client.set_authorize(riot_auth)
-        data = await client.fetch_store_front()
-        store = data.get_store()
-
-        embeds = [
-            Embed(
-                description=_("Daily store for {user}\n").format(user=bold(client.user.display_name))
-                + f"Resets {format_relative(store.reset_at)}"
-            )
-        ]
-
-        for skin in store.get_skins():
-            e = Embed(
-                title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",  # type: ignore
-                description=f"{PointEmoji.valorant} {skin.price}",
-                colour=self.bot.theme.dark,
-            )
-            if skin.display_icon is not None:
-                e.url = skin.display_icon.url
-                e.set_thumbnail(url=skin.display_icon)
-
-            if skin.rarity is not None:
-                e.colour = int(skin.rarity.highlight_color[0:6], 16)
-
-            embeds.append(e)
-
-        return embeds
-
-    @alru_cache(maxsize=1024)
-    async def get_battlepass(
-        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
-    ) -> List[discord.Embed]:
-
-        client = self.v_client.set_authorize(riot_auth)
-        contract = await client.fetch_contracts()
-
-        btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
-
-        next_reward = btp.get_next_reward()
-
-        embed = discord.Embed(
-            title=f"Battlepass for {bold(client.user.display_name)}",
-            description=f"{bold('NEXT')}: {next_reward.display_name}",
-        )
-        embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale(str(locale))}')
-
-        if next_reward is not None:
-            if next_reward.display_icon is not None:
-                if isinstance(next_reward, valorantx.SkinLevel):
-                    embed.set_image(url=next_reward.display_icon)
-                elif isinstance(next_reward, valorantx.PlayerCard):
-                    embed.set_image(url=next_reward.wide_icon)
-                else:
-                    embed.set_thumbnail(url=next_reward.display_icon)
-
-        embed.colour = self.bot.theme.purple if btp.current_tier <= 50 else self.bot.theme.gold
-
-        return [embed]
-
-    @alru_cache(maxsize=1024)
-    async def get_nightmarket(
-        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
-    ) -> List[discord.Embed]:
-
-        client = self.v_client.set_authorize(riot_auth)
-        data = await client.fetch_store_front()
-
-        nightmarket = data.get_nightmarket()
-
-        if nightmarket is None:
-            raise CommandError(f"{bold('Nightmarket')} is not available.")
-
-        embeds = [
-            Embed(
-                description=f"NightMarket for {bold(client.user.display_name)}\n"
-                f"Expires {format_relative(nightmarket.expire_at)}",
-                colour=self.bot.theme.purple,
-            )
-        ]
-
-        for skin in nightmarket.get_skins():
-            e = Embed(
-                title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",  # type: ignore
-                description=f"{PointEmoji.valorant} {bold(str(skin.discount_price))}\n"
-                f"{PointEmoji.valorant}  {strikethrough(str(skin.price))} (-{skin.discount_percent}%)",
-                colour=self.bot.theme.dark,
-            )
-            if skin.display_icon is not None:
-                e.url = skin.display_icon.url
-                e.set_thumbnail(url=skin.display_icon)
-
-            if skin.rarity is not None:
-                e.colour = int(skin.rarity.highlight_color[0:6], 16)
-
-            embeds.append(e)
-
-        return embeds
-
-    @alru_cache(maxsize=1024)
-    async def get_point(self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US) -> List[discord.Embed]:
-
-        client = self.v_client.set_authorize(riot_auth)
-        wallet = await client.fetch_wallet()
-
-        vp = client.get_currency(uuid=str(CurrencyType.valorant))
-        rad = client.get_currency(uuid=str(CurrencyType.radianite))
-
-        vp_display_name = vp.name_localizations.from_locale(str(locale))
-
-        embed = Embed(title=f"{client.user.display_name} Point:")
-        embed.add_field(
-            name=f"{(vp_display_name if vp_display_name != 'VP' else 'Valorant Points')}",
-            value=f"{vp.emoji} {wallet.valorant_points}",
-        )
-        embed.add_field(
-            name=f'{rad.name_localizations.from_locale(str(locale))}',
-            value=f'{rad.emoji} {wallet.radiant_points}',
-        )
-
-        return [embed]
-
-    @alru_cache(maxsize=1024)
-    async def get_mission(
-        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
-    ) -> List[discord.Embed]:
-
-        client = self.v_client.set_authorize(riot_auth)
-        contracts = await client.fetch_contracts()
-
-        daily = []
-        weekly = []
-        tutorial = []
-        npe = []
-
-        all_completed = True
-
-        daily_format = '{0} | **+ {1.xp:,} XP**\n- **`{1.progress}/{1.target}`**'
-        for mission in contracts.missions:
-            title = mission.title_localizations.from_locale(str(locale))
-            if mission.type == MissionType.daily:
-                daily.append(daily_format.format(title, mission))
-            elif mission.type == MissionType.weekly:
-                weekly.append(daily_format.format(title, mission))
-            elif mission.type == MissionType.tutorial:
-                tutorial.append(daily_format.format(title, mission))
-            elif mission.type == MissionType.npe:
-                npe.append(daily_format.format(title, mission))
-
-            if not mission.is_completed():
-                all_completed = False
-
-        embed = Embed(title=f"{client.user.display_name} Mission:")
-        if all_completed:
-            embed.colour = 0x77DD77
-
-        if len(daily) > 0:
-            embed.add_field(
-                name=f"**Daily**",
-                value='\n'.join(daily),
-                inline=False,
-            )
-
-        if len(weekly) > 0:
-
-            weekly_refill_time = None
-            if contracts.mission_metadata is not None:
-                if contracts.mission_metadata.weekly_refill_time is not None:
-                    weekly_refill_time = format_relative(contracts.mission_metadata.weekly_refill_time)
-
-            embed.add_field(
-                name=f"**Weekly**",
-                value='\n'.join(weekly)
-                + ('\n\n' + "Refill Time: " + weekly_refill_time if weekly_refill_time is not None else ''),
-                inline=False,
-            )
-
-        if len(tutorial) > 0:
-            embed.add_field(
-                name=f"**Tutorial**",
-                value='\n'.join(tutorial),
-                inline=False,
-            )
-
-        if len(npe) > 0:
-            embed.add_field(
-                name=f"**NPE**",
-                value='\n'.join(npe),
-                inline=False,
-            )
-
-        return [embed]
-
-    @alru_cache(maxsize=1024)
-    async def get_collection(
-        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US
-    ) -> Tuple[List[discord.Embed], List[discord.Embed], List[List[discord.Embed]]]:
-
-        client = self.v_client.set_authorize(riot_auth)
-
-        # mmr
-        mmr = await client.fetch_mmr()
-        latest_tier = mmr.get_last_rank_tier()
-
-        # wallet
-        wallet = await client.fetch_wallet()
-        vp = client.get_currency(uuid=str(CurrencyType.valorant))
-        rad = client.get_currency(uuid=str(CurrencyType.radianite))
-
-        # loadout
-        collection = await client.fetch_collection()
-        player_title = collection.get_player_title()
-        player_card = collection.get_player_card()
-        account_level = collection.get_account_level()
-        # level_border = collection.get_level_border()
-
-        e = discord.Embed()
-        e.description = '{vp_emoji} {wallet_vp} {rad_emoji} {wallet_rad}'.format(
-            vp_emoji=vp.emoji,
-            wallet_vp=wallet.valorant_points,
-            rad_emoji=rad.emoji,
-            wallet_rad=wallet.radiant_points,
-        )
-
-        e.set_author(
-            name='{display_name} - Collection'.format(display_name=riot_auth.display_name),
-            icon_url=latest_tier.large_icon if latest_tier is not None else None,
-        )
-        e.set_footer(text='Lv. {level}'.format(level=account_level))
-
-        if player_title is not None:
-            e.title = player_title.text_localizations.from_locale(locale)
-
-        if player_card is not None:
-            e.set_image(url=player_card.wide_icon)
-            card_color_thief = await self.fetch_color(player_card.uuid, player_card.wide_icon)
-            e.colour = discord.Colour.from_rgb(*(random.choice(card_color_thief)))
-
-        async def _spray_page() -> List[discord.Embed]:
-            embeds = []
-            for spray in collection.get_sprays():
-                spray_fav = ' ★' if spray.is_favorite() else ''
-                embed = discord.Embed(description=bold(spray.display_name) + spray_fav)
-                spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
-                if spray_icon is not None:
-                    embed.set_thumbnail(url=spray_icon)
-                    spray_color_thief = await self.fetch_color(spray.uuid, spray.display_icon)
-                    embed.colour = discord.Colour.from_rgb(*(random.choice(spray_color_thief)))
-                embeds.append(embed)
-            return embeds
-
-        def _skin_page() -> List[List[discord.Embed]]:
-
-            all_embeds = []
-            embeds = []
-
-            def sort_skins(
-                skin_sort: Union[
-                    valorantx.SkinLoadout,
-                    valorantx.SkinLevelLoadout,
-                    valorantx.SkinChromaLoadout,
-                ]
-            ) -> int:
-
-                skin_ = skin_sort if isinstance(skin_sort, valorantx.SkinLoadout) else skin_sort.get_skin()
-
-                weapon = skin_.get_weapon()
-
-                # page 1
-                if weapon.display_name == 'Phantom':
-                    return 0
-                elif weapon.display_name == 'Vandal':
-                    return 1
-                elif weapon.display_name == 'Operator':
-                    return 2
-                elif weapon.is_melee():
-                    return 3
-
-                # page 2
-                elif weapon.display_name == 'Classic':
-                    return 4
-                elif weapon.display_name == 'Sheriff':
-                    return 5
-                elif weapon.display_name == 'Spectre':
-                    return 6
-                elif weapon.display_name == 'Marshal':
-                    return 7
-
-                # page 3
-                elif weapon.display_name == 'Stinger':
-                    return 8
-                elif weapon.display_name == 'Bucky':
-                    return 9
-                elif weapon.display_name == 'Guardian':
-                    return 10
-                elif weapon.display_name == 'Ares':
-                    return 11
-
-                # page 4
-                elif weapon.display_name == 'Shorty':
-                    return 12
-                elif weapon.display_name == 'Frenzy':
-                    return 13
-                elif weapon.display_name == 'Ghost':
-                    return 14
-                elif weapon.display_name == 'Judge':
-                    return 15
-
-                # page 5
-                elif weapon.display_name == 'Bulldog':
-                    return 16
-                elif weapon.display_name == 'Odin':
-                    return 17
-
-            for index, skin in enumerate(sorted(collection.get_skins(), key=sort_skins)):
-
-                skin_fav = ' ★' if skin.is_favorite() else ''
-
-                embed = discord.Embed(
-                    description=(skin.rarity.emoji if skin.rarity is not None else '')  # type: ignore
-                    + ' '
-                    + bold(
-                        (
-                            skin.display_name
-                            if not isinstance(skin, valorantx.SkinChromaLoadout)
-                            else skin.get_skin().display_name
-                        )
-                        + skin_fav
-                    ),
-                    colour=int(skin.rarity.highlight_color[0:6], 16)
-                    if skin.rarity is not None
-                    else self.bot.theme.dark,
-                )
-                embed.set_thumbnail(url=skin.display_icon)
-
-                buddy = skin.get_buddy()
-                if buddy is not None:
-                    buddy_fav = ' ★' if buddy.is_favorite() else ''
-                    embed.set_footer(
-                        text=f'{buddy.display_name}' + buddy_fav,
-                        icon_url=buddy.display_icon,
-                    )
-
-                embeds.append(embed)
-                if len(embeds) == 4:
-                    all_embeds.append(embeds)
-                    embeds = []
-
-            if len(embeds) != 0:
-                all_embeds.append(embeds)
-
-            return all_embeds
-
-        return [e], await _spray_page(), _skin_page()
 
     # --
 
@@ -763,12 +367,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             # when timeout
             if wait_modal.code is None:
                 raise CommandError('You did not enter the code in time.')
-
-            await try_auth.authorize_multi_factor(wait_modal.code, remember=True)
+            try:
+                await try_auth.authorize_multi_factor(wait_modal.code, remember=True)
+            except Exception as e:
+                raise CommandError('Invalid Multi-factor code.') from e
 
             # replace interaction
             interaction = wait_modal.interaction
             await interaction.response.defer(ephemeral=True)
+        except valorantx.RiotAuthenticationError:
+            raise CommandError('Invalid username or password.')
         except aiohttp.ClientResponseError:
             raise CommandError('Riot server is currently unavailable.')
         else:
@@ -887,13 +495,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     async def store(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()
-
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        embeds = await self.get_store(v_user.get_first_account(), self.v_locale(interaction.locale))
-
-        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_store)
-        await interaction.followup.send(embeds=embeds, view=switch_view)
+        view = StoreSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account())
 
     @app_commands.command(name=_T('nightmarket'), description=_T('Show skin offers on the nightmarket'))
     @app_commands.guild_only()
@@ -903,11 +507,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        embeds = await self.get_nightmarket(v_user.get_first_account(), self.v_locale(interaction.locale))
-
-        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_nightmarket)
-        await interaction.followup.send(embeds=embeds, view=switch_view)
+        view = NightMarketSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account())
 
     @app_commands.command(name=_T('battlepass'), description=_T('View your battlepass current tier'))
     @app_commands.guild_only()
@@ -917,11 +518,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        embeds = await self.get_battlepass(v_user.get_first_account(), self.v_locale(interaction.locale))
-        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_battlepass)
-
-        await interaction.followup.send(embeds=embeds, view=switch_view)
+        view = BattlePassSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account())
 
     @app_commands.command(name=_T('point'), description=_T('View your remaining Valorant and Riot Points (VP/RP)'))
     @app_commands.guild_only()
@@ -931,11 +529,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_point)
-        embeds = await self.get_point(v_user.get_first_account(), self.v_locale(interaction.locale))
-
-        await interaction.followup.send(embeds=embeds, view=switch_view)
+        view = PointSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account())
 
     @app_commands.command(name=_T('bundles'), description=_T('Show the current featured bundles'))
     @app_commands.guild_only()
@@ -967,7 +562,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             if bundle.display_icon_2 is not None:
                 s_embed.set_thumbnail(url=bundle.display_icon_2)
-                color_thief = await self.fetch_color(bundle.uuid, bundle.display_icon_2)
+                color_thief = await self.bot.get_or_fetch_color(bundle.uuid, bundle.display_icon_2)
                 s_embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
 
             embeds_stuffs.append(s_embed)
@@ -1036,11 +631,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        embeds = await self.get_mission(v_user.get_first_account(), self.v_locale(interaction.locale))
-        switch_view = SwitchAccountView(interaction, v_user.get_riot_accounts(), self.get_mission)
-
-        await interaction.followup.send(embeds=embeds, view=switch_view)
+        view = MissionSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account())
 
     @app_commands.command(name=_T('collection'), description=_T('Shows your collection'))
     @app_commands.guild_only()
@@ -1050,19 +642,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        embeds, sprays, skins = await self.get_collection(v_user.get_first_account(), self.v_locale(interaction.locale))
-
-        switch_view = CollectionView(
-            interaction,
-            v_user.get_riot_accounts(),
-            self.get_collection,
-            spray_pages=sprays,
-            skin_pages=skins,
-        )
-
-        await interaction.followup.send(embeds=embeds, view=switch_view)
-        switch_view.current_embeds = embeds
+        view = CollectionSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account())
 
     @app_commands.command(name=_T('carrier'), description=_T('Shows your carrier'))
     @app_commands.choices(
@@ -1089,27 +670,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             mode = mode.value
 
         v_user = await self.fetch_user(id=interaction.user.id)
-        client = self.v_client.set_authorize(v_user.get_first_account())
-        match_history = await client.fetch_match_history(queue=mode)
-
-        if len(match_history) <= 0:
-            # raise NoMatchHistory('No match history found')
-            raise CommandError(_('No match history found'))
-
-        matchmaking_rating = await client.fetch_mmr() if mode == 'competitive' else None
-
-        view = MatchHistoryView(interaction, match_history.get_match_details(), matchmaking_rating)
-        await view.start()
-
-    async def get_match_details(
-        self, riot_auth: RiotAuth, locale: Union[VLocale, str] = VLocale.en_US, mode: Optional[str] = None
-    ) -> ...:
-        client = self.v_client.set_authorize(riot_auth)
-        match_history = await client.fetch_match_history(queue=mode)
-
-        if len(match_history) <= 0:
-            # raise NoMatchHistory('No match history found')
-            raise CommandError(_('No match history found'))
+        view = CarrierSwitchX(interaction, v_user, self.v_client)
+        await view.start_view(v_user.get_first_account(), queue=mode)
 
     @app_commands.command(name=_T('match'), description=_T('Shows latest match details'))
     @app_commands.choices(
@@ -1132,15 +694,15 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        # if mode is not None:
-        #     mode = mode.value
+        if mode is not None:
+            mode = mode.value
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
         client = self.v_client.set_authorize(v_user.get_first_account())
 
-        view = MatchDetailsSwitchAccountView(interaction, v_user, client)
-        await view.start_view()
+        view = MatchDetailsSwitchX(interaction, v_user, client)
+        await view.start_view(v_user.get_first_account(), queue=mode)
 
     @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
     @app_commands.guild_only()
@@ -1165,7 +727,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         banner_url = scraper.banner or latest.banner
         if banner_url is not None:
             embed.set_image(url=banner_url)
-            color_thief = await self.fetch_color(latest.uid, banner_url, 5)
+            color_thief = await self.bot.get_or_fetch_color(latest.uid, banner_url, 5)
             embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
 
         view = discord.ui.View()  # TODO: URLButton class

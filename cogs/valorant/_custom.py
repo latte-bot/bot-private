@@ -9,6 +9,8 @@ from valorantx.models.match import RoundResult  # noqa
 from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 
 if TYPE_CHECKING:
+    from valorantx.models.match import Team
+
     from ._client import Client
 
 

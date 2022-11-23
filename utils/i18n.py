@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, TypedDict, Union, Callable
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, TypedDict, Union
 
 import discord
 from discord import Locale, app_commands
