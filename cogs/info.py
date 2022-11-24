@@ -98,7 +98,7 @@ class About(commands.Cog):
 
         embed = discord.Embed(color=self.bot.theme.primacy, timestamp=interaction.created_at)
         embed.set_author(name='About Me', icon_url=self.bot.user.avatar)
-        embed.add_field(name='ʟᴀᴛᴇꜱᴛ ᴜᴘᴅᴀᴛᴇꜱ:', value=self.get_latest_commits(), inline=False)
+        embed.add_field(name='ʟᴀᴛᴇꜱᴛ ᴜᴘᴅᴀᴛᴇꜱ:', value=self.get_latest_commits(limit=5), inline=False)
         embed.add_field(
             name='ꜱᴛᴀᴛꜱ:',
             value='{emoji} ꜱᴇʀᴠᴇʀꜱ: `{guild_count}`\n'.format(emoji=emoji.latte_icon, guild_count=guild_count)

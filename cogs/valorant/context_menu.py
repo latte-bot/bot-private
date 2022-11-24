@@ -47,18 +47,18 @@ class SelectRiotAuthView(ViewAuthor):
 class ContextMenu(MixinMeta):  # noqa
     def __init__(self, *_args) -> None:
         super().__init__(*_args)
-        self.ctx_user_store = app_commands.ContextMenu(
-            name=_T('store'),
-            callback=self.store_user_context,
-        )
-        self.ctx_user_party_request = app_commands.ContextMenu(
-            name=_T('Party: Request to join'),
-            callback=self.party_request_user_context,
-        )
-        self.ctx_message_party_invite = app_commands.ContextMenu(
-            name=_T('Party: Invite'),
-            callback=self.party_invite_message_context,
-        )
+        # self.ctx_user_store = app_commands.ContextMenu(
+        #     name=_T('store'),
+        #     callback=self.store_user_context,
+        # )
+        # self.ctx_user_party_request = app_commands.ContextMenu(
+        #     name=_T('Party: Request to join'),
+        #     callback=self.party_request_user_context,
+        # )
+        # self.ctx_message_party_invite = app_commands.ContextMenu(
+        #     name=_T('Party: Invite'),
+        #     callback=self.party_invite_message_context,
+        # )
 
         # self.context_user_nightmarket = app_commands.ContextMenu(
         #     name=_T('nightmarket'),
