@@ -166,7 +166,7 @@ class ContentTierEmoji(str, Enum):
     @classmethod
     def get(cls, content_tier: Union[valorantx.ContentTier, str]) -> str:
         name = content_tier.dev_name if isinstance(content_tier, valorantx.ContentTier) else content_tier
-        return cls.__members__.get(name, '')
+        return cls.__members__.get(name.lower(), '')
 
 
 class RoundResultEmoji(str, Enum):

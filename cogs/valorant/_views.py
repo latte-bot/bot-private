@@ -50,11 +50,12 @@ class RiotMultiFactorModal(ui.Modal, title=_('Two-factor authentication')):
             # min_length=6,
             style=TextStyle.short,
             custom_id=self.custom_id + '_2fa',
+            placeholder=(
+                _('You have 2FA enabled!')
+                if self.try_auth.multi_factor_email is None
+                else _('Riot sent a code to ') + self.try_auth.multi_factor_email
+            ),
         )
-        if self.try_auth.multi_factor_email is not None:
-            self.two2fa.placeholder = _('Riot sent a code to ') + self.try_auth.multi_factor_email
-        else:
-            self.two2fa.placeholder = _('You have 2FA enabled!')
 
         self.add_item(self.two2fa)
 
@@ -371,8 +372,7 @@ class StoreSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        client = self.v_client.set_authorize(riot_auth)
-        sf = await client.fetch_store_front()
+        sf = await self.v_client.fetch_store_front(riot_auth)
         store = sf.get_store()
 
         embeds = [
@@ -413,8 +413,7 @@ class NightMarketSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        client = self.v_client.set_authorize(riot_auth)
-        sf = await client.fetch_store_front()
+        sf = await self.v_client.fetch_store_front(riot_auth)
         nightmarket = sf.get_nightmarket()
 
         if nightmarket is None:

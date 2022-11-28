@@ -193,6 +193,7 @@ class Client(valorantx.Client):
         self._is_authorized = True
         self.user = valorantx.utils.MISSING
         self._store_cache: Dict[str, Any] = {}
+        self.lock = asyncio.Lock()
 
     @property
     def http(self) -> HTTPClientCustom:
@@ -251,7 +252,7 @@ class Client(valorantx.Client):
     # in game
 
     @_authorize_required
-    async def fetch_store_front(self) -> valorantx.StoreFront:
+    async def fetch_store_front(self, riot_auth: RiotAuth) -> valorantx.StoreFront:
         """|coro|
 
         Fetches the storefront for the current user.
@@ -261,10 +262,12 @@ class Client(valorantx.Client):
         :class:`StoreFront`
             The storefront for the current user.
         """
-        data = self._store_cache.get(self.user.puuid)
+        data = self._store_cache.get(riot_auth.puuid)
         if data is None:
-            data = await self.http.store_fetch_storefront()
-            self._store_cache[self.user.puuid] = data
+            async with self.lock:
+                self.set_authorize(riot_auth)
+                data = await self.http.store_fetch_storefront()
+                self._store_cache[self.user.puuid] = data
         return valorantx.StoreFront(client=self, data=data)
 
     @_authorize_required
