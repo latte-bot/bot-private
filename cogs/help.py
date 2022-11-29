@@ -214,7 +214,7 @@ class HelpCommand:
                 if fetch.type == discord.AppCommandType.chat_input:
                     if app.qualified_name.lower() == fetch.name.lower():
                         if len(fetch.options) > 0:
-                            # app_command_list.append(fetch)
+                            app_command_list.append(fetch)
                             for option in fetch.options:
                                 if isinstance(option, AppCommandGroupBase):
                                     app_command_list.append(option)

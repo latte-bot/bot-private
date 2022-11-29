@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import io
 import logging
 import os
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 import aiohttp
 import asyncpg
@@ -20,9 +18,6 @@ from utils.config import Config
 from utils.encryption import Encryption
 from utils.enums import Theme
 from utils.i18n import Translator, _
-
-if TYPE_CHECKING:
-    from cogs.valorant._client import Client
 
 load_dotenv()
 
@@ -215,6 +210,9 @@ class LatteBot(commands.AutoShardedBot):
 
     def get_app_command(self, name: str) -> Optional[app_commands.AppCommand]:
         return self._app_commands.get(name)
+
+    def get_app_commands(self) -> List[app_commands.AppCommand]:
+        return list(self._app_commands.values())
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
 

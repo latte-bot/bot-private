@@ -510,11 +510,11 @@ class PointSwitchX(SwitchingViewX):
 
         embed = Embed(title=f"{client.user.display_name} Point:")
         embed.add_field(
-            name=f"{(vp_display_name if vp_display_name != 'VP' else 'Valorant Points')}",
+            name=f"{(vp_display_name if vp_display_name != 'VP' else 'Valorant')}",
             value=f"{vp.emoji} {wallet.valorant_points}",
         )
         embed.add_field(
-            name=f'{rad.name_localizations.from_locale(str(self.locale))}',
+            name=f'{rad.name_localizations.from_locale(str(self.locale)).removesuffix(" Points")}',
             value=f'{rad.emoji} {wallet.radiant_points}',
         )
 
@@ -617,6 +617,20 @@ class CollectionSwitchX(SwitchingViewX):
         self._skin_pages: Optional[List[List[discord.Embed]]] = None
         self.current_embeds: Optional[List[discord.Embed]] = None
         self._current_riot_auth: Optional[RiotAuth] = None
+
+    @ui.button(label=_('Skin'), style=ButtonStyle.blurple)
+    async def skin(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer()
+        embeds = self.get_skin_pages(self._current_riot_auth)
+        view = SkinCollectionView(interaction, self, embeds)
+        await view.start()
+
+    @ui.button(label=_('Spray'), style=ButtonStyle.blurple)
+    async def spray(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer()
+        embeds = await self.get_spray_pages(self._current_riot_auth)
+        view = SprayCollectionView(interaction, self, embeds)
+        await view.start()
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
@@ -777,20 +791,6 @@ class CollectionSwitchX(SwitchingViewX):
             all_embeds.append(embeds)
 
         return all_embeds
-
-    @ui.button(label=_('Skin'), style=ButtonStyle.blurple)
-    async def skin(self, interaction: Interaction, button: ui.Button):
-        await interaction.response.defer()
-        embeds = self.get_skin_pages(self._current_riot_auth)
-        view = SkinCollectionView(interaction, self, embeds)
-        await view.start()
-
-    @ui.button(label=_('Spray'), style=ButtonStyle.blurple)
-    async def spray(self, interaction: Interaction, button: ui.Button):
-        await interaction.response.defer()
-        embeds = await self.get_spray_pages(self._current_riot_auth)
-        view = SprayCollectionView(interaction, self, embeds)
-        await view.start()
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         embeds = await self.get_embeds(riot_auth)
