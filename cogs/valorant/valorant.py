@@ -24,7 +24,7 @@ from discord.ext import commands
 from valorantx import Buddy, BuddyLevel, PatchNotes, PlayerCard, RiotMultifactorError, Skin, Spray, SprayLevel
 
 # utils
-from utils.chat_formatting import bold, italics, strikethrough
+from utils.chat_formatting import bold, italics, strikethrough, inline
 from utils.checks import cooldown_5s
 from utils.emojis import LatteEmoji as Emoji
 from utils.errors import CommandError
@@ -423,20 +423,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         async with self.bot.pool.acquire(timeout=150.0) as conn:
 
-            if number is None or number == '-':
-
-                await self.db.delete_user(interaction.user.id, conn=conn)
-
-                v_user = self._pop_user(interaction.user.id)
-                if v_user is not None:
-                    for acc in v_user.get_riot_accounts():
-                        # validate cache
-                        self.cache_invalidate(acc)
-
-                e = Embed(description=f"Successfully logged out all accounts")
-                await interaction.followup.send(embed=e, ephemeral=True)
-
-            elif int(number) in range(1, 6):
+            if number.isdigit() or number is not None:
 
                 v_user = await self.fetch_user(id=interaction.user.id)
                 if v_user is None:
@@ -444,13 +431,36 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     if v_user is None:
                         raise CommandError('You have no accounts linked.')
 
+                riot_logout = None
                 for auth_u in v_user.get_riot_accounts():
-                    if auth_u.acc_num == int(number):
-                        self.cache_invalidate(auth_u)
-                        break
+
+                    if number.isdigit():
+
+                        if int(number) <= 0:
+                            raise CommandError('Invalid account number.')
+
+                        if int(number) > len(v_user.get_riot_accounts()):
+                            raise CommandError(f'You only have {inline(str(len(v_user.get_riot_accounts())))} accounts linked.')
+
+                        if auth_u.acc_num == int(number):
+                            self.cache_invalidate(auth_u)
+                            riot_logout = auth_u
+                            break
+                    else:
+
+                        if re.findall(RIOT_ID_BAD_REGEX, number):
+                            raise CommandError('Invalid Riot name or tag.')
+
+                        if auth_u.name == number or auth_u.tag == number:
+                            self.cache_invalidate(auth_u)
+                            riot_logout = auth_u
+                            break
+
+                if riot_logout is None:
+                    raise CommandError('Invalid account number.')
 
                 # remove from database
-                riot_auth_remove = v_user.remove_account(int(number))
+                riot_auth_remove = v_user.remove_account(riot_logout.acc_num)
 
                 if len(v_user.get_riot_accounts()) == 0:
                     await self.db.delete_user(interaction.user.id, conn=conn)
@@ -467,6 +477,19 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
                 e = Embed(description=f"Successfully logged out {bold(riot_auth_remove.display_name)}")
 
+                await interaction.followup.send(embed=e, ephemeral=True)
+
+            elif number is None:
+
+                await self.db.delete_user(interaction.user.id, conn=conn)
+
+                v_user = self._pop_user(interaction.user.id)
+                if v_user is not None:
+                    for acc in v_user.get_riot_accounts():
+                        # validate cache
+                        self.cache_invalidate(acc)
+
+                e = Embed(description=f"Successfully logged out all accounts")
                 await interaction.followup.send(embed=e, ephemeral=True)
 
             else:

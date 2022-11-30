@@ -10,6 +10,7 @@ class LatteAppError(AppCommandError):
     def __init__(self, error, *args, **kwargs):
         super().__init__(error, *args)
         self.original = error
+        self.view: Optional[discord.ui.View] = kwargs.pop("view", None)
         self.extras = kwargs
 
 

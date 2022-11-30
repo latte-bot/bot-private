@@ -48,7 +48,7 @@ class About(commands.Cog):
         commit_tz = datetime.timezone(datetime.timedelta(minutes=commit.commit_time_offset))
         commit_time = datetime.datetime.fromtimestamp(commit.commit_time).astimezone(commit_tz)
         offset = format_dt(commit_time, style='R')
-        return f'[`{short_sha2}`](https://github.com/latte-bot/latte-bot/commit/{commit.hex}) {short} ({offset})'
+        return f'[`{short_sha2}`](https://github.com/latte-bot/bot/commit/{commit.hex}) {short} ({offset})'
 
     @staticmethod
     def get_last_parent() -> str:
