@@ -27,12 +27,13 @@ _log = logging.getLogger('latte_bot')
 os.environ['JISHAKU_NO_UNDERSCORE'] = 'True'
 os.environ['JISHAKU_HIDE'] = 'True'
 
-description = 'Hello, I am Latte, a bot made by @ꜱᴛᴀᴄɪᴀ.#7475'
+description = 'Hello, I am Latte, a bot made by @ꜱᴛᴀᴄɪᴀ.#7475 (240059262297047041)'
 
 initial_extensions = (
     'cogs.test',
     'cogs.dev',
     'cogs.events',
+    'cogs.fun',
     'cogs.errors',
     'cogs.help',
     'cogs.jishaku_',
@@ -59,9 +60,9 @@ class LatteBot(commands.AutoShardedBot):
             case_insensitive=True,
             allowed_mentions=allowed_mentions,
             intents=intents,
+            description=description,
             # application_id=977433932146569216,
             application_id=989337541389987861,
-            description=description,
         )
 
         # bot stuff
@@ -119,7 +120,7 @@ class LatteBot(commands.AutoShardedBot):
 
         # blacklisted users
         self.blacklist: Config[bool] = Config('blacklist.json')
-        self.app_command_stats: Config[int] = Config('app_command_stats.json')
+        self.app_command_stats: Config[int] = Config('app_stats.json')
 
         # colour
         self.colors: Dict[str, List[Tuple[int, int, int]]] = {}

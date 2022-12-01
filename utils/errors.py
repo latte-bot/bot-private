@@ -11,6 +11,7 @@ class LatteAppError(AppCommandError):
         super().__init__(error, *args)
         self.original = error
         self.view: Optional[discord.ui.View] = kwargs.pop("view", None)
+        self.ephemeral: bool = kwargs.pop("ephemeral", True)
         self.extras = kwargs
 
 
