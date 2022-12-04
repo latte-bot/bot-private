@@ -59,10 +59,15 @@ class ValorantUser:
     def get_riot_accounts(self) -> List[RiotAuth]:
         return self._riot_accounts
 
-    def get_first_account(self) -> Optional[RiotAuth]:
+    def get_account(self, number: int = 0) -> Optional[RiotAuth]:
         if len(self._riot_accounts) == 0:
             return None
-        return self._riot_accounts[0]
+        try:
+            riot_acc = self._riot_accounts[number]
+        except IndexError:
+            return None
+        else:
+            return riot_acc
 
     def remove_account(self, number: int) -> Optional[RiotAuth]:
 

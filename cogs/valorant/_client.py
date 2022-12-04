@@ -30,7 +30,7 @@ _log = logging.getLogger(__name__)
 class RiotAuth(valorantx.RiotAuth):
     def __init__(
         self,
-        discord_id: int,
+        discord_id: int = 0,
         guild_id: int = 0,
         bot: LatteBot = MISSING,
         **kwargs,
@@ -288,6 +288,73 @@ class Client(valorantx.Client):
         """
         match_details = await self.http.fetch_match_details(match_id)
         return MatchDetails(client=self, data=match_details)
+
+    @_authorize_required
+    async def fetch_contracts(self, riot_auth: RiotAuth) -> valorantx.Contracts:
+        """|coro|
+
+        Fetches the contracts for the current user.
+
+        Returns
+        -------
+        :class:`Contracts`
+            The contracts for the current user.
+        """
+        async with self.lock:
+            self.set_authorize(riot_auth)
+            data = await self.http.contracts_fetch()
+            return valorantx.Contracts(client=self, data=data)
+
+    @_authorize_required
+    async def fetch_wallet(self, riot_auth: RiotAuth) -> valorantx.Wallet:
+        """|coro|
+
+        Fetches the wallet for the current user.
+
+        Returns
+        -------
+        :class:`Wallet`
+            The wallet for the current user.
+        """
+        async with self.lock:
+            self.set_authorize(riot_auth)
+            data = await self.http.store_fetch_wallet()
+            return valorantx.Wallet(client=self, data=data)
+
+    @_authorize_required
+    async def fetch_collection(
+        self, riot_auth: RiotAuth, *, with_xp: bool = True, with_favorite: bool = True
+    ) -> valorantx.Collection:
+        """|coro|
+
+        Fetches the collection for the current user.
+
+        Parameters
+        ----------
+        riot_auth: :class:`RiotAuth`
+            The riot auth to fetch the collection for.
+        with_xp: :class:`bool`
+            Whether to include the XP for each item in the loadout.
+        with_favorite: :class:`bool`
+            Whether to include the favorite status for each item in the loadout.
+
+        Returns
+        -------
+        :class:`Collection`
+            The collection for the current user.
+        """
+        async with self.lock:
+            self.set_authorize(riot_auth)
+            data = await self.http.fetch_player_loadout()
+            collection = valorantx.Collection(client=self, data=data)
+
+            if with_xp:
+                await collection.fetch_account_xp()
+
+            if with_favorite:
+                await collection.fetch_favorites()
+
+            return collection
 
     def cache_validate(self, puuid: Optional[str] = None) -> None:
         if puuid is not None:

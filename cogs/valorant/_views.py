@@ -31,9 +31,9 @@ if TYPE_CHECKING:
     from .valorant import RiotAuth
 
 
-# - multi-factor modal
+# TODO: view cooldown
 
-# TODO: view cooldowns
+# - multi-factor modal
 
 
 class RiotMultiFactorModal(ui.Modal, title=_('Two-factor authentication')):
@@ -181,7 +181,7 @@ class StatsSelect(ui.Select['StatsView']):
         #
         # if value == '__overview':
         #     await interaction.response.edit_message(embed=self.view.main_page, view=self.view)
-        # elif value == 'matchs':
+        # elif value == 'matches':
         #     view = MatchHistoryView(
         #         historys=self.view.match_source,
         #         embeds=self.view.match_source_embed,
@@ -229,7 +229,7 @@ class StatsView(ViewAuthor):
     #
     # match_history = self.endpoint.fetch_match_history(self.puuid, queue_id='competitive', start_index=0,
     #                                                   end_index=total_game)
-    # self.stats['total_matchs'] = len(match_history['History'])
+    # self.stats['total_matches'] = len(match_history['History'])
     #
     # for index, match in enumerate(match_history['History']):
     #     match_details = self.endpoint.fetch_match_details(match['MatchID'])
@@ -355,15 +355,23 @@ class SwitchingViewX(ViewAuthor):
             if isinstance(item, ui.Button):
                 item.disabled = True
 
+    @staticmethod
+    async def _edit_message(message: discord.InteractionMessage, **kwargs) -> None:
+        try:
+            await message.edit(**kwargs)
+        except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+            pass
+
     async def on_timeout(self) -> None:
+
         if self.message is None:
             original_response = await self.interaction.original_response()
             if original_response:
                 self.disable_buttons()
-                await original_response.edit(view=self)
+                await self._edit_message(original_response, view=self)
         else:
             self.disable_buttons()
-            await self.message.edit(view=self)
+            await self._edit_message(self.message, view=self)
 
 
 class StoreSwitchX(SwitchingViewX):
@@ -377,7 +385,7 @@ class StoreSwitchX(SwitchingViewX):
 
         embeds = [
             Embed(
-                description=_("Daily store for {user}\n").format(user=bold(self.v_client.user.display_name))
+                description=_("Daily store for {user}\n").format(user=bold(riot_auth.display_name))
                 + f"Resets {format_relative(store.reset_at)}"
             )
         ]
@@ -421,7 +429,7 @@ class NightMarketSwitchX(SwitchingViewX):
 
         embeds = [
             Embed(
-                description=f"NightMarket for {bold(self.v_client.user.display_name)}\n"
+                description=f"NightMarket for {bold(riot_auth.display_name)}\n"
                 f"Expires {format_relative(nightmarket.expire_at)}",
                 colour=self.bot.theme.purple,
             )
@@ -459,15 +467,14 @@ class BattlePassSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        client = self.v_client.set_authorize(riot_auth)
-        contract = await client.fetch_contracts()
+        contract = await self.v_client.fetch_contracts(riot_auth)
 
         btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
 
         next_reward = btp.get_next_reward()
 
         embed = discord.Embed(
-            title=f"Battlepass for {bold(client.user.display_name)}",
+            title=f"Battlepass for {bold(riot_auth.display_name)}",
             description=f"{bold('NEXT')}: {next_reward.display_name}",
         )
         embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale(str(self.locale))}')
@@ -500,22 +507,21 @@ class PointSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        client = self.v_client.set_authorize(riot_auth)
-        wallet = await client.fetch_wallet()
+        wallet = await self.v_client.fetch_wallet(riot_auth)
 
-        vp = client.get_currency(uuid=str(CurrencyType.valorant))
-        rad = client.get_currency(uuid=str(CurrencyType.radianite))
+        vp = self.v_client.get_currency(uuid=str(CurrencyType.valorant))
+        rad = self.v_client.get_currency(uuid=str(CurrencyType.radianite))
 
         vp_display_name = vp.name_localizations.from_locale(str(self.locale))
 
-        embed = Embed(title=f"{client.user.display_name} Point:")
+        embed = Embed(title=f"{riot_auth.display_name} Point:")
         embed.add_field(
             name=f"{(vp_display_name if vp_display_name != 'VP' else 'Valorant')}",
-            value=f"{vp.emoji} {wallet.valorant_points}",
+            value=f"{vp.emoji} {wallet.valorant_points}",  # type: ignore
         )
         embed.add_field(
             name=f'{rad.name_localizations.from_locale(str(self.locale)).removesuffix(" Points")}',
-            value=f'{rad.emoji} {wallet.radiant_points}',
+            value=f'{rad.emoji} {wallet.radiant_points}',  # type: ignore
         )
 
         return [embed]
@@ -535,8 +541,7 @@ class MissionSwitchX(SwitchingViewX):
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
 
-        client = self.v_client.set_authorize(riot_auth)
-        contracts = await client.fetch_contracts()
+        contracts = await self.v_client.fetch_contracts(riot_auth)
 
         daily = []
         weekly = []
@@ -560,7 +565,7 @@ class MissionSwitchX(SwitchingViewX):
             if not mission.is_completed():
                 all_completed = False
 
-        embed = Embed(title=f"{client.user.display_name} Mission:")
+        embed = Embed(title=f"{riot_auth.display_name} Mission:")
         if all_completed:
             embed.colour = 0x77DD77
 
@@ -634,20 +639,18 @@ class CollectionSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        client = self.v_client.set_authorize(riot_auth)
-        self._collection = await client.fetch_collection()
+        collection = self._collection = await self.v_client.fetch_collection(riot_auth)
 
         # mmr
-        mmr = await client.fetch_mmr()
+        mmr = await collection._client.fetch_mmr()
         latest_tier = mmr.get_last_rank_tier()
 
         # wallet
-        wallet = await client.fetch_wallet()
-        vp = client.get_currency(uuid=str(CurrencyType.valorant))
-        rad = client.get_currency(uuid=str(CurrencyType.radianite))
+        wallet = await collection._client.fetch_wallet(riot_auth)
+        vp = self.v_client.get_currency(uuid=str(CurrencyType.valorant))
+        rad = self.v_client.get_currency(uuid=str(CurrencyType.radianite))
 
         # loadout
-        collection = await client.fetch_collection()
         player_title = collection.get_player_title()
         player_card = collection.get_player_card()
         account_level = collection.get_account_level()
@@ -655,9 +658,9 @@ class CollectionSwitchX(SwitchingViewX):
 
         e = discord.Embed()
         e.description = '{vp_emoji} {wallet_vp} {rad_emoji} {wallet_rad}'.format(
-            vp_emoji=vp.emoji,
+            vp_emoji=vp.emoji,  # type: ignore
             wallet_vp=wallet.valorant_points,
-            rad_emoji=rad.emoji,
+            rad_emoji=rad.emoji,  # type: ignore
             wallet_rad=wallet.radiant_points,
         )
 

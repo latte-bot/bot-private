@@ -283,7 +283,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             riot_acc = RiotAuth(self.bot.owner_id, self.bot.support_guild_id, bot=self.bot)
             await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
-            riot_acc = v_user.get_first_account()
+            riot_acc = v_user.get_account()
         client = self.v_client.set_authorize(riot_acc)
         data = await client.fetch_store_front()
         return data.get_bundles()
@@ -358,7 +358,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         try_auth = RiotAuth(interaction.user.id, interaction.guild_id, self.bot)
 
         try:
-            await try_auth.authorize(username, password, remember=True)
+            await try_auth.authorize(username.strip(), password.strip(), remember=True)
         except RiotMultifactorError:
             wait_modal = RiotMultiFactorModal(try_auth)
             await interaction.response.send_modal(wait_modal)
@@ -372,9 +372,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             except Exception as e:
                 raise CommandError('Invalid Multi-factor code.') from e
 
-            # replace interaction
             interaction = wait_modal.interaction
             await interaction.response.defer(ephemeral=True)
+            wait_modal.stop()
+
         except valorantx.RiotAuthenticationError:
             raise CommandError('Invalid username or password.')
         except aiohttp.ClientResponseError:
@@ -519,7 +520,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
         v_user = await self.fetch_user(id=interaction.user.id)
         view = StoreSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account())
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('nightmarket'), description=_T('Show skin offers on the nightmarket'))
     @app_commands.guild_only()
@@ -530,7 +531,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = NightMarketSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account())
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('battlepass'), description=_T('View your battlepass current tier'))
     @app_commands.guild_only()
@@ -541,7 +542,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = BattlePassSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account())
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('point'), description=_T('View your remaining Valorant and Riot Points (VP/RP)'))
     @app_commands.guild_only()
@@ -552,7 +553,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = PointSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account())
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('bundles'), description=_T('Show the current featured bundles'))
     @app_commands.guild_only()
@@ -654,7 +655,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = MissionSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account())
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('collection'), description=_T('Shows your collection'))
     @app_commands.guild_only()
@@ -665,7 +666,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = CollectionSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account())
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('carrier'), description=_T('Shows your carrier'))
     @app_commands.choices(
@@ -693,7 +694,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = CarrierSwitchX(interaction, v_user, self.v_client)
-        await view.start_view(v_user.get_first_account(), queue=mode)
+        await view.start_view(v_user.get_account(), queue=mode)
 
     @app_commands.command(name=_T('match'), description=_T('Shows latest match details'))
     @app_commands.choices(
@@ -721,10 +722,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        client = self.v_client.set_authorize(v_user.get_first_account())
+        client = self.v_client.set_authorize(v_user.get_account())
 
         view = MatchDetailsSwitchX(interaction, v_user, client)
-        await view.start_view(v_user.get_first_account(), queue=mode)
+        await view.start_view(v_user.get_account(), queue=mode)
 
     @app_commands.command(name=_T('patchnote'), description=_T('Patch notes'))
     @app_commands.guild_only()
@@ -814,7 +815,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
-        self.v_client.set_authorize(v_user.get_first_account())
+        self.v_client.set_authorize(v_user.get_account())
 
         contracts = await self.v_client.fetch_contracts()
 
@@ -1118,6 +1119,46 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     break
 
         return results[:mex_index]
+
+    # @app_commands.command(name=_T('temp'))
+    # @app_commands.choices(
+    #     type_=[
+    #         Choice(name=_T('store'), value='store'),
+    #         Choice(name=_T('point'), value='point'),
+    #         Choice(name=_T('nightmarket'), value='nightmarket'),
+    #     ]
+    # )
+    # async def temp(self, interaction: Interaction, type_: Choice[str], username: str, password: str) -> None:
+    #
+    #     try_auth = RiotAuth()
+    #
+    #     try:
+    #         await try_auth.authorize(username.strip(), password.strip(), remember=False)
+    #     except RiotMultifactorError:
+    #         wait_modal = RiotMultiFactorModal(try_auth)
+    #         await interaction.response.send_modal(wait_modal)
+    #         await wait_modal.wait()
+    #
+    #         # when timeout
+    #         if wait_modal.code is None:
+    #             raise CommandError('You did not enter the code in time.')
+    #         try:
+    #             await try_auth.authorize_multi_factor(wait_modal.code, remember=True)
+    #         except Exception as e:
+    #             raise CommandError('Invalid Multi-factor code.') from e
+    #
+    #         # replace interaction
+    #         interaction = wait_modal.interaction
+    #         await interaction.response.defer(ephemeral=True)
+    #     except valorantx.RiotAuthenticationError:
+    #         raise CommandError('Invalid username or password.')
+    #     except aiohttp.ClientResponseError:
+    #         raise CommandError('Riot server is currently unavailable.')
+    #     else:
+    #         await interaction.response.defer(ephemeral=True)
+    #
+    #     t_client = ValorantClient()
+    #     t_client.set_authorize(try_auth)
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(

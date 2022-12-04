@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import Optional
 
 import discord
 from discord.app_commands import AppCommandError
@@ -97,3 +97,12 @@ class TokenNotFound(LatteAPIError):
     """Raised when a token is not found."""
 
     pass
+
+
+class ButtonOnCooldown(Exception):
+    """Raised when a button is on cooldown."""
+
+    def __init__(self, cooldown: discord.app_commands.Cooldown) -> None:
+        self.cooldown: discord.app_commands.Cooldown = cooldown
+        self.retry_after: float = cooldown.get_retry_after()
+        super().__init__(f'You are on cooldown. Try again in {self.retry_after:.2f}s')

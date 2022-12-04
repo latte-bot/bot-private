@@ -319,18 +319,18 @@ class LatteBot(commands.AutoShardedBot):
         # tree sync application commands
         # await self.tree.sync()
         sync_guilds = [
-            self.support_guild_id,
+            # self.support_guild_id,
             # 1042503061454729289,  # EMOJI ABILITY 2
             # 1042502960921452734,  # EMOJI ABILITY 1
             # 1043965050630705182,  # EMOJI TIER
             # 1042501718958669965,  # EMOJI AGENT
             # 1042809126624964651,  # EMOJI MATCH
         ]
-        # for guild_id in sync_guilds:
-        #     try:
-        #         await self.tree.sync(guild=discord.Object(id=guild_id))
-        #     except Exception as e:
-        #         _log.exception(f'Failed to sync guild {guild_id}.')
+        for guild_id in sync_guilds:
+            try:
+                await self.tree.sync(guild=discord.Object(id=guild_id))
+            except Exception as e:
+                _log.exception(f'Failed to sync guild {guild_id}.')
 
         # await Translator.get_i18n(
         #     cogs=self.cogs,

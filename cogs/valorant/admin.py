@@ -71,7 +71,7 @@ class Admin(MixinMeta):  # noqa
             riot_auth = RiotAuth(self.bot.owner_id, bot=self.bot)
             await riot_auth.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
-            riot_auth = riot_auth.get_first_account()
+            riot_auth = riot_auth.get_account()
 
         client = self.v_client.set_authorize(riot_auth)
         await client.fetch_assets(reload=reload, force=force)

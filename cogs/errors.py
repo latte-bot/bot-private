@@ -76,8 +76,8 @@ class ErrorHandler(commands.Cog):
         if isinstance(error, (discord.Forbidden, discord.NotFound)):
             return
 
-        # traceback
-        traceback.print_exception(type(error), error, error.__traceback__)  # TODO: remove this when release
+        # # traceback
+        # traceback.print_exception(type(error), error, error.__traceback__) # TODO: remove this when release
 
         async def send_error(*args, **kwargs) -> None:
             if interaction.response.is_done():
