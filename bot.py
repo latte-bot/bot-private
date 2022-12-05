@@ -245,7 +245,7 @@ class LatteBot(commands.AutoShardedBot):
         id: str,
         image: Union[valorantx.Asset, discord.Asset, str],
         palette: int = 0,
-    ) -> List[Tuple[int]]:
+    ) -> List[Tuple[int, int, int]]:
 
         color = self.get_color(id)
         if color is None:

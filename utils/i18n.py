@@ -71,15 +71,16 @@ class Translator(app_commands.Translator):
         return locale_str(untranslated)
 
     @staticmethod
-    def _load_file(path: str, locale: Locale) -> Dict[str, Any]:
+    def _load_file(path: str, locale: Locale) -> Internationalization:
         filename = '{}.json'.format(locale)
         fp = os.path.join(path, filename)
         try:
             with open(fp, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except FileNotFoundError:
-            data = {}
-        return data
+            return {}
+        else:
+            return data
 
     @staticmethod
     def _dump_file(path: str, locale: Locale, data: Dict[str, Any]) -> None:
@@ -121,7 +122,7 @@ class Translator(app_commands.Translator):
     # def _parse(self, key: str, translate: str):
     #     self._translations.update({key: translate})
 
-    def _get_path(self) -> Optional[str]:
+    def _get_path(self) -> str:
         return self._path or os.path.join(os.getcwd(), 'i18n')
 
     @lru_cache(maxsize=30)
@@ -152,24 +153,29 @@ class Translator(app_commands.Translator):
         elif tcl in [TCL.command_description, TCL.group_description]:
             keys.extend([localizable.name, 'description'])
 
-        elif tcl == TCL.parameter_name:
+        elif tcl == TCL.parameter_name and (localizable, Parameter):
             keys.extend([localizable.command.name, 'parameters', localizable.name, 'name'])
             self.__latest_parameter = localizable
 
-        elif tcl == TCL.parameter_description:
+        elif tcl == TCL.parameter_description and isinstance(localizable, Parameter):
             keys.extend([localizable.command.name, 'parameters', localizable.name, 'description'])
 
         elif tcl == TCL.choice_name:
-            _choice_key = [
-                self.__latest_command.name,
-                'parameters',
-                self.__latest_parameter.name,
-                'choices',
-                localizable.value,  # TODO: ?
-            ]
-            if self.__latest_binding is not None and isinstance(self.__latest_binding, commands.Cog):
-                _choice_key.insert(0, self.__latest_binding.qualified_name.lower())
-            keys.extend(_choice_key)
+            if (
+                self.__latest_command is not None
+                and self.__latest_parameter is not None
+                and isinstance(localizable, Choice)
+            ):
+                _choice_key = [
+                    self.__latest_command.name,
+                    'parameters',
+                    self.__latest_parameter.name,
+                    'choices',
+                    localizable.value,
+                ]
+                if self.__latest_binding is not None and isinstance(self.__latest_binding, commands.Cog):
+                    _choice_key.insert(0, self.__latest_binding.qualified_name.lower())
+                keys.extend(_choice_key)
 
         return keys
 
@@ -183,7 +189,10 @@ class Translator(app_commands.Translator):
             binding = localizable.binding
         elif isinstance(localizable, Group):
             if len(localizable.commands) > 1:
-                binding = localizable.commands[0].binding
+                for command in localizable.commands:
+                    if isinstance(command, Command):
+                        binding = command.binding
+                        break
             elif localizable.module is not None:
                 binding = localizable.module.removeprefix('cogs.')
         elif isinstance(localizable, Parameter):

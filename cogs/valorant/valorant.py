@@ -284,8 +284,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
             riot_acc = v_user.get_account()
-        client = self.v_client.set_authorize(riot_acc)
-        data = await client.fetch_store_front()
+        data = await self.v_client.fetch_store_front(riot_acc)
         return data.get_bundles()
 
     @staticmethod
@@ -402,7 +401,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await self.db.upsert_user(
             encrypt_payload,
             interaction.user.id,
-            interaction.guild_id,
+            interaction.guild_id or interaction.user.id,
             interaction.locale,
         )
 
@@ -478,7 +477,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                         conn=conn,
                     )
 
-                e = Embed(description=f"Successfully logged out {bold(riot_auth_remove.display_name)}")
+                e = Embed(
+                    description='Successfully logged out {riot_auth}'.format(
+                        riot_auth=(bold(riot_auth_remove.display_name) if riot_auth_remove else '')
+                    )
+                )
 
                 await interaction.followup.send(embed=e, ephemeral=True)
 
@@ -575,13 +578,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         for bundle in bundles:
 
             # build embeds stuff
-            s_embed = discord.Embed(title=bundle.name_localizations.from_locale(str(locale)), description='')
+            s_embed = discord.Embed(title=bundle.name_localizations.from_locale(str(locale)))
             if bundle.description_extra is not None:
-                s_embed.description += f'{italics(bundle.description_extra_localizations.from_locale(str(locale)))}\n'
-            s_embed.description += (
-                f'{PointEmoji.valorant} {bold(str(bundle.discount_price))} - '
-                f'expires {format_relative(bundle.expires_at)}'
-            )
+                s_embed.description = (
+                    f'{italics(bundle.description_extra_localizations.from_locale(str(locale)))}\n'
+                    f'{PointEmoji.valorant} {bold(str(bundle.discount_price))} - '
+                    f'expires {format_relative(bundle.expires_at)}'
+                )
 
             if bundle.display_icon_2 is not None:
                 s_embed.set_thumbnail(url=bundle.display_icon_2)
@@ -717,8 +720,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        if mode is not None:
-            mode = mode.value
+        mode = mode.value if mode is not None else None
 
         v_user = await self.fetch_user(id=interaction.user.id)
 

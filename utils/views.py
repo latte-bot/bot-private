@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 import discord
 from discord import Interaction, ui
 from discord.ext import commands
 
 from .chat_formatting import bold
-from .errors import ButtonOnCooldown
+from .errors import ButtonOnCooldown, CheckFailure
 from .i18n import _
 from .useful import LatteEmbed
+
+if TYPE_CHECKING:
+    from discord import InteractionMessage, Message
+
 
 _log = logging.getLogger(__name__)
 
 
-def key(interaction: discord.Interaction) -> discord.User:
+def key(interaction: discord.Interaction) -> Union[discord.User, discord.Member]:
     return interaction.user
 
 
@@ -26,6 +30,10 @@ class Button(ui.Button):
 
 # thanks stella_bot
 class BaseView(ui.View):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._message: Optional[Union[Message, InteractionMessage]] = None
+
     def reset_timeout(self) -> None:
         self.timeout = self.timeout
 
@@ -64,7 +72,7 @@ class BaseView(ui.View):
             else:
                 msg = _("You are on cooldown. Try again in {time}.").format(time=bold(str(round(error.retry_after, 2))))
         else:
-            msg = _("An error occurred while processing this interaction.")
+            msg = getattr(error, 'original', _("An error occurred while processing this interaction."))
 
         embed = LatteEmbed.to_error(
             description=msg,
@@ -76,6 +84,40 @@ class BaseView(ui.View):
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
         _log.exception(error)
+
+    def disable_all_items(self, *, exclusions: Optional[List[ui.Item]] = None) -> None:
+        """
+        Disables all items in the view.
+
+        Parameters
+        ----------
+        exclusions: Optional[List[ui.Item]]
+            A list of items in `self.children` to not disable from the view.
+        """
+        for child in self.children:
+            if exclusions is not None or child not in exclusions:
+                child.disabled = True
+
+    def enable_all_items(self, *, exclusions: Optional[List[ui.Item]] = None) -> None:
+        """
+        Enables all items in the view.
+
+        Parameters
+        ----------
+        exclusions: Optional[List[ui.Item]]
+            A list of items in `self.children` to not enable from the view.
+        """
+        for child in self.children:
+            if exclusions is not None or child not in exclusions:
+                child.disabled = False
+
+    @property
+    def message(self) -> Optional[Union[Message, InteractionMessage]]:
+        return self._message
+
+    @message.setter
+    def message(self, value: Optional[Union[Message, InteractionMessage]]) -> None:
+        self._message = value
 
 
 # thanks stella_bot
@@ -102,10 +144,11 @@ class ViewAuthor(BaseView):
         if user != author:
 
             bucket_user = self.cooldown_user.get_bucket(interaction)
-            if bucket_user.update_rate_limit():
-                raise ButtonOnCooldown(bucket_user)
+            if bucket_user is not None:
+                if bucket_user.update_rate_limit():
+                    raise ButtonOnCooldown(bucket_user)
 
-            if self.is_command:
+            if self.interaction.command is not None:
                 command_name: str = self.interaction.command.qualified_name
                 get_app_cmd = self.interaction.client.get_app_command(command_name)  # type: ignore
 
@@ -119,13 +162,13 @@ class ViewAuthor(BaseView):
                 )
             else:
                 content = _("Only `{author}` can use this.").format(author=author.mention)
-            embed = LatteEmbed.to_error(description=content)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return False
+
+            raise CheckFailure(content)
 
         bucket = self.cooldown.get_bucket(interaction)
-        if bucket.update_rate_limit():
-            raise ButtonOnCooldown(bucket)
+        if bucket is not None:
+            if bucket.update_rate_limit():
+                raise ButtonOnCooldown(bucket)
 
         return True
 

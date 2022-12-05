@@ -1,5 +1,5 @@
 import json
-from typing import AnyStr, Optional
+from typing import Optional
 
 from cryptography.fernet import Fernet
 
@@ -7,16 +7,16 @@ from cryptography.fernet import Fernet
 class Encryption:
     """Encryption class."""
 
-    _key: AnyStr
+    _key: str
 
-    def __init__(self, key: Optional[AnyStr]) -> None:
+    def __init__(self, key: Optional[str]) -> None:
         """Encryption class."""
         if key is None:
             raise ValueError('Encryption key is not set.')
         Encryption._key = key
 
     @staticmethod
-    def encrypt(args: str) -> AnyStr:
+    def encrypt(args: str) -> str:
         """Encrypts a message with the key."""
         return str(Fernet(Encryption._key).encrypt(args.encode())).split("'")[1]
 

@@ -99,7 +99,7 @@ class FeaturedBundleView(ViewAuthor):
             self.add_item(
                 FeaturedBundleButton(
                     other_view=self,
-                    label=bundle.name_localizations.from_locale(self.locale),
+                    label=str(index) + '. ' + bundle.name_localizations.from_locale(str(self.locale)),
                     custom_id=bundle.uuid,
                     style=discord.ButtonStyle.blurple,
                 )
@@ -116,13 +116,14 @@ class FeaturedBundleView(ViewAuthor):
 
 
 class FeaturedBundleButton(ui.Button['FeaturedBundleView']):
-    def __init__(self, other_view: FeaturedBundleView, **kwargs) -> None:
+    def __init__(self, other_view: FeaturedBundleView, **kwargs: Any) -> None:
         self.other_view = other_view
         super().__init__(**kwargs)
 
     async def callback(self, interaction: Interaction) -> None:
         assert self.other_view is not None
         self.other_view.selected = True
+        # TODO: all_embeds get embeds
         await interaction.response.edit_message(embeds=self.other_view.all_embeds[self.custom_id], view=None)
 
 
@@ -297,7 +298,7 @@ class StatsView(ViewAuthor):
 
 
 class ButtonAccountSwitchX(ui.Button['SwitchingViewX']):
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(style=discord.ButtonStyle.gray, **kwargs)
 
     async def callback(self, interaction: Interaction) -> None:
@@ -322,7 +323,7 @@ class ButtonAccountSwitchX(ui.Button['SwitchingViewX']):
 
 class SwitchingViewX(ViewAuthor):
     def __init__(
-        self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient, row: int = 0, **kwargs
+        self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient, row: int = 0, **kwargs: Any
     ) -> None:
         super().__init__(interaction, timeout=kwargs.get('timeout', 600.0), **kwargs)
         self.bot: Union[discord.Client, LatteBot] = interaction.client
@@ -330,8 +331,6 @@ class SwitchingViewX(ViewAuthor):
         self.v_client: ValorantClient = client
         self.riot_auth_list = v_user.get_riot_accounts()
         self.locale: discord.Locale = interaction.locale
-        self.message: Optional[discord.InteractionMessage] = None
-        # self.loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         self._build_buttons(row)
 
     def _build_buttons(self, row: int = 0) -> None:
@@ -356,7 +355,7 @@ class SwitchingViewX(ViewAuthor):
                 item.disabled = True
 
     @staticmethod
-    async def _edit_message(message: discord.InteractionMessage, **kwargs) -> None:
+    async def _edit_message(message: discord.InteractionMessage, **kwargs: Any) -> None:
         try:
             await message.edit(**kwargs)
         except (discord.HTTPException, discord.NotFound, discord.Forbidden):
@@ -473,14 +472,16 @@ class BattlePassSwitchX(SwitchingViewX):
 
         next_reward = btp.get_next_reward()
 
-        embed = discord.Embed(
-            title=f"Battlepass for {bold(riot_auth.display_name)}",
-            description=f"{bold('NEXT')}: {next_reward.display_name}",
+        embed = discord.Embed(title='Battlepass for {display_name}'.format(display_name=bold(riot_auth.display_name)))
+        embed.set_footer(
+            text='TIER {tier} | {battlepass}'.format(
+                tier=btp.current_tier, battlepass=btp.name_localizations.from_locale(str(self.locale))
+            )
         )
-        embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale(str(self.locale))}')
         # TODO: name_localizations useful method
 
         if next_reward is not None:
+            embed.description = ('{next}: {item}'.format(next=bold('NEXT'), item=next_reward.display_name),)
             if next_reward.display_icon is not None:
                 if isinstance(next_reward, valorantx.SkinLevel):
                     embed.set_image(url=next_reward.display_icon)
@@ -710,7 +711,13 @@ class CollectionSwitchX(SwitchingViewX):
 
             skin_ = skin_sort if isinstance(skin_sort, valorantx.SkinLoadout) else skin_sort.get_skin()
 
+            if skin_ is None:
+                return 0
+
             weapon = skin_.get_weapon()
+
+            if weapon is None:
+                return 0
 
             # page 1
             if weapon.display_name == 'Phantom':
@@ -757,6 +764,8 @@ class CollectionSwitchX(SwitchingViewX):
                 return 16
             elif weapon.display_name == 'Odin':
                 return 17
+            else:
+                return 18
 
         for index, skin in enumerate(sorted(self._collection.get_skins(), key=sort_skins)):
 
@@ -769,7 +778,7 @@ class CollectionSwitchX(SwitchingViewX):
                     (
                         skin.display_name
                         if not isinstance(skin, valorantx.SkinChromaLoadout)
-                        else skin.get_skin().display_name
+                        else (skin.get_skin().display_name if skin.get_skin() is not None else '')
                     )
                     + skin_fav
                 ),
@@ -813,7 +822,7 @@ class SkinCollectionView(ViewAuthor):
         pages: List[List[discord.Embed]],
     ) -> None:
         super().__init__(interaction, timeout=600)
-        self.other_view = other_view
+        self.other_view: CollectionSwitchX = other_view
         self._pages = pages
         self._current_page: int = 0
         self._update_buttons()
@@ -900,7 +909,6 @@ class MatchDetailsView(ViewAuthor):
         self.current_page = 0
         self.is_on_mobile = False
         self.pages: List[discord.Embed] = []
-        self.message: Optional[discord.InteractionMessage] = None
         self.other_view: Optional[Union[discord.ui.View, CarrierSwitchX]] = other_view
         if self.other_view is None:
             self.remove_item(self.back_to_home)
@@ -925,13 +933,10 @@ class MatchDetailsView(ViewAuthor):
 
     @ui.button(label=_("Home"), style=ButtonStyle.green, custom_id='home_button')
     async def back_to_home(self, interaction: Interaction, button: ui.Button) -> None:
-        self.other_view.reset_timeout()
+        if self.other_view is not None:
+            self.other_view.reset_timeout()
         await interaction.response.defer()
         await self.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
-
-    def disable_all_items(self) -> None:
-        for item in self.children:
-            item.disabled = True
 
     async def on_timeout(self) -> None:
         if self.message is not None:
@@ -1294,7 +1299,7 @@ class MatchDetailsSwitchX(MatchDetailsView):
                 )
             )
 
-    async def start_view(self, riot_auth: RiotAuth, **kwargs) -> None:
+    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         self._queue = kwargs.pop('queue', self._queue)
         client = self.v_client.set_authorize(riot_auth)
         match_history = await client.fetch_match_history(queue=self._queue, start=0, end=1)
