@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Coroutine, Dict, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Optional, Union
 
 import aiohttp
 import discord
@@ -15,7 +15,6 @@ from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
 from ._custom import Agent, CompetitiveTier, ContentTier, Currency, GameMode, MatchDetails
-from ._errors import InvalidMultiFactorCode
 
 if TYPE_CHECKING:
     import datetime

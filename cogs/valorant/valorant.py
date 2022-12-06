@@ -39,10 +39,10 @@ from ._embeds import Embed
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
 from ._views import (  # StatsView,
-    BattlePassSwitchX,
     CarrierSwitchX,
     CollectionSwitchX,
     FeaturedBundleView,
+    GamePassSwitchX,
     MatchDetailsSwitchX,
     MissionSwitchX,
     NightMarketSwitchX,
@@ -99,10 +99,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # database
         self.db: Database = Database(bot)
 
-        # add context menus
-        # self.bot.tree.add_command(self.ctx_user_store)
-        # self.bot.tree.add_command(self.ctx_user_nightmarket)
-        # self.bot.tree.add_command(self.ctx_user_point)
+        self.add_context_menu()
 
     @property
     def display_emoji(self) -> discord.Emoji:
@@ -110,7 +107,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     async def cog_load(self):
 
-        await self.fetch_all_valorant_users()
+        await self.fetch_valorant_users()
 
         if self.v_client is MISSING:
 
@@ -160,7 +157,28 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.featured_bundle_cache.stop()
         self.reset_cache.stop()
 
+        # close valorant client
+        self.v_client.clear()
+        await self.v_client.close()
+        self.valorant_users.clear()
+        self.v_client = MISSING
+        # self.bot.v_client = MISSING
+
         # remove context menus from bot
+        self.remove_context_menu()
+
+        _log.info('Valorant client unloaded.')
+
+    # useful functions
+
+    def add_context_menu(self) -> None:
+        ...
+        # self.bot.tree.add_command(self.ctx_user_store)
+        # self.bot.tree.add_command(self.ctx_user_nightmarket)
+        # self.bot.tree.add_command(self.ctx_user_point)
+
+    def remove_context_menu(self) -> None:
+        ...
         # self.bot.tree.remove_command(self.ctx_user_store.name, type=self.ctx_user_store.type)
         # self.bot.tree.remove_command(self.ctx_user_nightmarket.name, type=self.ctx_user_nightmarket.type)
         # self.bot.tree.remove_command(self.ctx_user_point.name, type=self.ctx_user_point.type)
@@ -170,20 +188,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # self.bot.tree.remove_command(self.ctx_user_party_leave.name, type=self.ctx_user_party_leave.type)
         # self.bot.tree.remove_command(self.ctx_user_party_kick.name, type=self.ctx_user_party_kick.type)
 
-        # close valorant client
-        self.v_client.clear()
-        await self.v_client.close()
-        self.valorant_users.clear()
-        self.v_client = MISSING
-        # self.bot.v_client = MISSING
-
-        _log.info('Valorant client unloaded.')
-
-    # useful functions
-
     # database
 
-    async def fetch_all_valorant_users(self) -> None:
+    async def fetch_valorant_users(self) -> None:
         async with self.bot.pool.acquire(timeout=150.0) as conn:
             accounts = await self.db.select_users(conn=conn)
 
@@ -198,7 +205,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     # - useful cache functions
 
     @alru_cache(maxsize=2048)
-    async def fetch_user(self, *, id: int) -> ValorantUser:
+    async def fetch_user(self, *, id: int) -> ValorantUser:  # TODO: coroutine typing
 
         v_user = self._get_user(id)
         if v_user is not None:
@@ -348,6 +355,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         username: app_commands.Range[str, 1, 24],
         password: app_commands.Range[str, 1, 128],
     ) -> None:
+        # TODO: transformers params
+        # TODO: website login ?
 
         v_user = self._get_user(interaction.user.id)
         if v_user is not None:
@@ -410,7 +419,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         e = Embed(description=f"Successfully logged in {bold(try_auth.display_name)}")
 
-        # TOS, privacy views
+        # TODO: TOS, privacy views
         await interaction.followup.send(embed=e, ephemeral=True)
 
     @app_commands.command(name=_T('logout'), description=_T('Logout and Delete your accounts from database'))
@@ -544,7 +553,18 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-        view = BattlePassSwitchX(interaction, v_user, self.v_client)
+        view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.season)
+        await view.start_view(v_user.get_account())
+
+    @app_commands.command(name=_T('eventpass'), description=_T('View your Eventpass current tier'))
+    @app_commands.guild_only()
+    @dynamic_cooldown(cooldown_5s)
+    async def eventpass(self, interaction: Interaction) -> None:
+
+        await interaction.response.defer()
+
+        v_user = await self.fetch_user(id=interaction.user.id)
+        view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.event)
         await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('point'), description=_T('View your remaining Valorant and Riot Points (VP/RP)'))
@@ -588,8 +608,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             if bundle.display_icon_2 is not None:
                 s_embed.set_thumbnail(url=bundle.display_icon_2)
-                color_thief = await self.bot.get_or_fetch_color(bundle.uuid, bundle.display_icon_2)
-                s_embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
+                color_thief = await self.bot.get_or_fetch_colors(bundle.uuid, bundle.display_icon_2)
+                s_embed.colour = random.choice(color_thief)
 
             embeds_stuffs.append(s_embed)
 
@@ -676,6 +696,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         mode=[
             Choice(name=_T('Unrated'), value='unrated'),
             Choice(name=_T('Competitive'), value='competitive'),
+            # Choice(name=_T('SwiftPlay'), value='swiftplay'),
             Choice(name=_T('Deathmatch'), value='deathmatch'),
             Choice(name=_T('Spike Rush'), value='spikerush'),
             Choice(name=_T('Escalation'), value='ggteam'),
@@ -704,6 +725,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         mode=[
             Choice(name=_T('Unrated'), value='unrated'),
             Choice(name=_T('Competitive'), value='competitive'),
+            # Choice(name=_T('SwiftPlay'), value='swiftplay'),
             Choice(name=_T('Deathmatch'), value='deathmatch'),
             Choice(name=_T('Spike Rush'), value='spikerush'),
             Choice(name=_T('Escalation'), value='ggteam'),
@@ -752,8 +774,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         banner_url = scraper.banner or latest.banner
         if banner_url is not None:
             embed.set_image(url=banner_url)
-            color_thief = await self.bot.get_or_fetch_color(latest.uid, banner_url, 5)
-            embed.colour = discord.Colour.from_rgb(*(random.choice(color_thief)))
+            color_thief = await self.bot.get_or_fetch_colors(latest.uid, banner_url, 5)
+            embed.colour = random.choice(color_thief)
 
         view = discord.ui.View()  # TODO: URLButton class
         view.add_item(
@@ -816,17 +838,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
-
-        self.v_client.set_authorize(v_user.get_account())
-
-        contracts = await self.v_client.fetch_contracts()
-
-        agent_contract = contracts.special_contract()
-
-        if agent_contract is None:
-            return await interaction.followup.send("No active agent contract")
-
-        print(agent_contract)
+        view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.agent)
+        await view.start_view(v_user.get_account())
 
     @app_commands.command(name=_T('buddy'), description=_T('View buddy info'))
     @app_commands.guild_only()

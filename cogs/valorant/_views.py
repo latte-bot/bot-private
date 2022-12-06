@@ -25,8 +25,6 @@ from ._enums import PointEmoji, ResultColor, ValorantLocale
 if TYPE_CHECKING:
     from valorantx import Collection, NightMarket, SkinCollection, SprayCollection
 
-    from bot import LatteBot
-
     from ._client import Client as ValorantClient
     from .valorant import RiotAuth
 
@@ -35,7 +33,7 @@ if TYPE_CHECKING:
 
 # - multi-factor modal
 
-
+# TODO: from base Modal
 class RiotMultiFactorModal(ui.Modal, title=_('Two-factor authentication')):
     """Modal for riot login with multifactorial authentication"""
 
@@ -326,7 +324,6 @@ class SwitchingViewX(ViewAuthor):
         self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient, row: int = 0, **kwargs: Any
     ) -> None:
         super().__init__(interaction, timeout=kwargs.get('timeout', 600.0), **kwargs)
-        self.bot: Union[discord.Client, LatteBot] = interaction.client
         self.v_user = v_user
         self.v_client: ValorantClient = client
         self.riot_auth_list = v_user.get_riot_accounts()
@@ -349,10 +346,8 @@ class SwitchingViewX(ViewAuthor):
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         pass
 
-    def disable_buttons(self) -> None:
-        for item in self.children:
-            if isinstance(item, ui.Button):
-                item.disabled = True
+    def remove_switch_button(self) -> None:
+        self.remove_item_by_type(cls=ButtonAccountSwitchX)
 
     @staticmethod
     async def _edit_message(message: discord.InteractionMessage, **kwargs: Any) -> None:
@@ -362,14 +357,12 @@ class SwitchingViewX(ViewAuthor):
             pass
 
     async def on_timeout(self) -> None:
-
+        self.disable_buttons()
         if self.message is None:
             original_response = await self.interaction.original_response()
             if original_response:
-                self.disable_buttons()
                 await self._edit_message(original_response, view=self)
         else:
-            self.disable_buttons()
             await self._edit_message(self.message, view=self)
 
 
@@ -460,28 +453,41 @@ class NightMarketSwitchX(SwitchingViewX):
         await self.message.edit(embeds=embeds, view=self)
 
 
-class BattlePassSwitchX(SwitchingViewX):
-    def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
+class GamePassSwitchX(SwitchingViewX):
+    def __init__(
+        self,
+        interaction: Interaction,
+        v_user: ValorantUser,
+        client: ValorantClient,
+        relation_type: valorantx.RelationType,
+    ) -> None:
         super().__init__(interaction, v_user, client, row=0)
+        self.relation_type = relation_type
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
         contract = await self.v_client.fetch_contracts(riot_auth)
 
-        btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
+        if self.relation_type == valorantx.RelationType.agent:
+            gp = contract.special_contract()
+        else:
+            gp = contract.get_latest_contract(relation_type=self.relation_type)
 
-        next_reward = btp.get_next_reward()
+        next_reward = gp.get_next_reward() or gp.get_latest_reward()
 
         embed = discord.Embed(title='Battlepass for {display_name}'.format(display_name=bold(riot_auth.display_name)))
         embed.set_footer(
-            text='TIER {tier} | {battlepass}'.format(
-                tier=btp.current_tier, battlepass=btp.name_localizations.from_locale(str(self.locale))
+            text='TIER {tier} | {gamepass}'.format(
+                tier=gp.current_tier, gamepass=gp.name_localizations.from_locale(str(self.locale))
             )
         )
         # TODO: name_localizations useful method
 
         if next_reward is not None:
-            embed.description = ('{next}: {item}'.format(next=bold('NEXT'), item=next_reward.display_name),)
+            embed.description = '{item}'.format(
+                # next=bold('NEXT'),
+                item=next_reward.display_name
+            )
             if next_reward.display_icon is not None:
                 if isinstance(next_reward, valorantx.SkinLevel):
                     embed.set_image(url=next_reward.display_icon)
@@ -490,8 +496,12 @@ class BattlePassSwitchX(SwitchingViewX):
                 else:
                     embed.set_thumbnail(url=next_reward.display_icon)
 
-        embed.colour = self.bot.theme.purple if btp.current_tier <= 50 else self.bot.theme.gold
-
+        if self.relation_type == valorantx.RelationType.season:
+            embed.colour = self.bot.theme.purple if gp.current_tier <= 50 else self.bot.theme.gold
+        else:
+            if next_reward is not None:
+                reward_color_thief = await self.bot.get_or_fetch_colors(next_reward.uuid, next_reward.display_icon)
+                embed.colour = random.choice(reward_color_thief)
         return [embed]
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
@@ -676,8 +686,8 @@ class CollectionSwitchX(SwitchingViewX):
 
         if player_card is not None:
             e.set_image(url=player_card.wide_icon)
-            card_color_thief = await self.bot.get_or_fetch_color(player_card.uuid, player_card.wide_icon)
-            e.colour = discord.Colour.from_rgb(*(random.choice(card_color_thief)))
+            card_color_thief = await self.bot.get_or_fetch_colors(player_card.uuid, player_card.wide_icon)
+            e.colour = random.choice(card_color_thief)
 
         return [e]
 
@@ -690,8 +700,8 @@ class CollectionSwitchX(SwitchingViewX):
             spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
             if spray_icon is not None:
                 embed.set_thumbnail(url=spray_icon)
-                spray_color_thief = await self.bot.get_or_fetch_color(spray.uuid, spray.display_icon)
-                embed.colour = discord.Colour.from_rgb(*(random.choice(spray_color_thief)))
+                spray_color_thief = await self.bot.get_or_fetch_colors(spray.uuid, spray.display_icon)
+                embed.colour = random.choice(spray_color_thief)
             embeds.append(embed)
         return embeds
 
@@ -1321,16 +1331,6 @@ class MatchDetailsSwitchX(MatchDetailsView):
     def disable_buttons(self):
         self.back_page.disabled = self.next_page.disabled = self.toggle_ui.disabled = True
 
-    def remove_button_account_switch(self) -> None:
-        for item in self.children:
-            if isinstance(item, ButtonAccountSwitchX):
-                self.remove_item(item)
-
-    def remove_all_items(self) -> None:
-        for item in self.children:
-            self.remove_item(item)
-
     async def on_timeout(self) -> None:
-        self.remove_all_items()
-        # TODO: partnership view
+        self.clear_items()
         await super().on_timeout()

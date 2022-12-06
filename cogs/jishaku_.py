@@ -3,7 +3,6 @@ from __future__ import annotations
 import inspect
 import io
 import logging
-import os
 import pathlib
 import sys
 from typing import TYPE_CHECKING, Awaitable

@@ -1,23 +1,24 @@
+import datetime
 import io
 import logging
 import os
-from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 import aiohttp
 import asyncpg
 import discord
 import valorantx
-from async_lru import alru_cache
 from colorthief import ColorThief
-from discord import app_commands, utils
+from discord import app_commands
 from discord.ext import commands
+from discord.utils import MISSING
 from dotenv import load_dotenv
 
 from utils.config import Config
 from utils.encryption import Encryption
 from utils.enums import Theme
 from utils.i18n import Translator, _
+from utils.useful import Palette
 
 load_dotenv()
 
@@ -63,12 +64,17 @@ class LatteBot(commands.AutoShardedBot):
             description=description,
             # application_id=977433932146569216,
             application_id=989337541389987861,
+            chunk_guilds_at_startup=False,
         )
 
         # bot stuff
-        self.launch_time: str = f'<t:{round(datetime.now().timestamp())}:R>'
+        self.launch_time: str = f'<t:{round(datetime.datetime.now().timestamp())}:R>'
         self._maintenance: bool = False
-        self.version: str = '2.0.0a'
+        self._maintenance_time: Optional[datetime.datetime] = None
+        self._debug: bool = False
+        self._version: str = '2.0.0a'
+        self._activity: str = 'nyanpasu ♡ ₊˚'
+        self._initial_extensions = initial_extensions
 
         # bot theme
         self.theme: Type[Theme] = Theme
@@ -80,35 +86,26 @@ class LatteBot(commands.AutoShardedBot):
             permissions=discord.Permissions(self._permission_invite),
         )
 
-        # extensions
-        self._initial_extensions = initial_extensions
-
         # webhook
-        self._webhook_id: Optional[int] = os.getenv(
-            'WEBHOOK_ID',
-        )
+        self._webhook_id: Optional[int] = os.getenv('WEBHOOK_ID')
         self._webhook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
-
-        # activity
-        self.bot_activity: str = 'nyanpasu ♡ ₊˚'
 
         # support guild stuff
         self.support_guild_id: Optional[int] = int(os.getenv('SUPPORT_GUILD_ID'))
-
         self.support_invite_url: str = 'https://discord.gg/xeVJYRDY'
 
         # bot interaction checker
-        self.tree.interaction_check = self.interaction_check
+        self.tree.interaction_check = self.latte_check
         self.maintenance_message: str = _('Bot is in maintenance mode.')
 
         # encryption
         self.encryption: Encryption = Encryption(os.getenv('CRYPTOGRAPHY'))
 
         # i18n stuff
-        self.translator: Translator = utils.MISSING
+        self.translator: Translator = MISSING
 
         # http session stuff
-        self.session: aiohttp.ClientSession = utils.MISSING
+        self.session: aiohttp.ClientSession = MISSING
 
         # app commands stuff
         self._app_commands: Dict[str, Union[app_commands.AppCommand, app_commands.AppCommandGroup]] = {}
@@ -120,10 +117,10 @@ class LatteBot(commands.AutoShardedBot):
 
         # blacklisted users
         self.blacklist: Config[bool] = Config('blacklist.json')
-        self.app_command_stats: Config[int] = Config('app_stats.json')
+        self.app_stats: Config[int] = Config('app_stats.json')
 
         # colour
-        self.colors: Dict[str, List[Tuple[int, int, int]]] = {}
+        self.colors: Dict[str, List[Palette]] = {}
 
     @property
     def owner(self) -> discord.User:
@@ -151,6 +148,27 @@ class LatteBot(commands.AutoShardedBot):
 
     def is_maintenance(self) -> bool:
         return self._maintenance
+
+    def is_debug(self) -> bool:
+        return self._debug
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @version.setter
+    def version(self, value: str) -> None:
+        self._version = value
+
+    @discord.utils.cached_property
+    def traceback_log(self) -> discord.TextChannel:
+        channel = self.get_channel(1002816710593749052)
+        return channel
+
+    async def on_message(self, message: discord.Message, /):
+        if message.author == self.user:
+            return
+        await self.process_commands(message)
 
     async def add_to_blacklist(self, object_id: int):
         await self.blacklist.put(object_id, True)
@@ -193,8 +211,7 @@ class LatteBot(commands.AutoShardedBot):
             return None
         return members[0]
 
-    @alru_cache(maxsize=1)
-    async def fetch_app_commands(self) -> List[app_commands.AppCommand]:
+    async def fetch_app_commands(self) -> None:
         app_commands_list = await self.tree.fetch_commands()
 
         for fetch in app_commands_list:
@@ -207,15 +224,13 @@ class LatteBot(commands.AutoShardedBot):
                 else:
                     self._app_commands[fetch.name] = fetch
 
-        return app_commands_list
-
     def get_app_command(self, name: str) -> Optional[app_commands.AppCommand]:
         return self._app_commands.get(name)
 
     def get_app_commands(self) -> List[app_commands.AppCommand]:
-        return list(self._app_commands.values())
+        return sorted(list(self._app_commands.values()), key=lambda c: c.name)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    async def latte_check(self, interaction: discord.Interaction) -> bool:
 
         if interaction.user.id in self.blacklist:
             await interaction.response.send_message(
@@ -234,19 +249,18 @@ class LatteBot(commands.AutoShardedBot):
 
         return True
 
-    def get_color(self, id: str) -> List[Tuple[int, int, int]]:
+    def get_color(self, id: str) -> List[Palette]:
         return self.colors.get(id)
 
-    def set_color(self, id: str, color: List[Tuple[int, int, int]]) -> None:
+    def set_color(self, id: str, color: List[Palette]) -> None:
         self.colors[id] = color
 
-    async def get_or_fetch_color(
+    async def get_or_fetch_colors(
         self,
         id: str,
         image: Union[valorantx.Asset, discord.Asset, str],
         palette: int = 0,
-    ) -> List[Tuple[int, int, int]]:
-
+    ) -> List[Palette]:
         color = self.get_color(id)
         if color is None:
 
@@ -258,9 +272,10 @@ class LatteBot(commands.AutoShardedBot):
                 to_bytes = io.BytesIO(await get_image.read())
 
             if palette > 0:
-                color = ColorThief(to_bytes).get_palette(color_count=palette)
+                get_color = ColorThief(to_bytes).get_palette(color_count=palette)
+                color = [Palette(c) for c in get_color]
             else:
-                color = [ColorThief(to_bytes).get_color()]
+                color = [Palette(ColorThief(to_bytes).get_color())]
 
             self.set_color(id, color)
 
@@ -270,7 +285,7 @@ class LatteBot(commands.AutoShardedBot):
 
         _log.info(
             f'Logged in as: {self.user} '
-            f'Activity: {self.bot_activity} '
+            f'color: {self._activity} '
             f'Servers: {len(self.guilds)} '
             f'Users: {sum(guild.member_count for guild in self.guilds)}'
         )
@@ -279,7 +294,7 @@ class LatteBot(commands.AutoShardedBot):
             # status=discord.Status.offline,  # dev mode = idle
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
-                name=self.bot_activity,
+                name=self._activity,
             ),
         )
 
@@ -293,11 +308,11 @@ class LatteBot(commands.AutoShardedBot):
     async def setup_hook(self) -> None:
 
         # session
-        if self.session is utils.MISSING:
+        if self.session is MISSING:
             self.session = aiohttp.ClientSession()
 
         # i18n
-        if self.translator is utils.MISSING:
+        if self.translator is MISSING:
             self.translator = Translator('./i18n')
             await self.tree.set_translator(self.translator)
 
@@ -339,7 +354,6 @@ class LatteBot(commands.AutoShardedBot):
         #     set_locale=[discord.Locale.american_english, discord.Locale.thai],  # locales to create
         # )
 
-        # fetch app commands to cache
         await self.fetch_app_commands()
 
     async def close(self) -> None:

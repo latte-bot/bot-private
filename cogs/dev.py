@@ -149,7 +149,6 @@ class Developers(commands.Cog):
         if guild_id is not None:
             embed.description = f"Sync Tree : `{guild_id}`"
 
-        self.bot.fetch_app_commands.cache_clear()
         await self.bot.fetch_app_commands()
 
         await interaction.followup.send(embed=embed, ephemeral=True)

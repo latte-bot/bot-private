@@ -63,11 +63,6 @@ class ErrorHandler(commands.Cog):
     def display_emoji(self) -> discord.Emoji:
         return self.bot.get_emoji(1000812850715054150)
 
-    @discord.utils.cached_property
-    def traceback_log(self) -> discord.abc.TextChannel:
-        channel = self.bot.get_channel(1002816710593749052)
-        return channel
-
     async def on_application_command_error(self, interaction: Interaction, error: AppCommandError):
         """Handles errors for all application commands associated with this CommandTree."""
 
@@ -77,7 +72,7 @@ class ErrorHandler(commands.Cog):
             return
 
         # # traceback
-        # traceback.print_exception(type(error), error, error.__traceback__) # TODO: remove this when release
+        traceback.print_exception(type(error), error, error.__traceback__)  # TODO: remove this when release
 
         async def send_error(*args, **kwargs) -> None:
             if interaction.response.is_done():
@@ -146,10 +141,10 @@ class ErrorHandler(commands.Cog):
                     paginator.add_line(result)
                     interface = PaginatorInterface(self.bot, paginator, owner=interaction.user)
 
-                    await self.traceback_log.send(embed=embed, file=traceback_fp)
+                    await self.bot.traceback_log.send(embed=embed, file=traceback_fp)
                     await interface.send_to(self.bot.owner)
                 else:
-                    await self.traceback_log.send(embed=embed, file=traceback_fp)
+                    await self.bot.traceback_log.send(embed=embed, file=traceback_fp)
 
         embed = discord.Embed(description=content, color=self.bot.theme.error)
         # timestamp = interaction.created_at

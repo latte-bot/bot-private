@@ -9,8 +9,6 @@ from valorantx.models.match import RoundResult  # noqa
 from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 
 if TYPE_CHECKING:
-    from valorantx.models.match import Team
-
     from ._client import Client
 
 
@@ -119,15 +117,19 @@ class GameMode(valorantx.GameMode):
         super().__init__(client=client, data=data)
         self._display_name: Union[str, Dict[str, str]] = data['displayName']
         self._is_ranked: bool = kwargs.get('is_ranked', False)
-        self.__display_name()
+        self.__display_name_override()
 
     @property
     def emoji(self) -> str:
         return GameModeEmoji.get(self.display_name)
 
-    def __display_name(self) -> None:
+    def is_ranked(self) -> bool:
+        """:class: `bool` Returns whether the game mode is ranked."""
+        return self._is_ranked
+
+    def __display_name_override(self) -> None:
         if self.uuid == '96bd3920-4f36-d026-2b28-c683eb0bcac5':
-            if self._is_ranked:
+            if self.is_ranked():
                 self._display_name = {
                     "ar-AE": "تنافسي",
                     "de-DE": "Gewertet",

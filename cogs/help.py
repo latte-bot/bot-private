@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Union
 import discord
 from discord import AppCommandType, Interaction, app_commands, ui
 from discord.app_commands import (  # ContextMenu as AppContextMenu,
-    AppCommand as AppCommandBase,
     AppCommandGroup as AppCommandGroupBase,
     Command as AppCommand,
     Group as AppCommandGroup,
@@ -29,7 +28,6 @@ if TYPE_CHECKING:
     from bot import LatteBot
 
     ClientBot = Union[Client, LatteBot]
-
     AppCommandType = Union[AppCommand, AppCommandGroup]
     AppCommandEntry = Dict[Any, List[AppCommandType]]
 
@@ -73,20 +71,14 @@ class CogButton(ui.Button['HelpView']):
 
 class HelpView(ViewAuthor):
     def __init__(self, interaction: Interaction, help_command: HelpCommand) -> None:
-        self.interaction: Interaction = interaction
-        self.help_command: HelpCommand = help_command
-        self.bot: ClientBot = interaction.client
         super().__init__(interaction=interaction, timeout=120)
+        self.help_command: HelpCommand = help_command
         self.current_page: int = 0
         self.embeds: List[discord.Embed] = []
         self.cog_pages: Dict[commands.Cog, List[discord.Embed]] = {}
         self.current_cog: commands.Cog = MISSING
         self.after_select: bool = True
-        self.cooldown = commands.CooldownMapping.from_cooldown(1, 3, lambda inter: inter.user)
         self.clear_items()
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return await super().interaction_check(interaction)
 
     async def on_timeout(self) -> None:
         self.clear_items()
@@ -156,8 +148,8 @@ class HelpView(ViewAuthor):
 
 class HelpCommand:
     def __init__(self, interaction: Interaction) -> None:
-        self.bot: ClientBot = interaction.client
         self.interaction = interaction
+        self.bot: ClientBot = interaction.client
 
     def help_embed_template(self, cog: commands.Cog) -> discord.Embed:
         emoji = getattr(cog, 'display_emoji', '')
@@ -203,23 +195,23 @@ class HelpCommand:
         }
         return mapping
 
-    async def get_app_command_from_cog(self, app_command_entry: List[AppCommandType]) -> List[Any]:
+    async def get_app_command_from_cog(self, cog_app_commands: List[AppCommandType]) -> List[Any]:
 
         app_command_list = []
 
-        fetch_app_command: List[AppCommandBase] = await self.bot.fetch_app_commands()
+        fetch_app_commands = self.bot.get_app_commands()
 
-        for app in app_command_entry:
-            for fetch in fetch_app_command:
-                if fetch.type == discord.AppCommandType.chat_input:
-                    if app.qualified_name.lower() == fetch.name.lower():
-                        if len(fetch.options) > 0:
-                            app_command_list.append(fetch)
-                            for option in fetch.options:
+        for c_app in cog_app_commands:
+            for f_app in fetch_app_commands:
+                if f_app.type == discord.AppCommandType.chat_input:
+                    if c_app.qualified_name.lower() == f_app.name.lower():
+                        if len(f_app.options) > 0:
+                            app_command_list.append(f_app)
+                            for option in f_app.options:
                                 if isinstance(option, AppCommandGroupBase):
                                     app_command_list.append(option)
                         else:
-                            app_command_list.append(fetch)
+                            app_command_list.append(f_app)
 
         return app_command_list
 

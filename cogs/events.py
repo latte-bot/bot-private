@@ -33,26 +33,11 @@ class Event(commands.Cog):
         if interaction.user == self.bot.owner:
             return
 
-        # query = """
-        # with upsert as (
-        #     update app_command
-        #     set uses = uses + 1
-        #     where name = $1 and type = $2
-        #     returning *
-        # )
-        # insert into app_command (name, type, uses)
-        # select $1, $2, 1
-        # where not exists (select * from upsert);
-        # """
-        # TODO: update app_command table
-
-        # await self.bot.pool.execute(query, command.name, 1 if isinstance(command, Command) else 2)
-
-        data = self.bot.app_command_stats.get(command.name)
+        data = self.bot.app_stats.get(command.name)
         if data is not None:
-            await self.bot.app_command_stats.put(command.name, data + 1)
+            await self.bot.app_stats.put(command.name, data + 1)
         else:
-            await self.bot.app_command_stats.put(command.name, 1)
+            await self.bot.app_stats.put(command.name, 1)
 
     async def send_guild_stats(self, embed: discord.Embed, guild: discord.Guild):
         """Send guild stats to webhook"""

@@ -9,9 +9,15 @@ _asset_path = 'assets/'
 _asset_image_path = _asset_path + 'images/'
 _asset_font_path = _asset_path + 'fonts/'
 
-# thanks stella_bot ---
+__all__ = ('Palette', 'LatteEmbed', 'LatteFonts', 'LatteImages', 'LatteCDN')
 
-__all__ = ('LatteEmbed', 'LatteFonts', 'LatteImages', 'LatteCDN')
+
+class Palette(discord.Color):
+    def __init__(self, palette: Tuple[int, int, int]) -> None:
+        super().__init__(value=(palette[0] << 16) + (palette[1] << 8) + palette[2])
+
+
+# thanks stella_bot ---
 
 
 class LatteEmbed(discord.Embed):
@@ -70,8 +76,8 @@ class LatteImages(enum.Enum):
 class LatteCDN(enum.Enum):
 
     __base_url__: str = 'https://cdn.discordapp.com/'
-    __cdn_guild_id__ = 1001848697316987009
-    __attachments__: str = __base_url__ + 'attachments/' + str(__cdn_guild_id__) + '/'
+    __cdn_channel_id__ = 1001848697316987009
+    __attachments__: str = __base_url__ + 'attachments/' + str(__cdn_channel_id__) + '/'
 
     help_banner: str = __attachments__ + '1001848873385472070/help_banner.png'
     invite_banner: str = __attachments__ + '1001858419990478909/invite_banner.png'
