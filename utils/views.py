@@ -38,6 +38,8 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
+# TODO: pages prompt
+
 
 def key(interaction: discord.Interaction) -> Union[discord.User, discord.Member]:
     return interaction.user
@@ -182,14 +184,14 @@ class ViewAuthor(BaseView):
         super().__init__(*args, **kwargs)
         self.interaction = interaction
         self.bot: ClientBot = interaction.client
-        self.is_command = interaction.command is not None
+        self._author: Union[discord.Member, discord.User] = interaction.user
+        # self.is_command = interaction.command is not None
         self.cooldown = commands.CooldownMapping.from_cooldown(3.0, 10.0, key)
         self.cooldown_user = commands.CooldownMapping.from_cooldown(1.0, 8.0, key)
 
     async def interaction_check(self, interaction: Interaction) -> bool:
         """Only allowing the context author to interact with the view"""
 
-        author = self.interaction.user
         user = interaction.user
 
         if await self.bot.is_owner(user):
@@ -198,7 +200,7 @@ class ViewAuthor(BaseView):
         if isinstance(user, discord.Member) and user.guild_permissions.administrator:
             return True
 
-        if user != author:
+        if user != self.author:
             return False
 
         bucket = self.cooldown.get_bucket(interaction)
@@ -211,29 +213,30 @@ class ViewAuthor(BaseView):
     async def on_check_failure(self, interaction: Interaction) -> None:
         """Handles the error when the check fails"""
 
-        author = self.interaction.user
+        bucket = self.cooldown_user.get_bucket(interaction)
+        if bucket is not None:
+            if bucket.update_rate_limit():
+                raise ButtonOnCooldown(bucket)
 
-        bucket_user = self.cooldown_user.get_bucket(interaction)
-        if bucket_user is not None:
-            if bucket_user.update_rate_limit():
-                raise ButtonOnCooldown(bucket_user)
-
-        if self.interaction.command is not None:
-            command_name: str = self.interaction.command.qualified_name
-            get_app_cmd = self.bot.get_app_command(command_name)
-
-            if get_app_cmd is not None:
-                app_cmd = f'{get_app_cmd.mention}'
-            else:
-                app_cmd = f'/`{command_name}`'
-
+        if interaction.command is not None:
+            app_cmd_name = interaction.command.qualified_name
+            app_cmd = self.bot.get_app_command(app_cmd_name)
+            app_cmd_text = f'{app_cmd.mention}' if app_cmd is not None else f'/`{app_cmd_name}`'
             content = _("Only {author} can use this. If you want to use it, use {app_cmd}").format(
-                author=author.mention, app_cmd=app_cmd
+                author=self.author.mention, app_cmd=app_cmd_text
             )
         else:
-            content = _("Only `{author}` can use this.").format(author=author.mention)
+            content = _("Only `{author}` can use this.").format(author=self.author.mention)
 
         raise CheckFailure(content)
+
+    @property
+    def author(self) -> Union[discord.Member, discord.User]:
+        return self._author
+
+    @author.setter
+    def author(self, value: Union[discord.Member, discord.User]) -> None:
+        self._author = value
 
 
 # TODO: URL View

@@ -10,7 +10,7 @@ import valorantx
 from valorantx.client import _authorize_required  # noqa
 from valorantx.http import HTTPClient
 
-# ext valorant
+# valorantx scraper
 from valorantx.scraper import PatchNoteScraper
 from valorantx.utils import MISSING
 
@@ -100,7 +100,7 @@ class RiotAuth(valorantx.RiotAuth):
             ) as r:
                 self.entitlements_token = (await r.json())["entitlements_token"]
 
-            # Get user info
+            # get user info
 
             async with session.post('https://auth.riotgames.com/userinfo', headers=headers) as r:
                 data = await r.json()
@@ -108,7 +108,7 @@ class RiotAuth(valorantx.RiotAuth):
                 self.name = data['acct']['game_name']
                 self.tag = data['acct']['tag_line']
 
-            # Get regions
+            # get regions
 
             body = {"id_token": self.id_token}
             async with session.put(
@@ -120,12 +120,23 @@ class RiotAuth(valorantx.RiotAuth):
             # endregion
 
     async def reauthorize(self, wait_for: bool = True) -> None:
-        try_authorize = await super().reauthorize()
-        if self.bot is not MISSING:
-            if try_authorize:
-                self.bot.dispatch('re_authorized_completion', self, wait_for)
+
+        for tries in range(4):
+            try:
+                try_authorize = await super().reauthorize()
+            except aiohttp.ClientResponseError as e:
+                if e.status == 403:
+                    if tries <= 3:
+                        version = await Client.http_fetch_version()
+                        self.RIOT_CLIENT_USER_AGENT = version.riot_client_build
+                        continue
             else:
-                self.bot.dispatch('re_authorized_failure', self)
+                if self.bot is not MISSING:
+                    if try_authorize:
+                        self.bot.dispatch('re_authorized_completion', self, wait_for)
+                    else:
+                        self.bot.dispatch('re_authorized_failure', self)
+                break
 
     # alias
     def re_authorize(self, wait_for: bool = True) -> Coroutine[Any, Any, None]:
@@ -173,7 +184,7 @@ class RiotAuth(valorantx.RiotAuth):
         self.notify_mode = data.get('notify_mode', False)
         self.night_market_is_opened = data.get('night_market_is_opened', False)
 
-        self._cookie_jar = aiohttp.CookieJar()  # abc set in async function
+        self._cookie_jar = aiohttp.CookieJar()
         for key, value in data['cookie'].items():
             self._cookie_jar.update_cookies({key: value})
 
@@ -202,9 +213,9 @@ class Client(valorantx.Client):
 
         # set riot auth
         self.http._riot_auth = riot_auth
-        self.http._puuid = riot_auth.user_id
+        self.http._puuid = riot_auth.puuid
         payload = dict(
-            puuid=riot_auth.user_id,
+            puuid=riot_auth.puuid,
             username=riot_auth.name,
             tagline=riot_auth.tag,
             region=riot_auth.region,
@@ -222,7 +233,7 @@ class Client(valorantx.Client):
         text = await self.http.text_from_url(url)
         return PatchNoteScraper(text)
 
-    # custom
+    # --- custom for emoji
 
     def get_agent(self, *args: Any, **kwargs: Any) -> Optional[Agent]:
         data = self._assets.get_agent(*args, **kwargs)
@@ -248,8 +259,7 @@ class Client(valorantx.Client):
         data = self._assets.get_game_mode(*args, **kwargs)
         return GameMode(client=self, data=data, **kwargs) if data else None
 
-    # in game
-
+    # TODO: decorator cache?
     @_authorize_required
     async def fetch_store_front(self, riot_auth: RiotAuth) -> valorantx.StoreFront:
         """|coro|
@@ -355,6 +365,8 @@ class Client(valorantx.Client):
 
             return collection
 
+    # --- end custom for emoji
+
     def cache_validate(self, puuid: Optional[str] = None) -> None:
         if puuid is not None:
             if puuid in self._store_cache:
@@ -365,14 +377,13 @@ class Client(valorantx.Client):
 
 class HTTPClientCustom(HTTPClient):
 
-    super_user_id: int
+    RIOT_CLIENT_USER_AGENT = ''
 
     def __init__(self, client: Union[valorantx.Client, Client], loop: asyncio.AbstractEventLoop) -> None:
         super().__init__(loop)
         self._client = client
         self._riot_auth: RiotAuth = MISSING
-        self._riot_client_version: str = ''
-        self._is_update_riot_client_version: bool = False
+        self.is_riot_client_update: bool = False
 
     @property
     def riot_auth(self) -> RiotAuth:
@@ -382,17 +393,22 @@ class HTTPClientCustom(HTTPClient):
         self._headers.clear()
 
     async def build_headers(self) -> None:
-        await self.__build_headers()
+        return await self.__build_headers()
 
-    def to_update_riot_client_version(self) -> None:
-        self._is_update_riot_client_version = True
+    def riot_client_update(self) -> None:
+        self.is_riot_client_update = True
+
+    @staticmethod
+    def set_riot_client_build(value: str) -> None:
+        HTTPClientCustom.RIOT_CLIENT_USER_AGENT = value
 
     async def __build_headers(self) -> None:
-        if self._riot_client_version == '' or self._is_update_riot_client_version:
-            self._riot_client_version = await self._get_current_version()
-            self._is_update_riot_client_version = False
+
+        if HTTPClientCustom.RIOT_CLIENT_USER_AGENT == '' or self.is_riot_client_update:
+            version = await self._client.fetch_version()
+            HTTPClientCustom.RIOT_CLIENT_USER_AGENT = version.riot_client_build
 
         self._headers['Authorization'] = f"Bearer %s" % self._riot_auth.access_token
         self._headers['X-Riot-Entitlements-JWT'] = self._riot_auth.entitlements_token
         self._headers['X-Riot-ClientPlatform'] = self._client_platform
-        self._headers['X-Riot-ClientVersion'] = self._riot_client_version
+        self._headers['X-Riot-ClientVersion'] = HTTPClientCustom.RIOT_CLIENT_USER_AGENT

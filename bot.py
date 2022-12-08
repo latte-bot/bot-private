@@ -2,7 +2,7 @@ import datetime
 import io
 import logging
 import os
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 import aiohttp
 import asyncpg
@@ -152,6 +152,9 @@ class LatteBot(commands.AutoShardedBot):
     def is_debug(self) -> bool:
         return self._debug
 
+    def set_debug(self, debug: bool) -> None:
+        self._debug = debug
+
     @property
     def version(self) -> str:
         return self._version
@@ -249,10 +252,10 @@ class LatteBot(commands.AutoShardedBot):
 
         return True
 
-    def get_color(self, id: str) -> List[Palette]:
+    def get_colors(self, id: str) -> List[Palette]:
         return self.colors.get(id)
 
-    def set_color(self, id: str, color: List[Palette]) -> None:
+    def set_colors(self, id: str, color: List[Palette]) -> None:
         self.colors[id] = color
 
     async def get_or_fetch_colors(
@@ -261,7 +264,7 @@ class LatteBot(commands.AutoShardedBot):
         image: Union[valorantx.Asset, discord.Asset, str],
         palette: int = 0,
     ) -> List[Palette]:
-        color = self.get_color(id)
+        color = self.get_colors(id)
         if color is None:
 
             if isinstance(image, valorantx.Asset):
@@ -277,7 +280,7 @@ class LatteBot(commands.AutoShardedBot):
             else:
                 color = [Palette(ColorThief(to_bytes).get_color())]
 
-            self.set_color(id, color)
+            self.set_colors(id, color)
 
         return color
 
@@ -296,6 +299,7 @@ class LatteBot(commands.AutoShardedBot):
                 type=discord.ActivityType.listening,
                 name=self._activity,
             ),
+            status=discord.Status.offline,
         )
 
     async def load_cogs(self) -> None:

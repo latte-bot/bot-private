@@ -5,11 +5,12 @@ from typing import Any, Iterable, Tuple, Union
 
 import discord
 
-_asset_path = 'assets/'
-_asset_image_path = _asset_path + 'images/'
-_asset_font_path = _asset_path + 'fonts/'
-
 __all__ = ('Palette', 'LatteEmbed', 'LatteFonts', 'LatteImages', 'LatteCDN')
+
+IMAGE_PATH = 'assets/images/'
+FONT_PATH = 'assets/fonts/'
+CHANNEL_ID = 1001848697316987009
+BASE_URL = 'https://cdn.discordapp.com/' + 'attachments/' + str(CHANNEL_ID)
 
 
 class Palette(discord.Color):
@@ -18,8 +19,6 @@ class Palette(discord.Color):
 
 
 # thanks stella_bot ---
-
-
 class LatteEmbed(discord.Embed):
     """Main purpose is to get the usual setup of Embed for a command or an error embed"""
 
@@ -49,10 +48,10 @@ class LatteEmbed(discord.Embed):
 
 class LatteFonts(enum.Enum):
 
-    dinnextw1g_bold: str = _asset_font_path + 'DINNextW1G-Bold.otf'
-    dinnextw1g_regular: str = _asset_font_path + 'DINNextW1G-Regular.otf'
-    beni_bold: str = _asset_font_path + 'BeniBold.ttf'
-    serif_712: str = _asset_font_path + '712_serif.ttf'
+    dinnextw1g_bold: str = FONT_PATH + 'DINNextW1G-Bold.otf'
+    dinnextw1g_regular: str = FONT_PATH + 'DINNextW1G-Regular.otf'
+    beni_bold: str = FONT_PATH + 'BeniBold.ttf'
+    serif_712: str = FONT_PATH + '712_serif.ttf'
 
     def __str__(self) -> str:
         return str(self.value)
@@ -60,14 +59,14 @@ class LatteFonts(enum.Enum):
 
 class LatteImages(enum.Enum):
 
-    pre_collection = _asset_image_path + 'pre-collection.png'
-    profile_card_available = _asset_image_path + 'profile_card_available.png'
-    profile_card_available_2 = _asset_image_path + 'profile_card_available_2.png'
-    profile_card_away = _asset_image_path + 'profile_card_away.png'
-    profile_card_in_match = _asset_image_path + 'profile_card_in_match.png'
-    profile_card_offline = _asset_image_path + 'profile_card_offline.png'
-    invite_banner = _asset_image_path + 'invite_banner.png'
-    help_banner = _asset_image_path + 'help_banner.png'
+    pre_collection = IMAGE_PATH + 'pre-collection.png'
+    profile_card_available = IMAGE_PATH + 'profile_card_available.png'
+    profile_card_available_2 = IMAGE_PATH + 'profile_card_available_2.png'
+    profile_card_away = IMAGE_PATH + 'profile_card_away.png'
+    profile_card_in_match = IMAGE_PATH + 'profile_card_in_match.png'
+    profile_card_offline = IMAGE_PATH + 'profile_card_offline.png'
+    invite_banner = IMAGE_PATH + 'invite_banner.png'
+    help_banner = IMAGE_PATH + 'help_banner.png'
 
     def __str__(self) -> str:
         return str(self.value)
@@ -75,12 +74,8 @@ class LatteImages(enum.Enum):
 
 class LatteCDN(enum.Enum):
 
-    __base_url__: str = 'https://cdn.discordapp.com/'
-    __cdn_channel_id__ = 1001848697316987009
-    __attachments__: str = __base_url__ + 'attachments/' + str(__cdn_channel_id__) + '/'
-
-    help_banner: str = __attachments__ + '1001848873385472070/help_banner.png'
-    invite_banner: str = __attachments__ + '1001858419990478909/invite_banner.png'
+    help_banner: str = str(BASE_URL) + '/1001848873385472070/help_banner.png'
+    invite_banner: str = str(BASE_URL) + '/1001858419990478909/invite_banner.png'
 
     def __str__(self) -> str:
         return str(self.value)

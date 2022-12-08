@@ -101,17 +101,19 @@ class Events(MixinMeta):  # noqa
     @tasks.loop(time=datetime.time(hour=17, minute=0, second=0))  # looping every 00:00:00 UTC+7
     async def client_version(self) -> None:
 
-        version = await self.v_client.get_valorant_version()
+        version = await self.v_client.fetch_version()
 
         if version is None:
             return
 
         if version != self.v_client.version:
+            # TODO: login super user
             self.v_client.version = version
-            # login super user
             await self.v_client.fetch_assets(force=True, reload=True)
-            self.v_client.http.to_update_riot_client_version()
             self.v_client.http.riot_auth.RIOT_CLIENT_USER_AGENT = version.riot_client_build
+            self.v_client.http.set_riot_client_build(version.riot_client_build)
+            # self.v_client.http.riot_client_update()
+            self.v_client.cache_validate()
             self.cache_clear()
 
     # before loops tasks

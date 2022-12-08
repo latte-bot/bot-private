@@ -60,7 +60,7 @@ from .notify import Notify
 
 if TYPE_CHECKING:
     from discord import Client
-    from valorantx import Agent, Bundle, PlayerTitle, SkinChroma, SkinLevel, Weapon
+    from valorantx import Agent, Bundle, Event, PlayerTitle, Season, SkinChroma, SkinLevel, Weapon
 
     from bot import LatteBot
 
@@ -277,6 +277,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @lru_cache(maxsize=1)
     def get_all_weapons(self) -> List[Weapon]:
         return list(self.v_client.get_all_weapons())
+
+    @lru_cache(maxsize=1)
+    def get_all_seasons(self) -> List[Season]:
+        return list(self.v_client.get_all_seasons())
+
+    @lru_cache(maxsize=1)
+    def get_all_events(self) -> List[Event]:
+        return list(self.v_client.get_all_events())
 
     @alru_cache(maxsize=30)
     async def get_patch_notes(self, locale: discord.Locale) -> PatchNotes:
@@ -548,7 +556,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @app_commands.command(name=_T('battlepass'), description=_T('View your battlepass current tier'))
     @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
-    async def battlepass(self, interaction: Interaction) -> None:
+    async def battlepass(self, interaction: Interaction, season: Optional[str] = None) -> None:
 
         await interaction.response.defer()
 
@@ -556,16 +564,26 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.season)
         await view.start_view(v_user.get_account())
 
+    @battlepass.autocomplete('season')
+    async def battlepass_autocomplete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
+
+        # all_season = self.get_all_seasons()
+        return []
+
     @app_commands.command(name=_T('eventpass'), description=_T('View your Eventpass current tier'))
     @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
-    async def eventpass(self, interaction: Interaction) -> None:
+    async def eventpass(self, interaction: Interaction, event: Optional[str] = None) -> None:
 
         await interaction.response.defer()
 
         v_user = await self.fetch_user(id=interaction.user.id)
         view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.event)
         await view.start_view(v_user.get_account())
+
+    @eventpass.autocomplete('event')
+    async def eventpass_autocomplete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
+        return []
 
     @app_commands.command(name=_T('point'), description=_T('View your remaining Valorant and Riot Points (VP/RP)'))
     @app_commands.guild_only()

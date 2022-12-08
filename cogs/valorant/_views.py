@@ -429,7 +429,7 @@ class NightMarketSwitchX(SwitchingViewX):
 
         for skin in nightmarket.get_skins():
             e = Embed(
-                title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",  # type: ignore
+                title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(self.locale)))}",  # type: ignore
                 description=f"{PointEmoji.valorant} {bold(str(skin.discount_price))}\n"
                 f"{PointEmoji.valorant}  {strikethrough(str(skin.price))} (-{skin.discount_percent}%)",
                 colour=self.bot.theme.dark,

@@ -3,6 +3,7 @@ import contextlib
 import json
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 import asyncpg
@@ -104,6 +105,7 @@ async def run_bot():
         return
 
     async with LatteBot() as bot:
+        bot.set_debug('--debug' in sys.argv)
         bot.pool = pool
         await bot.start()
 
