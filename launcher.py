@@ -7,7 +7,6 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 import asyncpg
-import valorantx
 
 from bot import LatteBot
 
@@ -17,10 +16,6 @@ except ImportError:
     pass
 else:
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-
-
-# overrides valorantx
-valorantx.Assets._cache_dir = os.getcwd()
 
 
 class RemoveNoise(logging.Filter):
