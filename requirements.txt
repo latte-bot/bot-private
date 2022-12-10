@@ -7,8 +7,8 @@ aiohttp>=3.7.4,<4
 async_lru>=1.0.3
 
 # discord
-discord.py=>2.1.0
-jishaku=>2.5.1
+discord.py @ git+https://github.com/Rapptz/discord.py.git
+jishaku @ git+https://github.com/Gorialis/jishaku.git
 
 # encryption
 cryptography>=38.0.4
