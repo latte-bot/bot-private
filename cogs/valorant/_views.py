@@ -16,7 +16,7 @@ from utils.chat_formatting import bold, strikethrough
 from utils.errors import CommandError
 from utils.formats import format_relative
 from utils.i18n import _
-from utils.views import ViewAuthor
+from utils.views import PagesPrompt, ViewAuthor
 
 from ._database import ValorantUser
 from ._embeds import Embed, MatchEmbed
@@ -372,7 +372,7 @@ class StoreSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        sf = await self.v_client.fetch_store_front(riot_auth)
+        sf = await self.v_client.fetch_store_front(riot_auth)  # type: ignore
         store = sf.get_store()
 
         embeds = [
@@ -413,7 +413,7 @@ class NightMarketSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        sf = await self.v_client.fetch_store_front(riot_auth)
+        sf = await self.v_client.fetch_store_front(riot_auth)  # type: ignore
         nightmarket = sf.get_nightmarket()
 
         if nightmarket is None:
@@ -453,7 +453,7 @@ class NightMarketSwitchX(SwitchingViewX):
         await self.message.edit(embeds=embeds, view=self)
 
 
-class GamePassSwitchX(SwitchingViewX):
+class GamePassSwitchX(SwitchingViewX, PagesPrompt):
     def __init__(
         self,
         interaction: Interaction,
@@ -461,12 +461,54 @@ class GamePassSwitchX(SwitchingViewX):
         client: ValorantClient,
         relation_type: valorantx.RelationType,
     ) -> None:
-        super().__init__(interaction, v_user, client, row=0)
+        super().__init__(interaction, v_user, client, row=1)
         self.relation_type = relation_type
+
+    async def build_pages(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+
+        contract = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
+
+        if self.relation_type == valorantx.RelationType.agent:
+            gp = contract.special_contract()
+        else:
+            gp = contract.get_latest_contract(relation_type=self.relation_type)
+
+        self.current_page = gp.current_tier
+
+        if len(self._source) != 0:
+            return self._source
+
+        embeds = []
+
+        gp_display_name = gp.name_localizations.from_locale(str(self.locale))
+        tier_number = 0
+        for chapter in gp.content.chapters:
+            for reward in chapter.rewards:
+                item = reward.get_reward()
+                tier_number += 1
+
+                embed = discord.Embed(
+                    title='Battlepass for {display_name}'.format(display_name=bold(riot_auth.display_name))
+                )
+                embed.set_footer(text='TIER {tier} | {gamepass}'.format(tier=tier_number, gamepass=gp_display_name))
+                if item is not None:
+                    embed.description = '{item}'.format(item=item.display_name)
+                    if not isinstance(item, valorantx.PlayerTitle):
+                        if item.display_icon is not None:
+                            if isinstance(item, valorantx.SkinLevel):
+                                embed.set_image(url=item.display_icon)
+                            elif isinstance(item, valorantx.PlayerCard):
+                                embed.set_image(url=item.wide_icon)
+                            else:
+                                embed.set_thumbnail(url=item.display_icon)
+
+                embeds.append(embed)
+
+        return embeds
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        contract = await self.v_client.fetch_contracts(riot_auth)
+        contract = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
 
         if self.relation_type == valorantx.RelationType.agent:
             gp = contract.special_contract()
@@ -506,6 +548,9 @@ class GamePassSwitchX(SwitchingViewX):
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         embeds = await self.get_embeds(riot_auth)
+
+        self.setup_pages(await self.build_pages(riot_auth))
+
         if self.message is None:
             self.message = await self.interaction.followup.send(embeds=embeds, view=self)
             return
@@ -518,7 +563,7 @@ class PointSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        wallet = await self.v_client.fetch_wallet(riot_auth)
+        wallet = await self.v_client.fetch_wallet(riot_auth)  # type: ignore
 
         vp = self.v_client.get_currency(uuid=str(CurrencyType.valorant))
         rad = self.v_client.get_currency(uuid=str(CurrencyType.radianite))
@@ -552,7 +597,7 @@ class MissionSwitchX(SwitchingViewX):
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
 
-        contracts = await self.v_client.fetch_contracts(riot_auth)
+        contracts = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
 
         daily = []
         weekly = []
@@ -619,6 +664,7 @@ class MissionSwitchX(SwitchingViewX):
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         embeds = await self.get_embeds(riot_auth)
+
         if self.message is None:
             self.message = await self.interaction.followup.send(embeds=embeds, view=self)
             return
@@ -650,11 +696,11 @@ class CollectionSwitchX(SwitchingViewX):
 
     @alru_cache(maxsize=5)
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        collection = self._collection = await self.v_client.fetch_collection(riot_auth)
+        collection = self._collection = await self.v_client.fetch_collection(riot_auth)  # type: ignore
 
         # mmr
         mmr = await collection._client.fetch_mmr()
-        latest_tier = mmr.get_last_rank_tier()
+        latest_tier = mmr.get_latest_rank_tier()
 
         # wallet
         wallet = await collection._client.fetch_wallet(riot_auth)
@@ -694,9 +740,9 @@ class CollectionSwitchX(SwitchingViewX):
     @alru_cache(maxsize=5)
     async def get_spray_pages(self, riot_auth: RiotAuth) -> List[discord.Embed]:
         embeds = []
-        for spray in self._collection.get_sprays():
+        for slot, spray in enumerate(self._collection.get_sprays(), start=1):
             spray_fav = ' ★' if spray.is_favorite() else ''
-            embed = discord.Embed(description=bold(spray.display_name) + spray_fav)
+            embed = discord.Embed(description=bold(str(slot) + '. ' + spray.display_name) + spray_fav)
             spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
             if spray_icon is not None:
                 embed.set_thumbnail(url=spray_icon)
@@ -853,8 +899,8 @@ class SkinCollectionView(ViewAuthor):
     async def last_page(self, interaction: Interaction, button: ui.Button):
         await self.show_checked_page(interaction, len(self._pages) - 1)
 
-    @ui.button(label=_('Home'), style=discord.ButtonStyle.blurple, custom_id='back', row=1)
-    async def home_button(self, interaction: Interaction, button: ui.Button):
+    @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=1)
+    async def back(self, interaction: Interaction, button: ui.Button):
         self.other_view.reset_timeout()
         await interaction.response.defer()
         await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
@@ -897,11 +943,15 @@ class SprayCollectionView(ViewAuthor):
         self.other_view = other_view
         self._pages = pages
 
-    @ui.button(label=_('Back'), style=discord.ButtonStyle.blurple, custom_id='back', row=0)
+    @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=0)
     async def back(self, interaction: Interaction, button: ui.Button):
         self.other_view.reset_timeout()
         await interaction.response.defer()
         await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
+
+    @ui.button(label=_('Change Spray'), style=discord.ButtonStyle.grey, custom_id='change_spray', row=0, disabled=True)
+    async def change_spray(self, interaction: Interaction, button: ui.Button):
+        pass
 
     async def start(self) -> None:
         await self.other_view.interaction.edit_original_response(embeds=self._pages, view=self)
@@ -1040,9 +1090,6 @@ class SelectMatchHistory(ui.Select['CarrierSwitchX']):
         match = source.get(value)
         view = MatchDetailsView(interaction, self.view)
         await view.start(match)
-        # current_page = self.view.current_page
-        # show_page = (current_page * 3) + int(value)
-        # match = source[int(show_page)][int(value)]
 
 
 class CarrierSwitchX(SwitchingViewX):
@@ -1274,7 +1321,7 @@ class CarrierSwitchX(SwitchingViewX):
         self._queue = kwargs.pop('queue', self._queue)
         client = self.v_client.set_authorize(riot_auth)
 
-        match_history = await client.fetch_match_history(queue=self._queue)
+        match_history = await client.fetch_match_history(queue=self._queue)  # type: ignore
         match_details = match_history.get_match_details()
         mmr = await client.fetch_mmr()
         self.__build_source(match_details, mmr)
@@ -1312,7 +1359,7 @@ class MatchDetailsSwitchX(MatchDetailsView):
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         self._queue = kwargs.pop('queue', self._queue)
         client = self.v_client.set_authorize(riot_auth)
-        match_history = await client.fetch_match_history(queue=self._queue, start=0, end=1)
+        match_history = await client.fetch_match_history(queue=self._queue, start=0, end=1)  # type: ignore
 
         if len(match_history.get_match_details()) == 0:
             self.disable_buttons()

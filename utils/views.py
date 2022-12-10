@@ -4,7 +4,7 @@ import io
 import logging
 import time
 import traceback
-from typing import TYPE_CHECKING, Any, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 import discord
 import valorantx
@@ -239,8 +239,71 @@ class ViewAuthor(BaseView):
         self._author = value
 
 
-# TODO: URL View
+class PagesPrompt(discord.ui.View):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._source = []
+        self.current_page = 0
+        self._max_pages = len(self._source)
 
+    @ui.button(label='≪', custom_id='first_page')
+    async def first_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_checked_page(interaction, 0)
+
+    @ui.button(label=_("Back"), style=discord.ButtonStyle.blurple, custom_id='back_page')
+    async def back_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_checked_page(interaction, self.current_page - 1)
+
+    @ui.button(label=_("Next"), style=discord.ButtonStyle.blurple, custom_id='next_page')
+    async def next_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_checked_page(interaction, self.current_page + 1)
+
+    @ui.button(label='≫', custom_id='last_page')
+    async def last_page(self, interaction: Interaction, button: ui.Button):
+        await self.show_checked_page(interaction, self.get_max_pages() - 1)
+
+    def _update_buttons(self) -> None:
+        page = self.current_page
+        total = len(self._source) - 1
+        self.back_page.disabled = page == 0
+        self.next_page.disabled = page == total
+
+    def _get_kwargs_from_page(self, page: Union[discord.Embed, List[discord.Embed]]) -> Dict[str, Any]:
+        if isinstance(page, discord.Embed):
+            return {'embed': page, 'view': self}
+        return {'embeds': page, 'view': self}
+
+    def get_page(self, page_number: int) -> Union[discord.Embed, List[discord.Embed]]:
+        """:class:`list`: The page at the given page number."""
+        return self._source[page_number]
+
+    def get_max_pages(self) -> int:
+        """:class:`int`: The maximum number of pages."""
+        return self._max_pages
+
+    async def show_page(self, interaction: Interaction, page_number: 0) -> None:
+        page = self.get_page(page_number)
+        self.current_page = page_number
+        self._update_buttons()
+        kwargs = self._get_kwargs_from_page(page)
+        await interaction.response.edit_message(**kwargs)
+
+    async def show_checked_page(self, interaction: Interaction, page_number: int):
+        max_pages = self.get_max_pages()
+        try:
+            if max_pages > page_number >= 0:
+                await self.show_page(interaction, page_number)
+        except IndexError:
+            # An error happened that can be handled, so ignore it.
+            pass
+
+    def setup_pages(self, pages: List[Union[discord.Embed, List[discord.Embed]]]) -> None:
+        self._source = pages
+        self._max_pages = len(self._source)
+        self._update_buttons()
+
+
+# TODO: URL View
 
 # class LatteOnError:
 #
