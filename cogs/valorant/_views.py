@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 import random
 import traceback
-from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import discord
@@ -16,7 +15,8 @@ from utils.chat_formatting import bold, strikethrough
 from utils.errors import CommandError
 from utils.formats import format_relative
 from utils.i18n import _
-from utils.views import PagesPrompt, ViewAuthor
+from utils.pages import LattePages, ListPageSource
+from utils.views import ViewAuthor
 
 from ._database import ValorantUser
 from ._embeds import Embed, MatchEmbed
@@ -28,8 +28,6 @@ if TYPE_CHECKING:
     from ._client import Client as ValorantClient
     from .valorant import RiotAuth
 
-
-# TODO: view cooldown
 
 # - multi-factor modal
 
@@ -148,151 +146,7 @@ class NightMarketView(ViewAuthor):
         ...
 
 
-# stats view
-
-
-class StatsSelect(ui.Select['StatsView']):
-    def __init__(self) -> None:
-        super().__init__(placeholder="Select a stat", max_values=1, min_values=1, row=0)
-        self.__fill_options()
-
-    def __fill_options(self) -> None:
-        self.add_option(label="Overview", value='__overview', emoji='🌟')
-
-        self.add_option(
-            label="Match's", value="match's", description=_("Match History!"), emoji='<:newmember:973160072425377823>'
-        )
-        self.add_option(
-            label='Agents', value='agents', description=_("Top Agents!"), emoji='<:jetthappy:973158900679442432>'
-        )
-        self.add_option(label='Maps', value='maps', description=_("Top Maps!"), emoji='🗺️')
-        self.add_option(label='Weapons', value='weapons', description=_("Top Weapons!"), emoji='🔫')
-        self.add_option(
-            label='Accuracy', value='accuracy', description=_("Your Accuracy!"), emoji='<:accuracy:973252558925742160>'
-        )
-
-    async def callback(self, interaction: Interaction) -> Any:
-        assert self.view is not None
-        await interaction.response.defer()
-        await interaction.edit_original_response(content="Loading...")
-
-        # value = self.values[0]
-        #
-        # if value == '__overview':
-        #     await interaction.response.edit_message(embed=self.view.main_page, view=self.view)
-        # elif value == 'matches':
-        #     view = MatchHistoryView(
-        #         historys=self.view.match_source,
-        #         embeds=self.view.match_source_embed,
-        #         other_view=self.view
-        #     )
-        #     await view.start(interaction)
-        # # elif value == 'accuracy':
-        #     # await interaction.response.send_message('Accuracy', ephemeral=True)
-        # elif value == 'agents':
-        #     view = AgentStatsView(
-        #         stats=self.view.stats,
-        #         other_view=self.view
-        #     )
-        #     await view.start(interaction)
-        # elif value == 'maps':
-        #     await interaction.response.send_message('Maps', ephemeral=True)
-        # elif value == 'weapons':
-        #     await interaction.response.send_message('Weapons', ephemeral=True)
-
-
-class StatsView(ViewAuthor):
-    def __init__(self, interaction: Interaction) -> None:
-        self.interaction = interaction
-        super().__init__(interaction, timeout=120)
-        self.add_item(StatsSelect())
-
-    # def default_page(self, author: bool = False, icon: bool = False) -> discord.Embed:
-    #     embed = discord.Embed(title=self.player_title, color=self.color)
-    #     if author:
-    #         embed.set_author(name=self.name, icon_url=self.rank_icon)
-    #     if icon:
-    #         embed.set_image(url=self.icon)
-    #     return embed
-    #
-    # def build_match_history(self, match_details: Dict):
-    #     ...
-    #
-    # async def last_matches_competitive(self):
-    #     ...
-    # self.stats = self.stats
-    # total_game = self.rank['current']['total_game']
-    #
-    # if total_game >= 25:
-    #     total_game = 25
-    #
-    # match_history = self.endpoint.fetch_match_history(self.puuid, queue_id='competitive', start_index=0,
-    #                                                   end_index=total_game)
-    # self.stats['total_matches'] = len(match_history['History'])
-    #
-    # for index, match in enumerate(match_history['History']):
-    #     match_details = self.endpoint.fetch_match_details(match['MatchID'])
-    #     better_match_details = self.build_match_history(match_details)
-    #     if index == 0:
-    #         self.get_playerItem(match_details)
-    #         await self.pre_start()
-    #
-    #     self.fetch_player_stats(better_match_details)
-
-    # def fetch_player_stats(self, data: Dict):
-    #     ...
-    #
-    # def get_current_mmr(self):
-    #     ...
-    #
-    # def get_player_item(self, match_details: Dict):
-    #     ...
-
-    # def static_embed(
-    #         self, level: bool = True, title: bool = True, card: bool = True,
-    #                  rank: bool = True) -> discord.Embed:
-    #
-    #     embed = discord.Embed()
-    #     embed.set_author(name=self.name)
-    #
-    #     if level: embed.description = f"Level: {self.levels['level']}"
-    #
-    #     if title:
-    #         if self.player_title is not None: embed.title = self.player_title['texts'][str(_locale)]
-    #
-    #     if card:
-    #         if self.player_card is not None: embed.set_thumbnail(url=self.player_card['icon']['small'])
-    #
-    #     if rank:
-    #         if self.rank_icon is not None: embed._author['icon_url'] = self.rank_icon
-    #
-    #     return embed
-
-    # def pre_main_page(self) -> discord.Embed:
-    #     loading_emoji = "<a:typing:597589448607399949>"
-    #     embed = self.static_embed()
-    #     embed.add_field(name='Rank', value=f"{self.rank_name.capitalize()}")
-    #     embed.add_field(name='Headshot%', value=loading_emoji)
-    #     embed.add_field(name='Score/Round', value=loading_emoji)
-    #     embed.add_field(name='KDA Ratio', value=loading_emoji)
-    #     embed.add_field(name='Win Ratio', value=loading_emoji)
-    #     embed.add_field(name='Damage/Round', value=loading_emoji)
-    #     embed.set_footer(text=f"{self.season}")
-    #     return embed
-
-    # def final_main_page(self) -> discord.Embed:
-    #     ...
-
-    async def pre_start(self):
-        # pre_embed = self.pre_main_page()
-        await self.interaction.followup.send("Loading...", view=self)
-
-    # async def start(self) -> None:
-    #     self.get_current_mmr()
-    #     await self.last_matches_competitive()
-    #
-    #     self.final_page = self.final_main_page()
-    #     await self.message.edit(embed=self.final_page, view=self)
+# x view
 
 
 class ButtonAccountSwitchX(ui.Button['SwitchingViewX']):
@@ -321,9 +175,9 @@ class ButtonAccountSwitchX(ui.Button['SwitchingViewX']):
 
 class SwitchingViewX(ViewAuthor):
     def __init__(
-        self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient, row: int = 0, **kwargs: Any
+        self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient, row: int = 0, *args, **kwargs: Any
     ) -> None:
-        super().__init__(interaction, timeout=kwargs.get('timeout', 600.0), **kwargs)
+        super().__init__(interaction, timeout=kwargs.get('timeout', 600.0), *args, **kwargs)
         self.v_user = v_user
         self.v_client: ValorantClient = client
         self.riot_auth_list = v_user.get_riot_accounts()
@@ -343,9 +197,6 @@ class SwitchingViewX(ViewAuthor):
                 )
             )
 
-    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        pass
-
     def remove_switch_button(self) -> None:
         self.remove_item_by_type(cls=ButtonAccountSwitchX)
 
@@ -364,6 +215,9 @@ class SwitchingViewX(ViewAuthor):
                 await self._edit_message(original_response, view=self)
         else:
             await self._edit_message(self.message, view=self)
+
+    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
+        pass
 
 
 class StoreSwitchX(SwitchingViewX):
@@ -453,7 +307,46 @@ class NightMarketSwitchX(SwitchingViewX):
         await self.message.edit(embeds=embeds, view=self)
 
 
-class GamePassSwitchX(SwitchingViewX, PagesPrompt):
+class GamePassPageSourceX(ListPageSource):
+    def __init__(
+        self, contracts: valorantx.Contracts, relation_type: valorantx.RelationType, riot_auth: valorantx.RiotAuth
+    ) -> None:
+        if relation_type == valorantx.RelationType.agent:
+            self.contract = contracts.special_contract()
+        else:
+            self.contract = contracts.get_latest_contract(relation_type=relation_type)
+        self.riot_auth = riot_auth
+        super().__init__(self.contract.content.get_all_rewards(), per_page=1)
+
+    async def format_page(self, menu: Any, page: Any):
+
+        reward = self.entries[menu.current_page]
+        item = reward.get_reward()
+
+        embed = discord.Embed(
+            title='Battlepass for {display_name}'.format(display_name=bold(self.riot_auth.display_name))
+        )
+        embed.set_footer(
+            text='TIER {tier} | {gamepass}'.format(
+                tier=menu.current_page + 1, gamepass=self.contract.name_localizations.from_locale(str(menu.locale))
+            )
+        )
+
+        if item is not None:
+            embed.description = '{item}'.format(item=item.display_name)
+            if not isinstance(item, valorantx.PlayerTitle):
+                if item.display_icon is not None:
+                    if isinstance(item, valorantx.SkinLevel):
+                        embed.set_image(url=item.display_icon)
+                    elif isinstance(item, valorantx.PlayerCard):
+                        embed.set_image(url=item.wide_icon)
+                    else:
+                        embed.set_thumbnail(url=item.display_icon)
+
+        return embed
+
+
+class GamePassSwitchX(SwitchingViewX, LattePages):
     def __init__(
         self,
         interaction: Interaction,
@@ -464,97 +357,11 @@ class GamePassSwitchX(SwitchingViewX, PagesPrompt):
         super().__init__(interaction, v_user, client, row=1)
         self.relation_type = relation_type
 
-    async def build_pages(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-
-        contract = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
-
-        if self.relation_type == valorantx.RelationType.agent:
-            gp = contract.special_contract()
-        else:
-            gp = contract.get_latest_contract(relation_type=self.relation_type)
-
-        self.current_page = gp.current_tier
-
-        if len(self._source) != 0:
-            return self._source
-
-        embeds = []
-
-        gp_display_name = gp.name_localizations.from_locale(str(self.locale))
-        tier_number = 0
-        for chapter in gp.content.chapters:
-            for reward in chapter.rewards:
-                item = reward.get_reward()
-                tier_number += 1
-
-                embed = discord.Embed(
-                    title='Battlepass for {display_name}'.format(display_name=bold(riot_auth.display_name))
-                )
-                embed.set_footer(text='TIER {tier} | {gamepass}'.format(tier=tier_number, gamepass=gp_display_name))
-                if item is not None:
-                    embed.description = '{item}'.format(item=item.display_name)
-                    if not isinstance(item, valorantx.PlayerTitle):
-                        if item.display_icon is not None:
-                            if isinstance(item, valorantx.SkinLevel):
-                                embed.set_image(url=item.display_icon)
-                            elif isinstance(item, valorantx.PlayerCard):
-                                embed.set_image(url=item.wide_icon)
-                            else:
-                                embed.set_thumbnail(url=item.display_icon)
-
-                embeds.append(embed)
-
-        return embeds
-
-    @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        contract = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
-
-        if self.relation_type == valorantx.RelationType.agent:
-            gp = contract.special_contract()
-        else:
-            gp = contract.get_latest_contract(relation_type=self.relation_type)
-
-        next_reward = gp.get_next_reward() or gp.get_latest_reward()
-
-        embed = discord.Embed(title='Battlepass for {display_name}'.format(display_name=bold(riot_auth.display_name)))
-        embed.set_footer(
-            text='TIER {tier} | {gamepass}'.format(
-                tier=gp.current_tier, gamepass=gp.name_localizations.from_locale(str(self.locale))
-            )
-        )
-        # TODO: name_localizations useful method
-
-        if next_reward is not None:
-            embed.description = '{item}'.format(
-                # next=bold('NEXT'),
-                item=next_reward.display_name
-            )
-            if next_reward.display_icon is not None:
-                if isinstance(next_reward, valorantx.SkinLevel):
-                    embed.set_image(url=next_reward.display_icon)
-                elif isinstance(next_reward, valorantx.PlayerCard):
-                    embed.set_image(url=next_reward.wide_icon)
-                else:
-                    embed.set_thumbnail(url=next_reward.display_icon)
-
-        if self.relation_type == valorantx.RelationType.season:
-            embed.colour = self.bot.theme.purple if gp.current_tier <= 50 else self.bot.theme.gold
-        else:
-            if next_reward is not None:
-                reward_color_thief = await self.bot.get_or_fetch_colors(next_reward.uuid, next_reward.display_icon)
-                embed.colour = random.choice(reward_color_thief)
-        return [embed]
-
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth)
-
-        self.setup_pages(await self.build_pages(riot_auth))
-
-        if self.message is None:
-            self.message = await self.interaction.followup.send(embeds=embeds, view=self)
-            return
-        await self.message.edit(embeds=embeds, view=self)
+        contracts = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
+        self.source = GamePassPageSourceX(contracts=contracts, relation_type=self.relation_type, riot_auth=riot_auth)
+        self.current_page = self.source.contract.current_tier
+        await self.start_pages()
 
 
 class PointSwitchX(SwitchingViewX):
@@ -683,15 +490,14 @@ class CollectionSwitchX(SwitchingViewX):
     @ui.button(label=_('Skin'), style=ButtonStyle.blurple)
     async def skin(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer()
-        embeds = self.get_skin_pages(self._current_riot_auth)
-        view = SkinCollectionView(interaction, self, embeds)
+        view = SkinCollectionViewX(interaction, self, SkinCollectionSourceX(self.bot, self._collection.get_skins()))
         await view.start()
 
     @ui.button(label=_('Spray'), style=ButtonStyle.blurple)
     async def spray(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer()
         embeds = await self.get_spray_pages(self._current_riot_auth)
-        view = SprayCollectionView(interaction, self, embeds)
+        view = SprayCollectionView(self, embeds)
         await view.start()
 
     @alru_cache(maxsize=5)
@@ -751,79 +557,114 @@ class CollectionSwitchX(SwitchingViewX):
             embeds.append(embed)
         return embeds
 
-    @lru_cache(maxsize=5)
-    def get_skin_pages(self, riot_auth: RiotAuth) -> List[List[discord.Embed]]:
+    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
 
-        all_embeds = []
+        embeds = await self.get_embeds(riot_auth)
+
+        self._current_riot_auth = riot_auth
+        self.current_embeds = embeds
+        if self.message is not None:
+            await self.message.edit(embeds=embeds, view=self)
+            return
+        self.message = await self.interaction.followup.send(embeds=embeds, view=self)
+
+
+class SprayCollectionView(ViewAuthor):
+    def __init__(self, other_view: CollectionSwitchX, pages: List[discord.Embed]) -> None:
+        super().__init__(other_view.interaction, timeout=600)
+        self.other_view = other_view
+        self._pages = pages
+
+    @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=0)
+    async def back(self, interaction: Interaction, button: ui.Button):
+        self.other_view.reset_timeout()
+        await interaction.response.defer()
+        await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
+
+    @ui.button(label=_('Change Spray'), style=discord.ButtonStyle.grey, custom_id='change_spray', row=0, disabled=True)
+    async def change_spray(self, interaction: Interaction, button: ui.Button):
+        pass
+
+    async def start(self) -> None:
+        await self.other_view.interaction.edit_original_response(embeds=self._pages, view=self)
+
+
+class SkinCollectionSourceX(ListPageSource):
+    def __init__(self, bot, source: valorantx.SkinCollection):
+        super().__init__(sorted(source.to_list(), key=self.sort_skins), per_page=4)
+        self.bot = bot
+
+    @staticmethod
+    def sort_skins(
+        skin_sort: Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]
+    ) -> int:
+
+        skin_ = skin_sort if isinstance(skin_sort, valorantx.SkinLoadout) else skin_sort.get_skin()
+
+        if skin_ is None:
+            return 0
+
+        weapon = skin_.get_weapon()
+
+        if weapon is None:
+            return 0
+
+        # page 1
+        if weapon.display_name == 'Phantom':
+            return 0
+        elif weapon.display_name == 'Vandal':
+            return 1
+        elif weapon.display_name == 'Operator':
+            return 2
+        elif weapon.is_melee():
+            return 3
+
+        # page 2
+        elif weapon.display_name == 'Classic':
+            return 4
+        elif weapon.display_name == 'Sheriff':
+            return 5
+        elif weapon.display_name == 'Spectre':
+            return 6
+        elif weapon.display_name == 'Marshal':
+            return 7
+
+        # page 3
+        elif weapon.display_name == 'Stinger':
+            return 8
+        elif weapon.display_name == 'Bucky':
+            return 9
+        elif weapon.display_name == 'Guardian':
+            return 10
+        elif weapon.display_name == 'Ares':
+            return 11
+
+        # page 4
+        elif weapon.display_name == 'Shorty':
+            return 12
+        elif weapon.display_name == 'Frenzy':
+            return 13
+        elif weapon.display_name == 'Ghost':
+            return 14
+        elif weapon.display_name == 'Judge':
+            return 15
+
+        # page 5
+        elif weapon.display_name == 'Bulldog':
+            return 16
+        elif weapon.display_name == 'Odin':
+            return 17
+        else:
+            return 18
+
+    async def format_page(
+        self,
+        view: SkinCollectionViewX,
+        entries: List[Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]],
+    ) -> List[discord.Embed]:
         embeds = []
 
-        def sort_skins(
-            skin_sort: Union[
-                valorantx.SkinLoadout,
-                valorantx.SkinLevelLoadout,
-                valorantx.SkinChromaLoadout,
-            ]
-        ) -> int:
-
-            skin_ = skin_sort if isinstance(skin_sort, valorantx.SkinLoadout) else skin_sort.get_skin()
-
-            if skin_ is None:
-                return 0
-
-            weapon = skin_.get_weapon()
-
-            if weapon is None:
-                return 0
-
-            # page 1
-            if weapon.display_name == 'Phantom':
-                return 0
-            elif weapon.display_name == 'Vandal':
-                return 1
-            elif weapon.display_name == 'Operator':
-                return 2
-            elif weapon.is_melee():
-                return 3
-
-            # page 2
-            elif weapon.display_name == 'Classic':
-                return 4
-            elif weapon.display_name == 'Sheriff':
-                return 5
-            elif weapon.display_name == 'Spectre':
-                return 6
-            elif weapon.display_name == 'Marshal':
-                return 7
-
-            # page 3
-            elif weapon.display_name == 'Stinger':
-                return 8
-            elif weapon.display_name == 'Bucky':
-                return 9
-            elif weapon.display_name == 'Guardian':
-                return 10
-            elif weapon.display_name == 'Ares':
-                return 11
-
-            # page 4
-            elif weapon.display_name == 'Shorty':
-                return 12
-            elif weapon.display_name == 'Frenzy':
-                return 13
-            elif weapon.display_name == 'Ghost':
-                return 14
-            elif weapon.display_name == 'Judge':
-                return 15
-
-            # page 5
-            elif weapon.display_name == 'Bulldog':
-                return 16
-            elif weapon.display_name == 'Odin':
-                return 17
-            else:
-                return 18
-
-        for index, skin in enumerate(sorted(self._collection.get_skins(), key=sort_skins)):
+        for skin in entries:
 
             skin_fav = ' ★' if skin.is_favorite() else ''
 
@@ -849,55 +690,21 @@ class CollectionSwitchX(SwitchingViewX):
                     text=f'{buddy.display_name}' + buddy_fav,
                     icon_url=buddy.display_icon,
                 )
-
             embeds.append(embed)
-            if len(embeds) == 4:
-                all_embeds.append(embeds)
-                embeds = []
 
-        if len(embeds) != 0:
-            all_embeds.append(embeds)
-
-        return all_embeds
-
-    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth)
-        self._current_riot_auth = riot_auth
-        self.current_embeds = embeds
-        if self.message is not None:
-            await self.message.edit(embeds=embeds, view=self)
-            return
-        self.message = await self.interaction.followup.send(embeds=embeds, view=self)
+        return embeds
 
 
-class SkinCollectionView(ViewAuthor):
+class SkinCollectionViewX(ViewAuthor, LattePages):
     def __init__(
         self,
         interaction: Interaction,
         other_view: CollectionSwitchX,
-        pages: List[List[discord.Embed]],
+        source: SkinCollectionSourceX,
     ) -> None:
         super().__init__(interaction, timeout=600)
-        self.other_view: CollectionSwitchX = other_view
-        self._pages = pages
-        self._current_page: int = 0
-        self._update_buttons()
-
-    @ui.button(label='≪', custom_id='first_page')
-    async def first_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, 0)
-
-    @ui.button(label=_("Back"), style=discord.ButtonStyle.blurple, custom_id='back_page')
-    async def back_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, -1)
-
-    @ui.button(label=_("Next"), style=discord.ButtonStyle.blurple, custom_id='next_page')
-    async def next_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, +1)
-
-    @ui.button(label='≫', custom_id='last_page')
-    async def last_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, len(self._pages) - 1)
+        self.other_view = other_view
+        self.source = source
 
     @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=1)
     async def back(self, interaction: Interaction, button: ui.Button):
@@ -905,56 +712,12 @@ class SkinCollectionView(ViewAuthor):
         await interaction.response.defer()
         await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
 
-    def _update_buttons(self) -> None:
-        page = self._current_page
-        total = len(self._pages) - 1
-        self.next_page.disabled = page == total
-        self.back_page.disabled = page == 0
-        self.first_page.disabled = page == 0
-        self.last_page.disabled = page == total
-
-    async def show_page(self, interaction: Interaction, page_number: int) -> None:
-        if page_number <= 1 and page_number != 0:
-            page_number = self._current_page + page_number
-        self._current_page = page_number
-        self._update_buttons()
-        embeds = self._pages[self._current_page]
-        await interaction.response.edit_message(embeds=embeds, view=self)
-
-    async def show_checked_page(self, interaction: Interaction, page_number: int):
-        try:
-            await self.show_page(interaction, page_number)
-        except IndexError:
-            # An error happened that can be handled, so ignore it.
-            pass
-
     async def start(self) -> None:
-        await self.other_view.interaction.edit_original_response(embeds=self._pages[0], view=self)
+        self.message = await self.other_view.interaction.original_response()
+        await self.start_pages()
 
 
-class SprayCollectionView(ViewAuthor):
-    def __init__(
-        self,
-        interaction: Interaction,
-        other_view: CollectionSwitchX,
-        pages: List[discord.Embed],
-    ) -> None:
-        super().__init__(interaction, timeout=600)
-        self.other_view = other_view
-        self._pages = pages
-
-    @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=0)
-    async def back(self, interaction: Interaction, button: ui.Button):
-        self.other_view.reset_timeout()
-        await interaction.response.defer()
-        await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
-
-    @ui.button(label=_('Change Spray'), style=discord.ButtonStyle.grey, custom_id='change_spray', row=0, disabled=True)
-    async def change_spray(self, interaction: Interaction, button: ui.Button):
-        pass
-
-    async def start(self) -> None:
-        await self.other_view.interaction.edit_original_response(embeds=self._pages, view=self)
+# code below is not optimized, but it works
 
 
 class MatchDetailsView(ViewAuthor):
@@ -1333,9 +1096,6 @@ class CarrierSwitchX(SwitchingViewX):
         await self.message.edit(embeds=self.pages[0], view=self)
 
 
-# match history views
-
-
 class MatchDetailsSwitchX(MatchDetailsView):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction)
@@ -1381,3 +1141,147 @@ class MatchDetailsSwitchX(MatchDetailsView):
     async def on_timeout(self) -> None:
         self.clear_items()
         await super().on_timeout()
+
+
+class StatsSelect(ui.Select['StatsView']):
+    def __init__(self) -> None:
+        super().__init__(placeholder="Select a stat", max_values=1, min_values=1, row=0)
+        self.__fill_options()
+
+    def __fill_options(self) -> None:
+        self.add_option(label="Overview", value='__overview', emoji='🌟')
+
+        self.add_option(
+            label="Match's", value="match's", description=_("Match History!"), emoji='<:newmember:973160072425377823>'
+        )
+        self.add_option(
+            label='Agents', value='agents', description=_("Top Agents!"), emoji='<:jetthappy:973158900679442432>'
+        )
+        self.add_option(label='Maps', value='maps', description=_("Top Maps!"), emoji='🗺️')
+        self.add_option(label='Weapons', value='weapons', description=_("Top Weapons!"), emoji='🔫')
+        self.add_option(
+            label='Accuracy', value='accuracy', description=_("Your Accuracy!"), emoji='<:accuracy:973252558925742160>'
+        )
+
+    async def callback(self, interaction: Interaction) -> Any:
+        assert self.view is not None
+        await interaction.response.defer()
+        await interaction.edit_original_response(content="Loading...")
+
+        # value = self.values[0]
+        #
+        # if value == '__overview':
+        #     await interaction.response.edit_message(embed=self.view.main_page, view=self.view)
+        # elif value == 'matches':
+        #     view = MatchHistoryView(
+        #         historys=self.view.match_source,
+        #         embeds=self.view.match_source_embed,
+        #         other_view=self.view
+        #     )
+        #     await view.start(interaction)
+        # # elif value == 'accuracy':
+        #     # await interaction.response.send_message('Accuracy', ephemeral=True)
+        # elif value == 'agents':
+        #     view = AgentStatsView(
+        #         stats=self.view.stats,
+        #         other_view=self.view
+        #     )
+        #     await view.start(interaction)
+        # elif value == 'maps':
+        #     await interaction.response.send_message('Maps', ephemeral=True)
+        # elif value == 'weapons':
+        #     await interaction.response.send_message('Weapons', ephemeral=True)
+
+
+class StatsView(ViewAuthor):
+    def __init__(self, interaction: Interaction) -> None:
+        self.interaction = interaction
+        super().__init__(interaction, timeout=120)
+        self.add_item(StatsSelect())
+
+    # def default_page(self, author: bool = False, icon: bool = False) -> discord.Embed:
+    #     embed = discord.Embed(title=self.player_title, color=self.color)
+    #     if author:
+    #         embed.set_author(name=self.name, icon_url=self.rank_icon)
+    #     if icon:
+    #         embed.set_image(url=self.icon)
+    #     return embed
+    #
+    # def build_match_history(self, match_details: Dict):
+    #     ...
+    #
+    # async def last_matches_competitive(self):
+    #     ...
+    # self.stats = self.stats
+    # total_game = self.rank['current']['total_game']
+    #
+    # if total_game >= 25:
+    #     total_game = 25
+    #
+    # match_history = self.endpoint.fetch_match_history(self.puuid, queue_id='competitive', start_index=0,
+    #                                                   end_index=total_game)
+    # self.stats['total_matches'] = len(match_history['History'])
+    #
+    # for index, match in enumerate(match_history['History']):
+    #     match_details = self.endpoint.fetch_match_details(match['MatchID'])
+    #     better_match_details = self.build_match_history(match_details)
+    #     if index == 0:
+    #         self.get_playerItem(match_details)
+    #         await self.pre_start()
+    #
+    #     self.fetch_player_stats(better_match_details)
+
+    # def fetch_player_stats(self, data: Dict):
+    #     ...
+    #
+    # def get_current_mmr(self):
+    #     ...
+    #
+    # def get_player_item(self, match_details: Dict):
+    #     ...
+
+    # def static_embed(
+    #         self, level: bool = True, title: bool = True, card: bool = True,
+    #                  rank: bool = True) -> discord.Embed:
+    #
+    #     embed = discord.Embed()
+    #     embed.set_author(name=self.name)
+    #
+    #     if level: embed.description = f"Level: {self.levels['level']}"
+    #
+    #     if title:
+    #         if self.player_title is not None: embed.title = self.player_title['texts'][str(_locale)]
+    #
+    #     if card:
+    #         if self.player_card is not None: embed.set_thumbnail(url=self.player_card['icon']['small'])
+    #
+    #     if rank:
+    #         if self.rank_icon is not None: embed._author['icon_url'] = self.rank_icon
+    #
+    #     return embed
+
+    # def pre_main_page(self) -> discord.Embed:
+    #     loading_emoji = "<a:typing:597589448607399949>"
+    #     embed = self.static_embed()
+    #     embed.add_field(name='Rank', value=f"{self.rank_name.capitalize()}")
+    #     embed.add_field(name='Headshot%', value=loading_emoji)
+    #     embed.add_field(name='Score/Round', value=loading_emoji)
+    #     embed.add_field(name='KDA Ratio', value=loading_emoji)
+    #     embed.add_field(name='Win Ratio', value=loading_emoji)
+    #     embed.add_field(name='Damage/Round', value=loading_emoji)
+    #     embed.set_footer(text=f"{self.season}")
+    #     return embed
+
+    # def final_main_page(self) -> discord.Embed:
+    #     ...
+
+    async def pre_start(self):
+        # pre_embed = self.pre_main_page()
+        await self.interaction.followup.send("Loading...", view=self)
+
+    # async def start(self) -> None:
+    #     self.get_current_mmr()
+    #     await self.last_matches_competitive()
+    #
+    #     self.final_page = self.final_main_page()
+    #     await self.message.edit(embed=self.final_page, view=self)

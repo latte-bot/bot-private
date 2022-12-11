@@ -299,7 +299,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await riot_acc.authorize(username=self.bot.riot_username, password=self.bot.riot_password)
         else:
             riot_acc = v_user.get_account()
-        data = await self.v_client.fetch_store_front(riot_acc)
+        data = await self.v_client.fetch_store_front(riot_acc)  # type: ignore
         return data.get_bundles()
 
     @staticmethod

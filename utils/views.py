@@ -4,7 +4,7 @@ import io
 import logging
 import time
 import traceback
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import discord
 import valorantx
@@ -239,11 +239,19 @@ class ViewAuthor(BaseView):
         self._author = value
 
 
-class PagesPrompt(discord.ui.View):
+# TODO: PageSource for PagesPrompt
+
+
+class InheritPages(discord.ui.View):
+
+    if TYPE_CHECKING:
+        message: Optional[Union[Message, InteractionMessage]]
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._source = []
+        self._source: Any = []
         self.current_page = 0
+        self.per_page = 1
         self._max_pages = len(self._source)
 
     @ui.button(label='≪', custom_id='first_page')
@@ -268,10 +276,17 @@ class PagesPrompt(discord.ui.View):
         self.back_page.disabled = page == 0
         self.next_page.disabled = page == total
 
-    def _get_kwargs_from_page(self, page: Union[discord.Embed, List[discord.Embed]]) -> Dict[str, Any]:
-        if isinstance(page, discord.Embed):
-            return {'embed': page, 'view': self}
-        return {'embeds': page, 'view': self}
+    def _get_kwargs_from_page(self, value: Any) -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        elif isinstance(value, str):
+            return {'content': value, 'embed': None}
+        elif isinstance(value, discord.Embed):
+            return {'embed': value, 'content': None}
+        elif isinstance(value, list):
+            return {'embeds': value, 'content': None}
+        else:
+            return {}
 
     def get_page(self, page_number: int) -> Union[discord.Embed, List[discord.Embed]]:
         """:class:`list`: The page at the given page number."""
@@ -286,7 +301,13 @@ class PagesPrompt(discord.ui.View):
         self.current_page = page_number
         self._update_buttons()
         kwargs = self._get_kwargs_from_page(page)
-        await interaction.response.edit_message(**kwargs)
+        if kwargs:
+            if interaction.response.is_done():
+                if hasattr(self, 'message'):
+                    if self.message is not None:
+                        await self.message.edit(**kwargs, view=self)
+            else:
+                await interaction.response.edit_message(**kwargs, view=self)
 
     async def show_checked_page(self, interaction: Interaction, page_number: int):
         max_pages = self.get_max_pages()
@@ -381,8 +402,6 @@ async def latte_error_handler(interaction: discord.Interaction, error: Union[Exc
         content = _("Error occurred while fetching data from Valorant API")
     elif isinstance(error, valorantx.RiotUnknownErrorTypeError):
         content = _("Unknown error occurred while fetching data from Valorant API")
-    elif isinstance(error, LatteAppError):
-        content = getattr(error, 'original', error)
     elif isinstance(error, CommandNotFound):
         content = _('Command not found')
     elif isinstance(error, MissingPermissions):
@@ -395,6 +414,8 @@ async def latte_error_handler(interaction: discord.Interaction, error: Union[Exc
         content = _("Sorry, but this command seems to be unavailable! Please try again later...")
     elif isinstance(error, CheckFailure):
         content = _("You can't use this command.")
+    elif isinstance(error, LatteAppError):
+        content = getattr(error, 'original', error)
     else:
         content = _("Sorry, but something went wrong! Please try again later...")
 
