@@ -321,7 +321,7 @@ class GamePassPageSourceX(ListPageSource):
     async def format_page(self, menu: Any, page: Any):
 
         reward = self.entries[menu.current_page]
-        item = reward.get_reward()
+        item = reward.get_item()
 
         embed = discord.Embed(
             title='Battlepass for {display_name}'.format(display_name=bold(self.riot_auth.display_name))
@@ -340,6 +340,8 @@ class GamePassPageSourceX(ListPageSource):
                         embed.set_image(url=item.display_icon)
                     elif isinstance(item, valorantx.PlayerCard):
                         embed.set_image(url=item.wide_icon)
+                    elif isinstance(item, valorantx.Agent):
+                        embed.set_image(url=item.full_portrait_v2 or item.full_portrait)
                     else:
                         embed.set_thumbnail(url=item.display_icon)
 

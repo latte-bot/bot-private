@@ -212,8 +212,7 @@ class Client(valorantx.Client):
     def set_authorize(self, riot_auth: RiotAuth) -> Client:
 
         # set riot auth
-        self.http._riot_auth = riot_auth
-        self.http._puuid = riot_auth.puuid
+        self.http.riot_auth = riot_auth
         payload = dict(
             puuid=riot_auth.puuid,
             username=riot_auth.name,
@@ -374,6 +373,10 @@ class Client(valorantx.Client):
         else:
             self._store_cache = {}
 
+    def clear(self) -> None:
+        self.cache_validate()
+        super().clear()
+
 
 class HTTPClientCustom(HTTPClient):
 
@@ -388,6 +391,11 @@ class HTTPClientCustom(HTTPClient):
     @property
     def riot_auth(self) -> RiotAuth:
         return self._riot_auth
+
+    @riot_auth.setter
+    def riot_auth(self, value: RiotAuth) -> None:
+        self._riot_auth = value
+        self.puuid = value.puuid
 
     def clear_headers(self) -> None:
         self._headers.clear()

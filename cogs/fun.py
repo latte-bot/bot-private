@@ -45,7 +45,7 @@ class Fun(commands.Cog):
     async def saybot(
         self,
         interaction: Interaction,
-        message: str,
+        message: str = '\u200b',
         attachment: Optional[discord.Attachment] = None,
         member: Optional[Union[Member, User]] = None,
     ):
