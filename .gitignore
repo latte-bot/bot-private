@@ -161,3 +161,4 @@ _test/
 test.py
 tests.py
 0*/
+.backup/
