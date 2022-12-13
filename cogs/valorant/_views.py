@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import random
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
@@ -29,6 +28,7 @@ if TYPE_CHECKING:
     from .valorant import RiotAuth
 
 
+# V = TypeVar('V', bound='View')
 # - multi-factor modal
 
 # TODO: from base Modal
@@ -84,7 +84,7 @@ class FeaturedBundleView(ViewAuthor):
     def __init__(self, interaction: Interaction, bundles: List[valorantx.Bundle]) -> None:
         self.interaction = interaction
         self.bundles = bundles
-        self.locale = ValorantLocale.from_discord(str(interaction.locale))
+        self.v_locale = ValorantLocale.from_discord(str(interaction.locale))
         self.all_embeds: Dict[str, List[discord.Embed]] = {}
         super().__init__(interaction, timeout=600)
         self.build_buttons(bundles)
@@ -95,7 +95,7 @@ class FeaturedBundleView(ViewAuthor):
             self.add_item(
                 FeaturedBundleButton(
                     other_view=self,
-                    label=str(index) + '. ' + bundle.name_localizations.from_locale(str(self.locale)),
+                    label=str(index) + '. ' + bundle.name_localizations.from_locale(str(self.v_locale)),
                     custom_id=bundle.uuid,
                     style=discord.ButtonStyle.blurple,
                 )
@@ -180,8 +180,8 @@ class SwitchingViewX(ViewAuthor):
         super().__init__(interaction, timeout=kwargs.get('timeout', 600.0), *args, **kwargs)
         self.v_user = v_user
         self.v_client: ValorantClient = client
+        self.v_locale = ValorantLocale.from_discord(str(interaction.locale))
         self.riot_auth_list = v_user.get_riot_accounts()
-        self.locale: discord.Locale = interaction.locale
         self._build_buttons(row)
 
     def _build_buttons(self, row: int = 0) -> None:
@@ -340,8 +340,8 @@ class GamePassPageSourceX(ListPageSource):
                         embed.set_image(url=item.display_icon)
                     elif isinstance(item, valorantx.PlayerCard):
                         embed.set_image(url=item.wide_icon)
-                    elif isinstance(item, valorantx.Agent):
-                        embed.set_image(url=item.full_portrait_v2 or item.full_portrait)
+                    # elif isinstance(item, valorantx.Agent):
+                    #     embed.set_image(url=item.full_portrait_v2 or item.full_portrait)
                     else:
                         embed.set_thumbnail(url=item.display_icon)
 
@@ -559,6 +559,10 @@ class CollectionSwitchX(SwitchingViewX):
             embeds.append(embed)
         return embeds
 
+    # @alru_cache(maxsize=5)
+    # async def get_skin_pages(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+    #     ...
+
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
 
         embeds = await self.get_embeds(riot_auth)
@@ -571,7 +575,7 @@ class CollectionSwitchX(SwitchingViewX):
         self.message = await self.interaction.followup.send(embeds=embeds, view=self)
 
 
-class SprayCollectionView(ViewAuthor):
+class SprayCollectionView(ViewAuthor):  # Non-X
     def __init__(self, other_view: CollectionSwitchX, pages: List[discord.Embed]) -> None:
         super().__init__(other_view.interaction, timeout=600)
         self.other_view = other_view
@@ -719,109 +723,15 @@ class SkinCollectionViewX(ViewAuthor, LattePages):
         await self.start_pages()
 
 
-# code below is not optimized, but it works
-
-
-class MatchDetailsView(ViewAuthor):
-    def __init__(
-        self,
-        interaction: Interaction,
-        other_view: Optional[discord.ui.View] = None,
-    ) -> None:
-        super().__init__(interaction, timeout=600)
-        self.embeds_mobile: List[discord.Embed] = []
-        self.embeds_desktop: List[discord.Embed] = []
-        self.current_page = 0
-        self.is_on_mobile = False
-        self.pages: List[discord.Embed] = []
-        self.other_view: Optional[Union[discord.ui.View, CarrierSwitchX]] = other_view
-        if self.other_view is None:
-            self.remove_item(self.back_to_home)
-
-    @ui.button(label='≪', style=ButtonStyle.blurple, custom_id='back_page')
-    async def back_page(self, interaction: Interaction, button: ui.Button) -> None:
-        await self.show_checked_page(interaction, -1)
-
-    @ui.button(label='≫', style=ButtonStyle.blurple, custom_id='next_page')
-    async def next_page(self, interaction: Interaction, button: ui.Button) -> None:
-        await self.show_checked_page(interaction, +1)
-
-    @ui.button(emoji='📱', style=ButtonStyle.green, custom_id='mobile')
-    async def toggle_ui(self, interaction: Interaction, button: ui.Button) -> None:
-        if self.is_on_mobile:
-            button.emoji = '🖥️'
-            self.is_on_mobile = False
-        else:
-            button.emoji = '📱'
-            self.is_on_mobile = True
-        await self.show_page(interaction, 0)
-
-    @ui.button(label=_("Home"), style=ButtonStyle.green, custom_id='home_button')
-    async def back_to_home(self, interaction: Interaction, button: ui.Button) -> None:
-        if self.other_view is not None:
-            self.other_view.reset_timeout()
-        await interaction.response.defer()
-        await self.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
-
-    async def on_timeout(self) -> None:
-        if self.message is not None:
-            await self.message.edit(embed=self.pages[0], view=self)
-
-    def _update_pages(self):
-        self.pages = self.embeds_desktop if not self.is_on_mobile else self.embeds_mobile
-
-    def get_page(self, page_number: int) -> Union[discord.Embed, List[discord.Embed]]:
-        """:class:`list`: The page at the given page number."""
-        return self.pages[page_number]
-
-    async def show_page(self, interaction: Interaction, page_number: 0) -> None:
-        self._update_pages()
-        if page_number != 0:
-            self.current_page = self.current_page + page_number
-        page = self.get_page(self.current_page)
-        self._update_buttons()
-        kwargs = self._get_kwargs_from_page(page)
-        await interaction.response.edit_message(**kwargs)
-
-    async def show_checked_page(self, interaction: Interaction, page_number: int):
-        try:
-            await self.show_page(interaction, page_number)
-        except IndexError:
-            # An error happened that can be handled, so ignore it.
-            pass
-
-    def _get_kwargs_from_page(self, page: Union[discord.Embed, List[discord.Embed]]) -> Dict[str, Any]:
-        embeds = [embed for embed in page] if isinstance(page, list) else [page]
-        return {'embeds': embeds, 'view': self}
-
-    def _update_buttons(self) -> None:
-        page = self.current_page
-        total = len(self.pages) - 1
-        self.back_page.disabled = page == 0
-        self.next_page.disabled = page == total
-
-    async def start(self, match: valorantx.MatchDetails) -> None:
-        embeds = MatchEmbed(match)
-        self.embeds_mobile: List[discord.Embed] = embeds.get_mobile()
-        self.embeds_desktop: List[discord.Embed] = embeds.get_desktop()
-        self.current_page = 0
-        self._update_pages()
-        self._update_buttons()
-        if self.interaction.response.is_done():
-            self.message = await self.interaction.edit_original_response(embed=self.pages[0], view=self)
-            return
-        await self.interaction.response.edit_message(embed=self.pages[0], view=self)
-        self.message = await self.interaction.original_response()
-
-
-class SelectMatchHistory(ui.Select['CarrierSwitchX']):
-    def __init__(self, match_details: List[valorantx.MatchDetails]) -> None:
-        self.match_details = match_details
+class SelectMatchHistoryX(ui.Select['CarrierSwitchX']):
+    def __init__(self, view: CarrierSwitchX) -> None:
         super().__init__(placeholder=_("Select Match to see details"), max_values=1, min_values=1, row=1)
-        self.__fill_options()
+        self._source: List[valorantx.MatchDetails] = []
+        self.view_md = MatchDetailsViewX(view.interaction, view)
 
-    def __fill_options(self) -> None:
-        for index, match in enumerate(self.match_details):
+    def build_selects(self, match_details: List[valorantx.MatchDetails]) -> None:
+        self._source = match_details
+        for index, match in enumerate(match_details):
             enemy_team = match.get_enemy_team()
             me_team = match.get_me_team()
 
@@ -843,52 +753,32 @@ class SelectMatchHistory(ui.Select['CarrierSwitchX']):
 
             self.add_option(
                 label='{won} - {lose}'.format(won=left_team_score, lose=right_team_score),
-                value=str(match.id),
+                value=str(index),
                 description='{map} - {queue}'.format(map=match.map.display_name, queue=match.game_mode.display_name),
                 emoji=match.me.agent.emoji,  # type: ignore
             )
 
+    def clear_options(self) -> None:
+        self.options.clear()
+
     async def callback(self, interaction: Interaction) -> Any:
         assert self.view is not None
         value = self.values[0]
-        source = self.view.match_source
-        match = source.get(value)
-        view = MatchDetailsView(interaction, self.view)
-        await view.start(match)
+
+        self.view.locale = interaction.locale
+        await interaction.response.defer()
+
+        if self.view_md.message is None:
+            self.view_md.message = self.view.message
+        await self.view_md.start(self._source[int(value)])
 
 
-class CarrierSwitchX(SwitchingViewX):
-    def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
-        super().__init__(interaction, v_user, client, row=2)
-        self.mmr: Optional[valorantx.MMR] = None
-        self.locale = interaction.locale
-        self.current_page: int = 0
-        self.pages: List[List[discord.Embed]] = []
-        self.pages_source: List[List[valorantx.MatchDetails]] = []
-        self.match_source: Dict[str, valorantx.MatchDetails] = {}
-        self._max_pages: int = 0
-        self.re_build: bool = False
-        self.current_embeds: List[discord.Embed] = []
-        self._queue: Optional[str] = None
-        # self._is_build_select: bool = True
+class CarrierPageSourceX(ListPageSource):
+    def __init__(self, data: List[valorantx.MatchDetails], per_page: int = 3):
+        super().__init__(data, per_page=per_page)
 
-    @ui.button(label='≪', style=ButtonStyle.blurple, row=0)
-    async def first_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, 0)
-
-    @ui.button(label=_("Back"), style=ButtonStyle.blurple, row=0)
-    async def back_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, self.current_page - 1)
-
-    @ui.button(label=_("Next"), style=ButtonStyle.blurple, row=0)
-    async def next_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, self.current_page + 1)
-
-    @ui.button(label='≫', style=ButtonStyle.blurple, row=0)
-    async def last_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_checked_page(interaction, self.get_max_pages() - 1)
-
-    def default_page(self, match: valorantx.MatchDetails) -> discord.Embed:
+    @staticmethod
+    def default_page(match: valorantx.MatchDetails, locale: valorantx.Locale) -> discord.Embed:
 
         me = match.me
         tier = me.get_competitive_rank()
@@ -965,158 +855,114 @@ class CarrierSwitchX(SwitchingViewX):
         if match.map.splash is not None:
             embed.set_thumbnail(url=match.map.splash)
         embed.set_footer(
-            text=f"{match.game_mode.display_name} • {match.map.name_localizations.from_locale(str(self.locale))}",
+            text=f"{match.game_mode.display_name} • {match.map.name_localizations.from_locale(str(locale))}",
             icon_url=match.game_mode.display_icon
             # icon_url=tier.large_icon if tier is not None and match.queue == valorantx.QueueType.competitive else None,
         )
         return embed
 
-    @staticmethod
-    def tier_embed(mmr: Optional[valorantx.MMR] = None) -> Optional[discord.Embed]:
-        if mmr is None:
-            return None
-        competitive = mmr.get_latest_competitive_season()
-        if competitive is not None:
-            parent_season = competitive.season.parent
-            e = discord.Embed(colour=int(competitive.tier.background_color[:-2], 16), timestamp=datetime.datetime.now())
-            e.set_author(name=competitive.tier.display_name, icon_url=competitive.tier.large_icon)
-            e.set_footer(
-                text=str(competitive.ranked_rating)
-                + '/100'
-                + ' • '
-                + parent_season.display_name
-                + ' '
-                + competitive.season.display_name
-            )
-            return e
-        return None
-
-    def __build_source(self, match_details: List[valorantx.MatchDetails], mmr: Optional[valorantx.MMR]) -> None:
-        self.match_source = {match.id: match for match in match_details}
-        self.__build_pages(match_details, mmr)
-        self.__update_buttons()
-        self._queue: Optional[str] = None
-        self._max_pages: int = len(self.pages)
-        if len(self.pages_source) > 0:
-            self.__build_selects()
-
-    def __build_pages(self, match_details: List[valorantx.MatchDetails], mmr: valorantx.MMR) -> None:
-
-        self.pages = []
-        self.pages_source = []
-
-        source = []
+    def format_page(self, menu: CarrierSwitchX, entries: List[valorantx.MatchDetails]) -> List[discord.Embed]:
         embeds = []
 
-        tier_embed = self.tier_embed()
+        # build pages
+        for match in entries:
+            embeds.append(self.default_page(match, menu.v_locale))
 
-        for index, match in enumerate(match_details, start=1):
-            embed = self.default_page(match)
-            embeds.append(embed)
-            source.append(match)
+        # build select menu
+        for child in menu.children:
+            if isinstance(child, SelectMatchHistoryX):
+                child.clear_options()
+                child.build_selects(entries)
 
-            if not index % 3:
-                if tier_embed is not None:
-                    embeds.insert(0, tier_embed)
-                self.pages_source.append(source)
-                self.pages.append(embeds)
-                source = []
-                embeds = []
-            elif index == len(match_details):
-                if tier_embed is not None:
-                    embeds.insert(0, tier_embed)
-                self.pages_source.append(source)
-                self.pages.append(embeds)
+        menu.current_embeds = embeds
 
-    def __build_selects(self, index: int = 0) -> None:
-        source = self.pages_source[index]
-        if not self.re_build:
-            self.add_item(SelectMatchHistory(source))
-            self.re_build = True
-        else:
-            for item in self.children:
-                if isinstance(item, SelectMatchHistory):
-                    self.remove_item(item)
-                    self.add_item(SelectMatchHistory(source))
+        return embeds
 
-    def get_max_pages(self) -> int:
-        """:class:`int`: The maximum number of pages required to paginate this sequence."""
-        return self._max_pages
 
-    def get_page(self, page_number: int) -> List[discord.Embed]:
-        """:class:`list`: The page at the given page number."""
-        return self.pages[page_number]
+class CarrierSwitchX(SwitchingViewX, LattePages):
+    def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
+        super().__init__(interaction, v_user, client, row=2)
+        # self.mmr: Optional[valorantx.MMR] = None
+        self._queue: Optional[str] = None
+        self.re_build: bool = False
+        self.current_embeds: List[discord.Embed] = []
+        self.add_item(SelectMatchHistoryX(self))
 
-    def _get_kwargs_from_page(self, page: List[discord.Embed]) -> Dict[str, Any]:
-        embeds = [embed for embed in page]  # TODO: why is this needed?
-        self.current_embeds = embeds
-        return {"embeds": embeds, "view": self}
+    # @staticmethod
+    # def tier_embed(mmr: Optional[valorantx.MMR] = None) -> Optional[discord.Embed]:
+    #     if mmr is None:
+    #         return None
+    #     competitive = mmr.get_latest_competitive_season()
+    #     if competitive is not None:
+    #         parent_season = competitive.season.parent
+    #         e = discord.Embed(colour=int(competitive.tier.background_color[:-2], 16), timestamp=datetime.datetime.now())
+    #         e.set_author(name=competitive.tier.display_name, icon_url=competitive.tier.large_icon)
+    #         e.set_footer(
+    #             text=str(competitive.ranked_rating)
+    #             + '/100'
+    #             + ' • '
+    #             + parent_season.display_name
+    #             + ' '
+    #             + competitive.season.display_name
+    #         )
+    #         return e
+    #     return None
 
-    async def show_checked_page(self, interaction: Interaction, page_number: int):
-        try:
-            await self.show_page(interaction, page_number)
-        except IndexError:
-            # An error happened that can be handled, so ignore it.
-            pass
-
-    async def show_page(self, interaction: Interaction, page_number: int) -> None:
-        page = self.get_page(page_number)
-        self.current_page = page_number
-        self.__update_buttons()
-        self.__update_select()
-        kwargs = self._get_kwargs_from_page(page)
-        await interaction.response.edit_message(**kwargs)
-
-    def __update_buttons(self) -> None:
-        page = self.current_page
-        total = len(self.pages) - 1
-        self.next_page.disabled = page == total
-        self.back_page.disabled = page == 0
-        self.first_page.disabled = page == 0
-        self.last_page.disabled = page == total
-
-    def __update_select(self) -> None:
-        source = self.pages_source[self.current_page]
-        for item in self.children:
-            if isinstance(item, ui.Select):
-                self.remove_item(item)
-                self.add_item(SelectMatchHistory(source))
+    async def start_pages(self, *, content: Optional[str] = None, ephemeral: bool = False) -> None:
+        await super().start_pages(content=content, ephemeral=ephemeral)
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         self._queue = kwargs.pop('queue', self._queue)
         client = self.v_client.set_authorize(riot_auth)
-
         match_history = await client.fetch_match_history(queue=self._queue)  # type: ignore
-        match_details = match_history.get_match_details()
-        mmr = await client.fetch_mmr()
-        self.__build_source(match_details, mmr)
-
-        self.current_embeds = embeds = self.pages[0]
-        if self.message is None:
-            self.message = await self.interaction.edit_original_response(embeds=embeds, view=self)
-            return
-        await self.message.edit(embeds=self.pages[0], view=self)
+        self.source = CarrierPageSourceX(data=match_history.get_match_details())
+        # self.mmr = await client.fetch_mmr()
+        # TODO: build tier embed
+        await self.start_pages()
 
 
-class MatchDetailsSwitchX(MatchDetailsView):
+class MatchDetailsPageSourceX(ListPageSource):
+    def __init__(self, md: valorantx.MatchDetails) -> None:
+        total_pages = 3 if md.game_mode != valorantx.GameModeType.deathmatch else 2
+        super().__init__(list(i for i in range(0, total_pages)), per_page=1)
+        embeds = MatchEmbed(md)
+        self.desktop = embeds.get_desktop()
+        self.mobile = embeds.get_mobile()
+
+    def format_page(self, menu: Any, page: int) -> discord.Embed:
+        return self.mobile[page] if menu.is_on_mobile else self.desktop[page]
+
+
+class MatchDetailsViewX(ViewAuthor, LattePages):
+    def __init__(self, interaction: Interaction, other_view: Optional[discord.ui.View] = None, **kwargs) -> None:
+        super().__init__(interaction, compact=True, timeout=kwargs.pop('timeout', 600.0), **kwargs)
+        self.is_on_mobile = False
+        self.other_view: Optional[Union[discord.ui.View, CarrierSwitchX]] = other_view
+        self.toggle_ui.row = 0
+        if self.other_view is None:
+            self.remove_item(self.back_to_home)
+
+    @ui.button(emoji='📱', style=ButtonStyle.green, custom_id='mobile', row=0)
+    async def toggle_ui(self, interaction: Interaction, button: ui.Button) -> None:
+        button.emoji, self.is_on_mobile = '📱' if self.is_on_mobile else '🖥️', not self.is_on_mobile
+        await self.show_checked_page(interaction, 0)
+
+    @ui.button(label=_("Home"), style=ButtonStyle.green, custom_id='home_button')
+    async def back_to_home(self, interaction: Interaction, button: ui.Button) -> None:
+        if self.other_view is not None:
+            self.other_view.reset_timeout()
+        await interaction.response.defer()
+        await self.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
+
+    async def start(self, match: valorantx.MatchDetails) -> None:
+        self.source = MatchDetailsPageSourceX(match)
+        await self.start_pages()
+
+
+class MatchDetailsSwitchX(SwitchingViewX, MatchDetailsViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
-        super().__init__(interaction)
-        self.v_user = v_user
-        self.v_client: ValorantClient = client
-        self.riot_auth_list = v_user.get_riot_accounts()
-        self._build_buttons(row=1)
+        super().__init__(interaction, v_user=v_user, client=client, row=2)
         self._queue: Optional[str] = None
-
-    def _build_buttons(self, row: int = 0) -> None:
-        for index, acc in enumerate(self.riot_auth_list, start=1):
-            self.add_item(
-                ButtonAccountSwitchX(
-                    label="Account #" + str(index) if acc.hide_display_name else acc.display_name,
-                    custom_id=acc.puuid,
-                    disabled=(index == 1),
-                    row=row,
-                )
-            )
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         self._queue = kwargs.pop('queue', self._queue)
@@ -1126,8 +972,8 @@ class MatchDetailsSwitchX(MatchDetailsView):
         if len(match_history.get_match_details()) == 0:
             self.disable_buttons()
             embed = discord.Embed(
-                title="No matches found",
-                description="You have no matches in your match history",
+                title=_("No matches found"),
+                description=_("You have no matches in your match history"),
                 color=discord.Color.red(),
             )
             if self.message is None:
@@ -1138,11 +984,14 @@ class MatchDetailsSwitchX(MatchDetailsView):
         await super().start(match=match_history.get_match_details()[0])
 
     def disable_buttons(self):
-        self.back_page.disabled = self.next_page.disabled = self.toggle_ui.disabled = True
+        self.previous_page.disabled = self.next_page.disabled = self.toggle_ui.disabled = True
 
     async def on_timeout(self) -> None:
         self.clear_items()
         await super().on_timeout()
+
+
+# code below is for testing purposes
 
 
 class StatsSelect(ui.Select['StatsView']):

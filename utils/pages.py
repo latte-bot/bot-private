@@ -159,7 +159,7 @@ class ListPageSource(PageSource):
         """:class:`int`: The maximum number of pages required to paginate this sequence."""
         return self._max_pages
 
-    async def get_page(self, page_number: int) -> List[Any]:
+    async def get_page(self, page_number: int) -> Union[Any, List[Any]]:
         """Returns either a single element of the sequence or
         a slice of the sequence.
         If :attr:`per_page` is set to ``1`` then this returns a single
@@ -189,6 +189,7 @@ class LattePages(discord.ui.View):
         interaction: Optional[discord.Interaction] = None,
         source: Optional[PageSource] = None,
         check_embeds: bool = True,
+        compact: bool = False,
         *args,
         **kwargs,
     ) -> None:
@@ -198,9 +199,15 @@ class LattePages(discord.ui.View):
         self.current_page = 0
         self.per_page = 1
         self.check_embeds = check_embeds
+        self.compact = compact
         self.fill_items()
 
     def fill_items(self) -> None:
+        if self.compact:
+            self.remove_item(self.first_page)
+            self.remove_item(self.last_page)
+            self.next_page.label = self.last_page.label
+            self.previous_page.label = self.first_page.label
         self.remove_item(self.numbered_page)
 
     def add_numbered_page(self, row: int = 1) -> None:
@@ -213,7 +220,7 @@ class LattePages(discord.ui.View):
         if max_pages is not None:
             self.next_page.disabled = page == max_pages - 1
             self.last_page.disabled = page == max_pages - 1
-        self.back_page.disabled = page == 0
+        self.previous_page.disabled = page == 0
         self.first_page.disabled = page == 0
 
     async def _get_kwargs_from_page(self, page) -> Dict[str, Any]:
@@ -300,7 +307,7 @@ class LattePages(discord.ui.View):
         await self.show_checked_page(interaction, 0)
 
     @ui.button(label=_("Back"), style=discord.ButtonStyle.blurple, custom_id='back_page')
-    async def back_page(self, interaction: Interaction, button: ui.Button):
+    async def previous_page(self, interaction: Interaction, button: ui.Button):
         await self.show_checked_page(interaction, self.current_page - 1)
 
     @ui.button(label=_("Next"), style=discord.ButtonStyle.blurple, custom_id='next_page')

@@ -99,6 +99,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         # database
         self.db: Database = Database(bot)
 
+        # auto complete
+        # self._auto_complete: Dict[str, List[Choice]] = {}
+
         self.add_context_menu()
 
     @property
@@ -323,6 +326,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         v_user.add_account(riot_auth)
         return v_user
 
+    def build_auto_complete_choices(self) -> None:
+        ...
+
     def cache_clear(self):
         self.fetch_user.cache_clear()
         self.get_all_agents.cache_clear()
@@ -365,6 +371,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     ) -> None:
         # TODO: transformers params
         # TODO: website login ?
+        # TODO: TOS, privacy
 
         v_user = self._get_user(interaction.user.id)
         if v_user is not None:
@@ -408,15 +415,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     raise CommandError('You already have this account linked.')
             self.add_riot_auth(interaction.user.id, try_auth)
 
-        # insert to database sql and encrypt data
-
         payload = list(riot_auth.to_dict() for riot_auth in v_user.get_riot_accounts())
-
-        # encryption
-        encrypt_payload = self.bot.encryption.encrypt(json.dumps(payload))
+        payload = self.bot.encryption.encrypt(json.dumps(payload))  # encrypt
 
         await self.db.upsert_user(
-            encrypt_payload,
+            payload,
             interaction.user.id,
             interaction.guild_id or interaction.user.id,
             interaction.locale,
@@ -426,13 +429,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         self.fetch_user.invalidate(self, id=interaction.user.id)
 
         e = Embed(description=f"Successfully logged in {bold(try_auth.display_name)}")
-
-        # TODO: TOS, privacy views
         await interaction.followup.send(embed=e, ephemeral=True)
 
     @app_commands.command(name=_T('logout'), description=_T('Logout and Delete your accounts from database'))
-    @app_commands.guild_only()
     @app_commands.rename(number=_T('account'))
+    @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
     async def logout(self, interaction: Interaction, number: Optional[str] = None) -> None:
 
@@ -448,7 +449,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     if v_user is None:
                         raise CommandError('You have no accounts linked.')
 
-                riot_logout = None
+                riot_logout: Optional[RiotAuth] = None
                 for auth_u in v_user.get_riot_accounts():
 
                     if number.isdigit():
@@ -479,14 +480,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     raise CommandError('Invalid account number.')
 
                 # remove from database
-                riot_auth_remove = v_user.remove_account(riot_logout.acc_num)
+                riot_auth_remove: Optional[RiotAuth] = v_user.remove_account(riot_logout.acc_num)
 
                 if len(v_user.get_riot_accounts()) == 0:
                     await self.db.delete_user(interaction.user.id, conn=conn)
                     self._pop_user(interaction.user.id)
                 else:
                     await self.db.upsert_user(
-                        v_user.data_encrypted(),
+                        v_user.encrypted(),
                         v_user.id,
                         v_user.guild_id,
                         interaction.locale,
@@ -532,6 +533,24 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             for user in sorted(get_user.get_riot_accounts(), key=lambda x: x.acc_num)
         ]
 
+    # @app_commands.command(name=_T('settings'), description=_T('Show the settings of the bot'))
+    # async def settings(self, interaction: Interaction) -> None:
+    #     ...
+
+    # @app_commands.command(name=_T('cookies'), description=_T('Log in with your Riot account by Cookies'))
+    # @app_commands.describe(cookies=_T('Your cookies or SSID'))
+    # @app_commands.rename(cookies=_T('cookies'))
+    # @app_commands.guild_only()
+    # @dynamic_cooldown(cooldown_5s)
+    # async def cookies(self, interaction: Interaction, cookies: str) -> None:
+    #
+    #     await interaction.response.defer(ephemeral=True)
+    #
+    #     user_id = interaction.user.id
+    #     guild_id = interaction.guild_id
+    #
+    #     try_auth = RiotAuth()
+
     @app_commands.command(name=_T('store'), description=_T('Shows your daily store in your accounts'))
     @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
@@ -564,12 +583,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.season)
         await view.start_view(v_user.get_account())
 
-    @battlepass.autocomplete('season')
-    async def battlepass_autocomplete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
-
-        # all_season = self.get_all_seasons()
-        return []
-
     @app_commands.command(name=_T('eventpass'), description=_T('View your Eventpass current tier'))
     @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
@@ -580,10 +593,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         v_user = await self.fetch_user(id=interaction.user.id)
         view = GamePassSwitchX(interaction, v_user, self.v_client, valorantx.RelationType.event)
         await view.start_view(v_user.get_account())
-
-    @eventpass.autocomplete('event')
-    async def eventpass_autocomplete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
-        return []
 
     @app_commands.command(name=_T('point'), description=_T('View your remaining Valorant and Riot Points (VP/RP)'))
     @app_commands.guild_only()
@@ -760,7 +769,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        mode = mode.value if mode is not None else None
+        if mode is not None:
+            mode = mode.value
 
         v_user = await self.fetch_user(id=interaction.user.id)
 
@@ -1081,12 +1091,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @skin.autocomplete('skin')
     @player_card.autocomplete('card')
     @player_title.autocomplete('title')
+    @battlepass.autocomplete('season')
+    @eventpass.autocomplete('event')
     async def get_all_auto_complete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
 
         locale = self.v_locale(interaction.locale)
 
         results: List[Choice[str]] = []
         mex_index = 25
+
+        # TODO: cache choices
 
         if interaction.command is self.bundle:
 
@@ -1108,6 +1122,35 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                     results.append(app_commands.Choice(name=bundle_name, value=bundle.uuid))
                     if len(results) >= mex_index:
                         break
+
+        elif interaction.command is self.battlepass:
+
+            value_list = self.get_all_seasons()
+            namespace = interaction.namespace.season
+
+            for value in sorted(value_list, key=lambda a: a.start_time):
+                if value.name_localizations.from_locale(str(locale)).lower().startswith(namespace.lower()):
+
+                    parent = value.parent
+                    parent_name = ''
+                    if parent is None:
+                        if value.uuid != '0df5adb9-4dcb-6899-1306-3e9860661dd3':  # closed beta
+                            continue
+                    else:
+                        parent_name = parent.name_localizations.from_locale(str(locale)) + ' '
+
+                    value_name = parent_name + value.name_localizations.from_locale(str(locale))
+
+                    if value_name == ' ':
+                        continue
+
+                    if not value_name.startswith('.') and not namespace.startswith('.'):
+                        results.append(Choice(name=value_name, value=value.uuid))
+                    elif namespace.startswith('.'):
+                        results.append(Choice(name=value_name, value=value.uuid))
+
+                if len(results) >= mex_index:
+                    break
 
         else:
 
@@ -1132,9 +1175,15 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             elif interaction.command is self.player_title:
                 value_list = self.get_all_player_titles()
                 namespace = interaction.namespace.title
+            elif interaction.command is self.eventpass:
+                value_list = self.get_all_events()
+                namespace = interaction.namespace.event
             else:
                 return []
 
+            import time
+
+            start = time.time()
             for value in sorted(value_list, key=lambda a: a.name_localizations.from_locale(str(locale))):
                 if value.name_localizations.from_locale(str(locale)).lower().startswith(namespace.lower()):
 
@@ -1151,47 +1200,58 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 if len(results) >= mex_index:
                     break
 
+            end = time.time()
+            print(f"autocomplete took {end - start} seconds")
+
         return results[:mex_index]
 
-    # @app_commands.command(name=_T('temp'))
-    # @app_commands.choices(
-    #     type_=[
-    #         Choice(name=_T('store'), value='store'),
-    #         Choice(name=_T('point'), value='point'),
-    #         Choice(name=_T('nightmarket'), value='nightmarket'),
-    #     ]
-    # )
-    # async def temp(self, interaction: Interaction, type_: Choice[str], username: str, password: str) -> None:
-    #
-    #     try_auth = RiotAuth()
-    #
-    #     try:
-    #         await try_auth.authorize(username.strip(), password.strip(), remember=False)
-    #     except RiotMultifactorError:
-    #         wait_modal = RiotMultiFactorModal(try_auth)
-    #         await interaction.response.send_modal(wait_modal)
-    #         await wait_modal.wait()
-    #
-    #         # when timeout
-    #         if wait_modal.code is None:
-    #             raise CommandError('You did not enter the code in time.')
-    #         try:
-    #             await try_auth.authorize_multi_factor(wait_modal.code, remember=True)
-    #         except Exception as e:
-    #             raise CommandError('Invalid Multi-factor code.') from e
-    #
-    #         # replace interaction
-    #         interaction = wait_modal.interaction
-    #         await interaction.response.defer(ephemeral=True)
-    #     except valorantx.RiotAuthenticationError:
-    #         raise CommandError('Invalid username or password.')
-    #     except aiohttp.ClientResponseError:
-    #         raise CommandError('Riot server is currently unavailable.')
-    #     else:
-    #         await interaction.response.defer(ephemeral=True)
-    #
-    #     t_client = ValorantClient()
-    #     t_client.set_authorize(try_auth)
+    @app_commands.command(name=_T('temp'))
+    @app_commands.choices(
+        type_=[
+            Choice(name=_T('store'), value='store'),
+            Choice(name=_T('nightmarket'), value='nightmarket'),
+        ]
+    )
+    async def temp(
+        self,
+        interaction: Interaction,
+        type_: Choice[str],
+        username: app_commands.Range[str, 1, 24],
+        password: app_commands.Range[str, 1, 128],
+    ) -> None:
+
+        try_auth = RiotAuth()
+
+        try:
+            await try_auth.authorize(username.strip(), password.strip(), remember=False)
+        except RiotMultifactorError:
+            wait_modal = RiotMultiFactorModal(try_auth)
+            await interaction.response.send_modal(wait_modal)
+            await wait_modal.wait()
+
+            # when timeout
+            if wait_modal.code is None:
+                raise CommandError('You did not enter the code in time.')
+            try:
+                await try_auth.authorize_multi_factor(wait_modal.code, remember=True)
+            except Exception as e:
+                raise CommandError('Invalid Multi-factor code.') from e
+            else:
+                # replace interaction
+                interaction = wait_modal.interaction
+                await interaction.response.defer(ephemeral=True)
+
+        except valorantx.RiotAuthenticationError:
+            raise CommandError('Invalid username or password.')
+        except aiohttp.ClientResponseError:
+            raise CommandError('Riot server is currently unavailable.')
+        else:
+            await interaction.response.defer(ephemeral=True)
+
+        t_client = ValorantClient()
+        t_client.set_authorize(try_auth)
+
+        store_front = await t_client.fetch_store_front()
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(
@@ -1215,10 +1275,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     #
     #     view = StatsView(interaction)
     #     await view.pre_start()
-
-    # @app_commands.command(name=_T('settings'), description=_T('Show the settings of the bot'))
-    # async def settings(self, interaction: Interaction) -> None:
-    #     ...
 
     # @app_commands.describe(queue=_T('Party commands'))
     # @dynamic_cooldown(cooldown_5s)
@@ -1248,13 +1304,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     # async def party_leave(self, interaction: Interaction) -> None:
     #     ...
 
-    # @app_commands.command(name=_T('leaderboard'), description=_T('Shows your Region Leaderboard'))
-    # @app_commands.describe(region='Select region to get the leaderboard')
-    # @dynamic_cooldown(cooldown_5s)
-    # @app_commands.guild_only()
-    # async def leaderboard(self, interaction: Interaction, region: Literal['AP', 'EU', 'NA', 'KR']) -> None:
-    #     ...
-
     #
     # @app_commands.command(name=_T('profile'), description=_T('Shows your profile'))
     # @app_commands.guild_only()
@@ -1273,40 +1322,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     #     embed.set_image(url="attachment://profile.png")
     #
     #     await interaction.followup.send(embed=embed, file=file)
-
-    # @app_commands.command(name=_T('cookies'), description=_T('Log in with your Riot account by Cookies'))
-    # @app_commands.describe(cookies=_T('Your cookies or SSID'))
-    # @app_commands.rename(cookies=_T('cookies'))
-    # @dynamic_cooldown(cooldown_5s)
-    # @app_commands.guild_only()
-    # async def cookies(self, interaction: Interaction, cookies: str) -> None:
-    #
-    #     await interaction.response.defer(ephemeral=True)
-    #
-    #     user_id = interaction.user.id
-    #     guild_id = interaction.guild_id
-    #
-    #     try_auth = auth.Auth.redeem_cookies(cookies)
-    #     if try_auth.auth_type == auth.AuthResponseType.response.value:
-    #         authorize = auth.Auth.authorize(try_auth)
-    #
-    #         payload = dict(acc_num=1, **authorize.to_dict())
-    #
-    #         # encryption
-    #         encrypt_payload = self.bot.encryption.encrypt(json.dumps(payload))
-    #
-    #         await self.bot.pool.execute(
-    #             RIOT_ACC_WITH_UPSERT, user_id, guild_id, encrypt_payload, datetime.now(), user_id
-    #         )
-    #
-    #         self.get_riot_account.invalidate(self, user_id)
-    #
-    #         e = Embed(description=f"Successfully logged in **{authorize.name}#{authorize.tagline}**")
-    #         e.set_footer(text=f"token expires in 1 hour")
-    #
-    #         return await interaction.followup.send(embed=e)
-    #
-    #     raise CommandError("Invalid cookies")
 
 
 async def setup(bot: LatteBot) -> None:

@@ -183,6 +183,7 @@ class ViewAuthor(BaseView):
     def __init__(self, interaction: Interaction, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.interaction = interaction
+        self.locale: discord.Locale = interaction.locale
         self.bot: ClientBot = interaction.client
         self._author: Union[discord.Member, discord.User] = interaction.user
         # self.is_command = interaction.command is not None

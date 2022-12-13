@@ -28,7 +28,7 @@ class ValorantUser:
         )
         self.date_signed: datetime.datetime = record['date_signed']
         self.extras: List[Dict[str, Any]] = (
-            self.data_decrypted(record['extras'], to_dict=True)
+            self.decrypted(record['extras'], to_dict=True)
             if not isinstance(record['extras'], list)
             else record['extras']
         )
@@ -102,10 +102,10 @@ class ValorantUser:
         for index, acc in enumerate(sorted(self._riot_accounts, key=lambda x: x.acc_num)):
             acc.acc_num = index + 1
 
-    def data_encrypted(self) -> AnyStr:
+    def encrypted(self) -> AnyStr:
         return self.encrypt(json.dumps(self.extras))
 
-    def data_decrypted(self, data: AnyStr, *, to_dict: bool = False) -> str:
+    def decrypted(self, data: AnyStr, *, to_dict: bool = False) -> str:
         if not to_dict:
             return self.decrypt(data)
         return json.loads(self.decrypt(data))
