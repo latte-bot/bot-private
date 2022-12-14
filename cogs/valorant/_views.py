@@ -483,37 +483,34 @@ class MissionSwitchX(SwitchingViewX):
 class CollectionSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction, v_user, client, row=1)
-        self._collection: Optional[valorantx.Collection] = None
-        self._spray_pages: Optional[List[discord.Embed]] = None
-        self._skin_pages: Optional[List[List[discord.Embed]]] = None
-        self.current_embeds: Optional[List[discord.Embed]] = None
-        self._current_riot_auth: Optional[RiotAuth] = None
+        self.collection: Optional[valorantx.Collection] = None
+        self.wallet: Optional[valorantx.Wallet] = None
+        self.mmr: Optional[valorantx.MMR] = None
+        self._riot_auth: Optional[RiotAuth] = None
+        self.pages: Optional[List[discord.Embed]] = None
+        # view cache
+        self.skin_view = SkinCollectionViewX(self)
+        self.spray_view = SprayCollectionView(self)
 
     @ui.button(label=_('Skin'), style=ButtonStyle.blurple)
     async def skin(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer()
-        view = SkinCollectionViewX(interaction, self, SkinCollectionSourceX(self.bot, self._collection.get_skins()))
-        await view.start()
+        await self.skin_view.start()
 
     @ui.button(label=_('Spray'), style=ButtonStyle.blurple)
     async def spray(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer()
-        embeds = await self.get_spray_pages(self._current_riot_auth)
-        view = SprayCollectionView(self, embeds)
-        await view.start()
+        await self.spray_view.start()
 
-    @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-        collection = self._collection = await self.v_client.fetch_collection(riot_auth)  # type: ignore
+    async def build_pages(
+        self,
+        riot_auth: RiotAuth,
+        collection: valorantx.Collection,
+        wallet: valorantx.Wallet,
+        mmr: valorantx.MMR
+    ) -> List[discord.Embed]:
 
-        # mmr
-        mmr = await collection._client.fetch_mmr()
-        latest_tier = mmr.get_latest_rank_tier()
-
-        # wallet
-        wallet = await collection._client.fetch_wallet(riot_auth)
-        vp = self.v_client.get_currency(uuid=str(CurrencyType.valorant))
-        rad = self.v_client.get_currency(uuid=str(CurrencyType.radianite))
+        latest_tier = mmr.get_latest_rank_tier() if mmr is not None else None
 
         # loadout
         player_title = collection.get_player_title()
@@ -523,9 +520,9 @@ class CollectionSwitchX(SwitchingViewX):
 
         e = discord.Embed()
         e.description = '{vp_emoji} {wallet_vp} {rad_emoji} {wallet_rad}'.format(
-            vp_emoji=vp.emoji,  # type: ignore
+            vp_emoji=wallet.get_valorant().emoji,  # type: ignore
             wallet_vp=wallet.valorant_points,
-            rad_emoji=rad.emoji,  # type: ignore
+            rad_emoji=wallet.get_radiant().emoji,  # type: ignore
             wallet_rad=wallet.radiant_points,
         )
 
@@ -546,9 +543,42 @@ class CollectionSwitchX(SwitchingViewX):
         return [e]
 
     @alru_cache(maxsize=5)
-    async def get_spray_pages(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+    async def fetch_collection(self, riot_auth: RiotAuth) -> valorantx.Collection:
+        return await self.v_client.fetch_collection(riot_auth)  # type: ignore
+
+    @alru_cache(maxsize=5)
+    async def fetch_wallet(self, riot_auth: RiotAuth) -> valorantx.Wallet:
+        return await self.v_client.fetch_wallet(riot_auth)  # type: ignore
+
+    @alru_cache(maxsize=5)
+    async def fetch_mmr(self, riot_auth: RiotAuth) -> valorantx.MMR:
+        return await self.v_client.fetch_mmr(riot_auth)  # type: ignore
+
+    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
+        self._riot_auth = riot_auth
+
+        self.collection = await self.fetch_collection(riot_auth)
+        self.wallet = await self.fetch_wallet(riot_auth)
+        self.mmr = await self.fetch_mmr(riot_auth)
+
+        self.pages = await self.build_pages(riot_auth, self.collection, self.wallet, self.mmr)
+
+        if self.message is not None:
+            await self.message.edit(embeds=self.pages, view=self)
+            return
+        self.message = await self.interaction.followup.send(embeds=self.pages, view=self)
+
+
+class SprayCollectionView(ViewAuthor):  # Non-X
+    def __init__(self, other_view: CollectionSwitchX) -> None:
+        super().__init__(other_view.interaction, timeout=600)
+        self.other_view = other_view
+        self._pages: List[discord.Embed] = []
+
+    @alru_cache(maxsize=5)
+    async def build_pages(self, collection: valorantx.Collection) -> List[discord.Embed]:
         embeds = []
-        for slot, spray in enumerate(self._collection.get_sprays(), start=1):
+        for slot, spray in enumerate(collection.get_sprays(), start=1):
             spray_fav = ' ★' if spray.is_favorite() else ''
             embed = discord.Embed(description=bold(str(slot) + '. ' + spray.display_name) + spray_fav)
             spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
@@ -559,46 +589,24 @@ class CollectionSwitchX(SwitchingViewX):
             embeds.append(embed)
         return embeds
 
-    # @alru_cache(maxsize=5)
-    # async def get_skin_pages(self, riot_auth: RiotAuth) -> List[discord.Embed]:
-    #     ...
-
-    async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-
-        embeds = await self.get_embeds(riot_auth)
-
-        self._current_riot_auth = riot_auth
-        self.current_embeds = embeds
-        if self.message is not None:
-            await self.message.edit(embeds=embeds, view=self)
-            return
-        self.message = await self.interaction.followup.send(embeds=embeds, view=self)
-
-
-class SprayCollectionView(ViewAuthor):  # Non-X
-    def __init__(self, other_view: CollectionSwitchX, pages: List[discord.Embed]) -> None:
-        super().__init__(other_view.interaction, timeout=600)
-        self.other_view = other_view
-        self._pages = pages
-
     @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=0)
     async def back(self, interaction: Interaction, button: ui.Button):
         self.other_view.reset_timeout()
         await interaction.response.defer()
-        await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
+        await self.other_view.message.edit(embeds=self.other_view.pages, view=self.other_view)
 
     @ui.button(label=_('Change Spray'), style=discord.ButtonStyle.grey, custom_id='change_spray', row=0, disabled=True)
     async def change_spray(self, interaction: Interaction, button: ui.Button):
         pass
 
     async def start(self) -> None:
-        await self.other_view.interaction.edit_original_response(embeds=self._pages, view=self)
+        self._pages = await self.build_pages(self.other_view.collection)
+        await self.other_view.message.edit(embeds=self._pages, view=self)
 
 
 class SkinCollectionSourceX(ListPageSource):
-    def __init__(self, bot, source: valorantx.SkinCollection):
-        super().__init__(sorted(source.to_list(), key=self.sort_skins), per_page=4)
-        self.bot = bot
+    def __init__(self, collection: valorantx.Collection):
+        super().__init__(sorted(list(collection.get_skins()), key=self.sort_skins), per_page=4)
 
     @staticmethod
     def sort_skins(
@@ -685,7 +693,7 @@ class SkinCollectionSourceX(ListPageSource):
                     )
                     + skin_fav
                 ),
-                colour=int(skin.rarity.highlight_color[0:6], 16) if skin.rarity is not None else self.bot.theme.dark,
+                colour=int(skin.rarity.highlight_color[0:6], 16) if skin.rarity is not None else view.bot.theme.dark,
             )
             embed.set_thumbnail(url=skin.display_icon)
 
@@ -704,22 +712,20 @@ class SkinCollectionSourceX(ListPageSource):
 class SkinCollectionViewX(ViewAuthor, LattePages):
     def __init__(
         self,
-        interaction: Interaction,
         other_view: CollectionSwitchX,
-        source: SkinCollectionSourceX,
     ) -> None:
-        super().__init__(interaction, timeout=600)
+        super().__init__(other_view.interaction, timeout=600)
         self.other_view = other_view
-        self.source = source
 
     @ui.button(label=_('Back'), style=discord.ButtonStyle.green, custom_id='back', row=1)
     async def back(self, interaction: Interaction, button: ui.Button):
         self.other_view.reset_timeout()
         await interaction.response.defer()
-        await self.other_view.message.edit(embeds=self.other_view.current_embeds, view=self.other_view)
+        await self.other_view.message.edit(embeds=self.other_view.pages, view=self.other_view)
 
     async def start(self) -> None:
-        self.message = await self.other_view.interaction.original_response()
+        self.source = SkinCollectionSourceX(self.other_view.collection)
+        self.message = self.other_view.message
         await self.start_pages()
 
 
@@ -916,7 +922,7 @@ class CarrierSwitchX(SwitchingViewX, LattePages):
         client = self.v_client.set_authorize(riot_auth)
         match_history = await client.fetch_match_history(queue=self._queue)  # type: ignore
         self.source = CarrierPageSourceX(data=match_history.get_match_details())
-        # self.mmr = await client.fetch_mmr()
+        # self.mmr = await client.fetch_mmr(riot_auth)
         # TODO: build tier embed
         await self.start_pages()
 

@@ -330,6 +330,29 @@ class Client(valorantx.Client):
             return valorantx.Wallet(client=self, data=data)
 
     @_authorize_required
+    async def fetch_mmr(self, riot_auth: RiotAuth, puuid: Optional[str] = None) -> valorantx.MMR:
+        """|coro|
+
+        Fetches the MMR for the current user or a given user.
+
+        Parameters
+        ----------
+        riot_auth: :class:`RiotAuth`
+            The riot auth to fetch the MMR for.
+        puuid: Optional[:class:`str`]
+            The puuid of the user to fetch the MMR for.
+
+        Returns
+        -------
+        :class:`MMR`
+            The MMR for the current user or a given user.
+        """
+        async with self.lock:
+            self.set_authorize(riot_auth)
+            data = await self.http.fetch_mmr(puuid)
+            return valorantx.MMR(client=self, data=data)
+
+    @_authorize_required
     async def fetch_collection(
         self, riot_auth: RiotAuth, *, with_xp: bool = True, with_favorite: bool = True
     ) -> valorantx.Collection:
