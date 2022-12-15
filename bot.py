@@ -15,10 +15,11 @@ from discord.utils import MISSING
 from dotenv import load_dotenv
 
 from utils.config import Config
+from utils.emojis import LatteEmoji
 from utils.encryption import Encryption
 from utils.enums import Theme
 from utils.i18n import Translator, _
-from utils.useful import Palette
+from utils.useful import LatteCDN, Palette
 
 load_dotenv()
 
@@ -76,8 +77,10 @@ class LatteBot(commands.AutoShardedBot):
         self._activity: str = 'nyanpasu ♡ ₊˚'
         self._initial_extensions = initial_extensions
 
-        # bot theme
+        # bot assets
         self.theme: Type[Theme] = Theme
+        self.l_emoji: Type[LatteEmoji] = LatteEmoji
+        self.l_cdn: Type[LatteCDN] = LatteCDN
 
         # bot invite link
         self._permission_invite: int = 280576

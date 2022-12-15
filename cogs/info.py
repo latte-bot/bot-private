@@ -20,9 +20,7 @@ from discord.ext import commands
 from discord.utils import format_dt
 
 from utils.checks import cooldown_5s
-from utils.emojis import LatteEmoji as Emoji
 from utils.formats import count_python
-from utils.useful import LatteCDN
 
 if TYPE_CHECKING:
     from bot import LatteBot
@@ -33,6 +31,8 @@ class About(commands.Cog):
 
     def __init__(self, bot: LatteBot) -> None:
         self.bot: LatteBot = bot
+        self.emoji = bot.l_emoji
+        self.cdn = bot.l_cdn
         self.process = psutil.Process()
 
     @property
@@ -74,10 +74,10 @@ class About(commands.Cog):
             icon_url=self.bot.user.avatar,
         )
         embed.set_footer(text=f'{self.bot.user.name} | v{self.bot.version}')
-        embed.set_image(url=str(LatteCDN.invite_banner))
+        embed.set_image(url=str(self.cdn.invite_banner))
 
         view = ui.View()
-        view.add_item(ui.Button(label='ɪɴᴠɪᴛᴇ ᴍᴇ', url=self.bot.invite_url, emoji=str(Emoji.latte_icon)))
+        view.add_item(ui.Button(label='ɪɴᴠɪᴛᴇ ᴍᴇ', url=self.bot.invite_url, emoji=str(self.emoji.latte_icon)))
 
         await interaction.response.send_message(embed=embed, view=view)
 
@@ -94,25 +94,28 @@ class About(commands.Cog):
         # dpy_version = pkg_resources.get_distribution("discord.py").version
         memory_usage = self.process.memory_full_info().uss / 1024 / 1024
         cpu_usage = self.process.cpu_percent()
-        emoji = Emoji
 
         embed = discord.Embed(color=self.bot.theme.primacy, timestamp=interaction.created_at)
         embed.set_author(name='About Me', icon_url=self.bot.user.avatar)
         embed.add_field(name='ʟᴀᴛᴇꜱᴛ ᴜᴘᴅᴀᴛᴇꜱ:', value=self.get_latest_commits(limit=5), inline=False)
         embed.add_field(
             name='ꜱᴛᴀᴛꜱ:',
-            value='{emoji} ꜱᴇʀᴠᴇʀꜱ: `{guild_count}`\n'.format(emoji=emoji.latte_icon, guild_count=guild_count)
-            + '{emoji} ᴜꜱᴇʀꜱ: `{member_count}`\n'.format(emoji=emoji.member_icon, member_count=member_count)
-            + '{emoji} ᴄᴏᴍᴍᴀɴᴅꜱ: `{total_commands}`\n'.format(emoji=emoji.slash_command, total_commands=total_commands)
-            + '{emoji} ᴄʜᴀɴɴᴇʟ: `{channel_count}`'.format(emoji=emoji.channel_icon, channel_count=channel_count),
+            value='{emoji} ꜱᴇʀᴠᴇʀꜱ: `{guild_count}`\n'.format(emoji=self.emoji.latte_icon, guild_count=guild_count)
+            + '{emoji} ᴜꜱᴇʀꜱ: `{member_count}`\n'.format(emoji=self.emoji.member_icon, member_count=member_count)
+            + '{emoji} ᴄᴏᴍᴍᴀɴᴅꜱ: `{total_commands}`\n'.format(
+                emoji=self.emoji.slash_command, total_commands=total_commands
+            )
+            + '{emoji} ᴄʜᴀɴɴᴇʟ: `{channel_count}`'.format(emoji=self.emoji.channel_icon, channel_count=channel_count),
             inline=True,
         )
         embed.add_field(
             name='ʙᴏᴛ ɪɴꜰᴏ:',
-            value='{emoji} ʟɪɴᴇ ᴄᴏᴜɴᴛ: `{count_python}`\n'.format(emoji=emoji.cursor, count_python=count_python('.'))
-            + '{emoji} ʟᴀᴛᴛᴇ_ʙᴏᴛ: `{bot}`\n'.format(emoji=emoji.latte_icon, bot=self.bot.version)
-            + '{emoji} ᴘʏᴛʜᴏɴ: `{python}`\n'.format(emoji=emoji.python, python=platform.python_version())
-            + '{emoji} ᴅɪꜱᴄᴏʀᴅ.ᴘʏ: `{dpy}`'.format(emoji=emoji.discord_py, dpy=discord.__version__),
+            value='{emoji} ʟɪɴᴇ ᴄᴏᴜɴᴛ: `{count_python}`\n'.format(
+                emoji=self.emoji.cursor, count_python=count_python('.')
+            )
+            + '{emoji} ʟᴀᴛᴛᴇ_ʙᴏᴛ: `{bot}`\n'.format(emoji=self.emoji.latte_icon, bot=self.bot.version)
+            + '{emoji} ᴘʏᴛʜᴏɴ: `{python}`\n'.format(emoji=self.emoji.python, python=platform.python_version())
+            + '{emoji} ᴅɪꜱᴄᴏʀᴅ.ᴘʏ: `{dpy}`'.format(emoji=self.emoji.discord_py, dpy=discord.__version__),
             inline=True,
         )
         embed.add_field(name='\u200b', value='\u200b', inline=True)
@@ -133,9 +136,13 @@ class About(commands.Cog):
         embed.set_footer(text='ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ {dev}'.format(dev=core_dev), icon_url=core_dev.avatar)
 
         view = ui.View()
-        view.add_item(ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(emoji.latte_icon)))
         view.add_item(
-            ui.Button(label='ᴅᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://discord.com/users/{core_dev.id}', emoji=str(emoji.stacia_dev))
+            ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(self.emoji.latte_icon))
+        )
+        view.add_item(
+            ui.Button(
+                label='ᴅᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://discord.com/users/{core_dev.id}', emoji=str(self.emoji.stacia_dev)
+            )
         )
 
         await interaction.response.send_message(embed=embed, view=view)
@@ -148,10 +155,14 @@ class About(commands.Cog):
         embed.set_thumbnail(url=self.bot.user.avatar)
 
         view = ui.View()
-        view.add_item(ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(Emoji.latte_icon)))
+        view.add_item(
+            ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url, emoji=str(self.emoji.latte_icon))
+        )
         view.add_item(
             ui.Button(
-                label='ᴅᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://discord.com/users/{self.bot.owner_id}', emoji=str(Emoji.stacia_dev)
+                label='ᴅᴇᴠᴇʟᴏᴘᴇʀ',
+                url=f'https://discord.com/users/{self.bot.owner_id}',
+                emoji=str(self.emoji.stacia_dev),
             )
         )
 
