@@ -503,11 +503,7 @@ class CollectionSwitchX(SwitchingViewX):
         await self.spray_view.start()
 
     async def build_pages(
-        self,
-        riot_auth: RiotAuth,
-        collection: valorantx.Collection,
-        wallet: valorantx.Wallet,
-        mmr: valorantx.MMR
+        self, riot_auth: RiotAuth, collection: valorantx.Collection, wallet: valorantx.Wallet, mmr: valorantx.MMR
     ) -> List[discord.Embed]:
 
         latest_tier = mmr.get_latest_rank_tier() if mmr is not None else None

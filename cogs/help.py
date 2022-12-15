@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-# discord
 import discord
 from discord import AppCommandType, Interaction, app_commands, ui
 from discord.app_commands import (  # ContextMenu as AppContextMenu,
@@ -17,8 +16,8 @@ from discord.ext import commands
 
 # utils
 from utils.checks import cooldown_5s
-from utils.errors import CommandError
 from utils.i18n import _
+from utils.pages import LattePages, ListPageSource
 from utils.useful import LatteCDN
 from utils.views import ViewAuthor
 
@@ -36,164 +35,138 @@ MISSING = discord.utils.MISSING
 ONLY_EXTENSIONS = ['About', 'Valorant']
 
 
+class HelpPageSource(ListPageSource):
+    def __init(self, source: List[app_commands.AppCommand]) -> None:
+        super().__init__(source, per_page=6)
+
+    @staticmethod
+    def default(cog: commands.Cog) -> discord.Embed:
+        emoji = getattr(cog, 'display_emoji', '')
+        bot = getattr(cog, 'bot', None)
+        embed = discord.Embed(
+            title=f"{emoji} {cog.qualified_name}",
+            description=cog.description + '\n' or _('No description provided') + '\n',
+        )
+        if bot is not None:
+            embed.colour = bot.theme.primacy
+        return embed
+
+    def format_page(self, menu: Any, entries: List[app_commands.AppCommand]) -> discord.Embed:
+        embed = self.default(menu.current_cog)
+
+        for command in sorted(
+            entries, key=lambda c: c.qualified_name if isinstance(c, AppCommandGroupBase) else c.name
+        ):
+
+            command_des = command.description.lower().split(" | ")
+            index = 1 if menu.interaction.locale != discord.Locale.thai and len(command_des) > 1 else 0
+
+            embed.description += f'\n{command.mention} - {command_des[index]}'
+
+        return embed
+
+
 @lru_cache(maxsize=1)
 def front_help_command_embed(interaction: Interaction) -> discord.Embed:
-    embed = discord.Embed(
-        colour=interaction.client.theme.secondary,  # type: ignore
-    )
+    embed = discord.Embed(colour=interaction.client.theme.secondary)  # type: ignore
     embed.set_author(
-        name='{bot} - Help'.format(bot=interaction.client.user.display_name),
+        name='{display_name} - Help'.format(display_name=interaction.client.user.display_name),
         icon_url=interaction.client.user.display_avatar,
     )
     embed.set_image(url=str(LatteCDN.help_banner))
     return embed
 
 
-class CogButton(ui.Button['HelpView']):
+class CogButton(ui.Button['HelpCommand']):
     def __init__(self, cog: commands.Cog, *args, **kwargs) -> None:
         self.cog = cog
         emoji = getattr(cog, 'display_emoji', None)
         if emoji is None:
-            kwargs['label'] = cog.qualified_name
+            self.label = cog.qualified_name
         super().__init__(emoji=emoji, *args, **kwargs)
+
+    def get_cog_app_commands(self, cog_app_commands: List[AppCommandType]) -> List[Any]:
+
+        fetch_app_commands = self.view.bot.get_app_commands()
+        app_command_list = []
+        for c_app in cog_app_commands:
+            for f_app in fetch_app_commands:
+                if f_app.type == discord.AppCommandType.chat_input:
+                    if c_app.qualified_name.lower() == f_app.name.lower():
+                        if len(f_app.options) > 0:
+                            any_option = any(
+                                [option for option in f_app.options if isinstance(option, app_commands.AppCommandGroup)]
+                            )
+                            if not any_option:
+                                app_command_list.append(f_app)
+                            for option in f_app.options:
+                                if isinstance(option, app_commands.AppCommandGroup):
+                                    app_command_list.append(option)
+                        else:
+                            app_command_list.append(f_app)
+
+        return app_command_list
+
+    # def test(self, cog_app_commands: List[AppCommandType]) -> List[Any]:
+    #     fetch_app_commands = self.view.bot.get_app_commands()
+    #     app_command_list = [
+    #         f_app
+    #         for c_app in cog_app_commands
+    #         for f_app in fetch_app_commands
+    #         if f_app.type == discord.AppCommandType.chat_input
+    #         if c_app.qualified_name.lower() == f_app.name.lower()
+    #         if isinstance(f_app, app_commands.AppCommand)
+    #     ]
+    #     return app_command_list
 
     async def callback(self, interaction: Interaction) -> None:
         assert self.view is not None
 
-        if self.view.current_cog == self.cog:
-            return
-
         self.view.current_cog = self.cog
+        self.view.source = HelpPageSource(self.get_cog_app_commands(list(self.cog.walk_app_commands())), per_page=6)
 
-        self.view.embeds = self.view.cog_pages.get(self.cog)
+        max_pages = self.view.get_max_pages()
+        if max_pages is not None and max_pages > 1:
+            self.view.add_nav_buttons()
+        else:
+            self.view.remove_nav_buttons()
+
         await self.view.show_page(interaction, 0)
 
 
-class HelpView(ViewAuthor):
-    def __init__(self, interaction: Interaction, help_command: HelpCommand) -> None:
-        super().__init__(interaction=interaction, timeout=120)
-        self.help_command: HelpCommand = help_command
-        self.current_page: int = 0
-        self.embeds: List[discord.Embed] = []
-        self.cog_pages: Dict[commands.Cog, List[discord.Embed]] = {}
-        self.current_cog: commands.Cog = MISSING
-        self.after_select: bool = True
+class CogPages(LattePages):
+    def __init__(self, *, p_interaction: Interaction) -> None:
+        super().__init__(p_interaction, timeout=600.0)
+        self.current_cog: Optional[commands.Cog] = None
+
+
+class HelpCommand(ViewAuthor, CogPages):
+    def __init__(self, interaction: Interaction) -> None:
+        super().__init__(interaction, p_interaction=interaction)
         self.clear_items()
+        self.current_cog: Optional[commands.Cog] = None
+        self.cog_app_commands: Dict[commands.Cog, List[discord.Embed]] = {}
+        self.first_page.row = self.previous_page.row = self.next_page.row = self.last_page.row = 1
 
-    async def on_timeout(self) -> None:
-        self.clear_items()
-        self.add_item(ui.Button(label='ꜱᴜᴘᴘᴏʀᴛ ꜱᴇʀᴠᴇʀ', url=self.bot.support_invite_url))  # emoji=str(support_emoji)
-        self.add_item(ui.Button(label='ɪɴᴠɪᴛᴇ ᴍᴇ', url=self.bot.invite_url))  # emoji=str(latte_emoji)
-        await self.interaction.edit_original_response(view=self)
+    def add_nav_buttons(self) -> None:
+        self.add_item(self.first_page)  # type: ignore
+        self.add_item(self.previous_page)  # type: ignore
+        self.add_item(self.next_page)  # type: ignore
+        self.add_item(self.last_page)  # type: ignore
 
-    @ui.button(label='≪', row=1)
-    async def first_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_page(interaction, 0)
+    def remove_nav_buttons(self) -> None:
+        self.remove_item(self.first_page)  # type: ignore
+        self.remove_item(self.previous_page)  # type: ignore
+        self.remove_item(self.next_page)  # type: ignore
+        self.remove_item(self.last_page)  # type: ignore
 
-    @ui.button(label=_('Back'), style=discord.ButtonStyle.blurple, row=1)
-    async def back_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_page(interaction, -1)
-
-    @ui.button(label=_('Next'), style=discord.ButtonStyle.blurple, row=1)
-    async def next_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_page(interaction, +1)
-
-    @ui.button(label='≫', row=1)
-    async def last_page(self, interaction: Interaction, button: ui.Button):
-        await self.show_page(interaction, len(self.embeds) - 1)
-
-    def _update_buttons(self) -> None:
-        nav_buttons = [self.first_page, self.back_page, self.next_page, self.last_page]
-
-        if self.after_select and len(self.embeds) > 1:
-            for button in nav_buttons:
-                self.add_item(button)
-            self.after_select = False
-        elif not self.after_select and len(self.embeds) == 1:
-            for button in nav_buttons:
-                self.remove_item(button)
-            self.after_select = True
-
-        page = self.current_page
-        total = len(self.embeds) - 1
-        self.next_page.disabled = page == total
-        self.back_page.disabled = page == 0
-        self.first_page.disabled = page == 0
-        self.last_page.disabled = page == total
-
-    async def show_page(self, interaction: Interaction, page_number: int) -> None:
-        try:
-            if page_number <= 1 and page_number != 0:
-                page_number = self.current_page + page_number
-            self.current_page = page_number
-            self._update_buttons()
-            embeds = self.embeds[self.current_page]
-            await interaction.response.edit_message(embed=embeds, view=self, attachments=[])
-        except (IndexError, ValueError):
-            return
-
-    async def start(self) -> None:
-
-        mapping = self.help_command.get_cog_app_command_mapping()
-
-        for cog, command in sorted(mapping.items(), key=lambda x: x[0].qualified_name):
-            if not command:
+    def add_cog_buttons(self) -> None:
+        for cog in sorted(self.bot.cogs.values(), key=lambda c: c.qualified_name):
+            if cog.qualified_name not in ONLY_EXTENSIONS:
+                continue
+            if not len(list(cog.walk_app_commands())) >= 0:
                 continue
             self.add_item(CogButton(cog=cog))
-            self.cog_pages[cog] = await self.help_command.help_command_embed(cog)
-
-        embed = front_help_command_embed(self.interaction)
-        await self.interaction.response.send_message(embed=embed, view=self)
-
-
-class HelpCommand:
-    def __init__(self, interaction: Interaction) -> None:
-        self.interaction = interaction
-        self.bot: ClientBot = interaction.client
-
-    def help_embed_template(self, cog: commands.Cog) -> discord.Embed:
-        emoji = getattr(cog, 'display_emoji', '')
-        embed = discord.Embed(
-            title=f"{emoji} {cog.qualified_name}",
-            color=self.bot.theme.primacy,
-            description=cog.description + '\n' or _('No description provided') + '\n',
-        )
-        return embed
-
-    async def help_command_embed(self, cog: commands.Cog) -> List[discord.Embed]:
-
-        all_app_commands = await self.get_app_command_from_cog(list(cog.walk_app_commands()))
-
-        embeds = []
-        embed = self.help_embed_template(cog)
-
-        for command in sorted(
-            all_app_commands, key=lambda c: c.qualified_name if isinstance(c, AppCommandGroupBase) else c.name
-        ):
-
-            command_des = command.description.lower().split(" | ")
-            index = 1 if self.interaction.locale != discord.Locale.thai and len(command_des) > 1 else 0
-
-            embed.description += f'\n{command.mention} - {command_des[index]}'
-
-            if len(embed.description.splitlines()) == 8:
-                embeds.append(embed)
-                embed = self.help_embed_template(cog)
-
-        if len(embed.description.splitlines()) > 1:
-            embeds.append(embed)
-
-        return embeds
-
-    def get_cog_app_command_mapping(
-        self,
-    ) -> Mapping[commands.Cog, List[Union[AppCommandGroup, AppCommand[Any, ..., Any]]]]:
-        mapping = {
-            cog: sorted(cog.walk_app_commands(), key=lambda c: c.qualified_name)
-            for cog in sorted(self.bot.cogs.values(), key=lambda c: c.qualified_name)
-            if cog.walk_app_commands() and cog.qualified_name in ONLY_EXTENSIONS
-        }
-        return mapping
 
     async def get_app_command_from_cog(self, cog_app_commands: List[AppCommandType]) -> List[Any]:
 
@@ -215,12 +188,13 @@ class HelpCommand:
 
         return app_command_list
 
-    async def help_command_error(self, error: str) -> None:
-        raise CommandError(error)
-
     async def callback(self) -> None:
-        view = HelpView(self.interaction, self)
-        await view.start()
+
+        self.add_cog_buttons()
+        embed = front_help_command_embed(self.interaction)
+        await self.interaction.response.send_message(embed=embed, view=self)
+
+        self.message = await self.interaction.original_response()
 
 
 class Help(commands.Cog):
