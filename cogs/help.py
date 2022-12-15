@@ -57,7 +57,6 @@ class HelpPageSource(ListPageSource):
         for command in sorted(
             entries, key=lambda c: c.qualified_name if isinstance(c, AppCommandGroupBase) else c.name
         ):
-
             command_des = command.description.lower().split(" | ")
             index = 1 if menu.interaction.locale != discord.Locale.thai and len(command_des) > 1 else 0
 
@@ -167,26 +166,6 @@ class HelpCommand(ViewAuthor, CogPages):
             if not len(list(cog.walk_app_commands())) >= 0:
                 continue
             self.add_item(CogButton(cog=cog))
-
-    async def get_app_command_from_cog(self, cog_app_commands: List[AppCommandType]) -> List[Any]:
-
-        app_command_list = []
-
-        fetch_app_commands = self.bot.get_app_commands()
-
-        for c_app in cog_app_commands:
-            for f_app in fetch_app_commands:
-                if f_app.type == discord.AppCommandType.chat_input:
-                    if c_app.qualified_name.lower() == f_app.name.lower():
-                        if len(f_app.options) > 0:
-                            app_command_list.append(f_app)
-                            for option in f_app.options:
-                                if isinstance(option, AppCommandGroupBase):
-                                    app_command_list.append(option)
-                        else:
-                            app_command_list.append(f_app)
-
-        return app_command_list
 
     async def callback(self) -> None:
 
