@@ -26,7 +26,6 @@ from valorantx import Buddy, BuddyLevel, PatchNotes, PlayerCard, RiotMultifactor
 # utils
 from utils.chat_formatting import bold, inline, italics, strikethrough
 from utils.checks import cooldown_5s
-from utils.emojis import LatteEmoji as Emoji
 from utils.errors import CommandError
 from utils.formats import format_relative
 from utils.i18n import _
@@ -194,11 +193,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     # database
 
     async def fetch_valorant_users(self) -> None:
+        self.valorant_users.clear()
         async with self.bot.pool.acquire(timeout=150.0) as conn:
             accounts = await self.db.select_users(conn=conn)
-
-            self.valorant_users.clear()
-
             for account in accounts:
                 if account.id in self.bot.blacklist:
                     await self.db.delete_user(user_id=account.id, conn=conn)
@@ -220,14 +217,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             self.fetch_user.invalidate(self, id=id)
 
             login_command = self.bot.get_app_command('login')
-            if login_command is not None:
-                raise NoAccountsLinked(
-                    _('You have no accounts linked. Use {command} to link an account.').format(
-                        command=login_command.mention
-                    )
+            raise NoAccountsLinked(
+                _('You have no accounts linked. Use {command} to link an account.').format(
+                    command=(login_command.mention if login_command else '`/login`')
                 )
-            else:
-                raise NoAccountsLinked(_('You have no accounts linked. Use `/login` to link an account.'))
+            )
 
         self.valorant_users[id] = v_user
 
@@ -805,12 +799,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             color_thief = await self.bot.get_or_fetch_colors(latest.uid, banner_url, 5)
             embed.colour = random.choice(color_thief)
 
-        view = discord.ui.View()  # TODO: URLButton class
+        view = discord.ui.View()
         view.add_item(
             discord.ui.Button(
                 label=patch_notes.see_article_title,
                 url=latest.url,
-                emoji=Emoji.link_standard,
+                emoji=str(self.bot.l_emoji.link_standard),
             )
         )
 
