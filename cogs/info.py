@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import itertools
 import platform
-from functools import cache
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 import discord
@@ -57,7 +57,7 @@ class About(commands.Cog):
         parent = repo.head.target.hex
         return parent[0:6]
 
-    @cache
+    @lru_cache(maxsize=1)
     def get_latest_commits(self, limit: int = 3) -> str:
         """Get the latest commits from the repo"""
         repo = pygit2.Repository('./.git')
@@ -181,6 +181,11 @@ class About(commands.Cog):
     @app_commands.command(name=_T('donate'), description=_T('Donate to the bot.'))
     @dynamic_cooldown(cooldown_5s)
     async def donate(self, interaction: Interaction) -> None:
+        ...
+
+    @app_commands.command(name=_T('feedback'), description=_T('Send feedback to the bot.'))
+    @dynamic_cooldown(cooldown_5s)
+    async def feedback(self, interaction: Interaction) -> None:
         ...
 
 

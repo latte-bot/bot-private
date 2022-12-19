@@ -33,8 +33,6 @@ class Ability(valorantx.AgentAbility):
 
 
 class Agent(valorantx.Agent):
-    def __init__(self, client: Client, data: Mapping[str, Any]) -> None:
-        super().__init__(client, data)
 
     @property
     def abilities(self) -> List[Ability]:
@@ -47,8 +45,6 @@ class Agent(valorantx.Agent):
 
 
 class Currency(valorantx.Currency):
-    def __init__(self, client: Client, data: Mapping[str, Any]) -> None:
-        super().__init__(client, data)
 
     @property
     def emoji(self) -> str:
@@ -56,8 +52,6 @@ class Currency(valorantx.Currency):
 
 
 class Tier(valorantx.Tier):
-    def __init__(self, client: Client, data: Mapping[str, Any]) -> None:
-        super().__init__(client, data)
 
     @property
     def emoji(self) -> str:
@@ -65,9 +59,7 @@ class Tier(valorantx.Tier):
 
 
 class CompetitiveTier(valorantx.CompetitiveTier):
-    def __init__(self, client: Client, data: Mapping[str, Any]) -> None:
-        super().__init__(client=client, data=data)
-
+    
     @property
     def tiers(self) -> List[Tier]:
         """:class: `list` Returns the competitive tier's tiers."""
@@ -75,8 +67,6 @@ class CompetitiveTier(valorantx.CompetitiveTier):
 
 
 class ContentTier(valorantx.ContentTier):
-    def __init__(self, client: Client, data: Mapping[str, Any]) -> None:
-        super().__init__(client=client, data=data)
 
     @property
     def emoji(self) -> str:
@@ -84,8 +74,6 @@ class ContentTier(valorantx.ContentTier):
 
 
 class RoundResult(RoundResult):
-    def __init__(self, match: MatchDetails, data: Any) -> None:
-        super().__init__(match, data)
 
     @property
     def emoji(self) -> str:

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import discord
 from discord import Interaction, Member, User, app_commands
 from discord.app_commands.checks import dynamic_cooldown
+from discord.app_commands import locale_str as _T
 from discord.ext import commands
 
 from utils.checks import cooldown_5s
@@ -51,9 +52,9 @@ class Fun(commands.Cog):
     ):
         """Your message to saybot"""
 
-        member = member or interaction.user
-
         await interaction.response.defer(ephemeral=True)
+
+        member = member or interaction.user
 
         files = []
         if attachment is not None:
@@ -71,5 +72,5 @@ class Fun(commands.Cog):
         await interaction.followup.send('\u200b')
 
 
-async def setup(bot):
+async def setup(bot: LatteBot) -> None:
     await bot.add_cog(Fun(bot))

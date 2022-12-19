@@ -77,7 +77,7 @@ class LatteBot(commands.AutoShardedBot):
         self._activity: str = 'nyanpasu ♡ ₊˚'
         self._initial_extensions = initial_extensions
 
-        # bot assets
+        # assets
         self.theme: Type[Theme] = Theme
         self.l_emoji: Type[LatteEmoji] = LatteEmoji
         self.l_cdn: Type[LatteCDN] = LatteCDN
@@ -93,7 +93,7 @@ class LatteBot(commands.AutoShardedBot):
         self._webhook_id: Optional[int] = os.getenv('WEBHOOK_ID')
         self._webhook_token: Optional[str] = os.getenv('WEBHOOK_TOKEN')
 
-        # support guild stuff
+        # support guild
         self.support_guild_id: Optional[int] = int(os.getenv('SUPPORT_GUILD_ID'))
         self.support_invite_url: str = 'https://discord.gg/xeVJYRDY'
 
@@ -104,16 +104,16 @@ class LatteBot(commands.AutoShardedBot):
         # encryption
         self.encryption: Encryption = Encryption(os.getenv('CRYPTOGRAPHY'))
 
-        # i18n stuff
+        # i18n
         self.translator: Translator = MISSING
 
-        # http session stuff
+        # http session
         self.session: aiohttp.ClientSession = MISSING
 
-        # app commands stuff
+        # app commands
         self._app_commands: Dict[str, Union[app_commands.AppCommand, app_commands.AppCommandGroup]] = {}
 
-        # valorant
+        # valorantx
         self.fake_user_id: int = 000000000000000000
         self.riot_username: str = os.getenv('RIOT_USERNAME')
         self.riot_password: str = os.getenv('RIOT_PASSWORD')
@@ -297,12 +297,11 @@ class LatteBot(commands.AutoShardedBot):
         )
 
         await self.change_presence(
-            # status=discord.Status.offline,  # dev mode = idle
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
-                name=self._activity,
+                name=self._activity
             ),
-            status=discord.Status.offline,
+            status=discord.Status.online if not self.is_maintenance() else discord.Status.idle,
         )
 
     async def load_cogs(self) -> None:

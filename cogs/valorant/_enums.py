@@ -130,7 +130,7 @@ class AbilitiesEmoji(str, Enum):
 
     @classmethod
     def get(cls, name: str) -> str:
-        return cls.__members__.get(name, '')
+        return cls.__members__.get(name.lower(), '')
 
 
 class GameModeEmoji(str, Enum):
@@ -260,6 +260,7 @@ class ValorantLocale(Enum):
     th = 'th-TH'
     tr = 'tr-TR'
     vi = 'vi-VN'
+    id = 'id-ID'
 
     def __str__(self) -> str:
         return str(self.value)
