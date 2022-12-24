@@ -2,7 +2,7 @@ import datetime
 import io
 import logging
 import os
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Dict, List, Optional, Type, Union
 
 import aiohttp
 import asyncpg
