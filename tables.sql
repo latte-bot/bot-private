@@ -3,5 +3,5 @@ CREATE TABLE IF NOT EXISTS riot_accounts(
     guild_id BIGINT,
     extras VARCHAR,
     date_signed TIMESTAMP,
-    locale VARCHAR(100));
+    locale VARCHAR(100)
 );
