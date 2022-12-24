@@ -1,6 +1,8 @@
+# environment
+python-dotenv>=0.21.0
+
 # database
 asyncpg>=0.27.0
-python-dotenv>=0.21.0
 
 # aio-libs
 aiohttp>=3.7.4,<4
@@ -19,11 +21,10 @@ colorthief>=0.2.1
 pillow>=9.3.0
 psutil>=5.9.4
 pygit2>=1.11.1
-typing_extensions
 
-# unsorted
+# speed-up
 uvloop; sys_platform != 'win32'
 
-# private
 # valorantx
-# valorantx-scraper
+valorantx @ git+https://${X_ACCESS_TOKEN}@github.com/staciax/valorantx.git@${VLX_BRANCH}
+valorantx-scraper @ git+https://${X_ACCESS_TOKEN}@github.com/staciax/valorantx-scraper.git@${VLXS_BRANCH}
