@@ -185,7 +185,7 @@ class RoundResultEmoji(str, Enum):
 
 
 class TierEmoji(str, Enum):
-
+    love = '<:tier_love:>'
     radiant = '<:tier_radiant:1043967005956509760>'
     immortal_3 = '<:tier_immortal_3:1043966994665443398>'
     immortal_2 = '<:tier_immortal_2:1043966983068209243>'

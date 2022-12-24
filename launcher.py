@@ -86,8 +86,8 @@ async def create_pool() -> asyncpg.Pool:
         uri,
         init=init,
         command_timeout=60,
-        max_size=20,
-        min_size=20,
+        max_size=5,  # 20
+        min_size=5,  # 20
     )  # type: ignore
 
 

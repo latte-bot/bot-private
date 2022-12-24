@@ -484,7 +484,7 @@ class CollectionSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction, v_user, client, row=1)
         self.collection: Optional[valorantx.Collection] = None
-        self.wallet: Optional[valorantx.Wallet] = None
+        # self.wallet: Optional[valorantx.Wallet] = None
         self.mmr: Optional[valorantx.MMR] = None
         self._riot_auth: Optional[RiotAuth] = None
         self.pages: Optional[List[discord.Embed]] = None
@@ -503,7 +503,7 @@ class CollectionSwitchX(SwitchingViewX):
         await self.spray_view.start()
 
     async def build_pages(
-        self, riot_auth: RiotAuth, collection: valorantx.Collection, wallet: valorantx.Wallet, mmr: valorantx.MMR
+        self, riot_auth: RiotAuth, collection: valorantx.Collection, mmr: valorantx.MMR
     ) -> List[discord.Embed]:
 
         latest_tier = mmr.get_latest_rank_tier() if mmr is not None else None
@@ -515,12 +515,12 @@ class CollectionSwitchX(SwitchingViewX):
         # level_border = collection.get_level_border()
 
         e = discord.Embed()
-        e.description = '{vp_emoji} {wallet_vp} {rad_emoji} {wallet_rad}'.format(
-            vp_emoji=wallet.get_valorant().emoji,  # type: ignore
-            wallet_vp=wallet.valorant_points,
-            rad_emoji=wallet.get_radiant().emoji,  # type: ignore
-            wallet_rad=wallet.radiant_points,
-        )
+        # e.description = '{vp_emoji} {wallet_vp} {rad_emoji} {wallet_rad}'.format(
+        #     vp_emoji=wallet.get_valorant().emoji,  # type: ignore
+        #     wallet_vp=wallet.valorant_points,
+        #     rad_emoji=wallet.get_radiant().emoji,  # type: ignore
+        #     wallet_rad=wallet.radiant_points,
+        # )
 
         e.set_author(
             name='{display_name} - Collection'.format(display_name=riot_auth.display_name),
@@ -554,10 +554,10 @@ class CollectionSwitchX(SwitchingViewX):
         self._riot_auth = riot_auth
 
         self.collection = await self.fetch_collection(riot_auth)
-        self.wallet = await self.fetch_wallet(riot_auth)
+        # self.wallet = await self.fetch_wallet(riot_auth)
         self.mmr = await self.fetch_mmr(riot_auth)
 
-        self.pages = await self.build_pages(riot_auth, self.collection, self.wallet, self.mmr)
+        self.pages = await self.build_pages(riot_auth, self.collection, self.mmr)
 
         if self.message is not None:
             await self.message.edit(embeds=self.pages, view=self)

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
 
 import valorantx
 from valorantx import CurrencyType, GameModeType, RoundResultCode
-from valorantx.models.match import RoundResult  # noqa
+from valorantx.models.match import RoundResult
 
 from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 
@@ -13,11 +13,11 @@ if TYPE_CHECKING:
 
 
 class Ability(valorantx.AgentAbility):
-    def __init__(self, client: Client, data: Dict[str, Any], agent_name: Optional[str] = None) -> None:
+    def __init__(self, client: Client, data: Dict[str, Any], agent: Optional[valorantx.Agent] = None) -> None:
         super().__init__(client, data)
-        self.custom_id: str = self.__build_custom_id(agent_name)
+        self.emoji_key: str = '' if agent is None else self.__build_emoji_key(agent.display_name)
 
-    def __build_custom_id(self, value: str) -> str:
+    def __build_emoji_key(self, value: str) -> str:
         return (
             (value.lower() + '_' + self.display_name.lower())
             .replace('/', '_')
@@ -29,15 +29,14 @@ class Ability(valorantx.AgentAbility):
 
     @property
     def emoji(self) -> str:
-        return AbilitiesEmoji.get(self.custom_id)
+        return AbilitiesEmoji.get(self.emoji_key)
 
 
 class Agent(valorantx.Agent):
-
     @property
     def abilities(self) -> List[Ability]:
         """:class: `List[AgentAbility]` Returns the agent's abilities."""
-        return [Ability(client=self._client, data=ability, agent_name=self.display_name) for ability in self._abilities]
+        return [Ability(client=self._client, data=ability, agent=self) for ability in self._abilities]
 
     @property
     def emoji(self) -> str:
@@ -45,21 +44,18 @@ class Agent(valorantx.Agent):
 
 
 class Currency(valorantx.Currency):
-
     @property
     def emoji(self) -> str:
         return str(PointEmoji.valorant) if self.uuid == str(CurrencyType.valorant) else str(PointEmoji.radianite)
 
 
 class Tier(valorantx.Tier):
-
     @property
     def emoji(self) -> str:
         return TierEmoji.get(self.display_name)
 
 
 class CompetitiveTier(valorantx.CompetitiveTier):
-    
     @property
     def tiers(self) -> List[Tier]:
         """:class: `list` Returns the competitive tier's tiers."""
@@ -67,14 +63,12 @@ class CompetitiveTier(valorantx.CompetitiveTier):
 
 
 class ContentTier(valorantx.ContentTier):
-
     @property
     def emoji(self) -> str:
         return ContentTierEmoji.get(self.dev_name)
 
 
-class RoundResult(RoundResult):
-
+class MatchRoundResult(RoundResult):
     @property
     def emoji(self) -> str:
         if self.result_code != RoundResultCode.surrendered:
@@ -165,7 +159,7 @@ class MatchDetails(valorantx.MatchDetails):
     def __init__(self, client: Client, data: Any) -> None:
         super().__init__(client=client, data=data)
         self._round_results: List[RoundResult] = (
-            [RoundResult(self, data) for data in data['roundResults']] if data.get('roundResults') else []
+            [MatchRoundResult(self, data) for data in data['roundResults']] if data.get('roundResults') else []
         )
 
     @property

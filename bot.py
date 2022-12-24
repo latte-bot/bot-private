@@ -297,10 +297,7 @@ class LatteBot(commands.AutoShardedBot):
         )
 
         await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name=self._activity
-            ),
+            activity=discord.Activity(type=discord.ActivityType.listening, name=self._activity),
             status=discord.Status.online if not self.is_maintenance() else discord.Status.idle,
         )
 

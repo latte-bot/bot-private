@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class HelpPageSource(ListPageSource):
-    def __init(self, source: List[app_commands.AppCommand]) -> None:
+    def __init__(self, source: List[app_commands.AppCommand]) -> None:
         super().__init__(source, per_page=6)
 
     @staticmethod
