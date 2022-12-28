@@ -1,14 +1,9 @@
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import discord
 from discord import Interaction, ui
 
 from .i18n import _
-
-if TYPE_CHECKING:
-    ...
 
 # original code from # https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/utils/paginator.py
 

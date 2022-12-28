@@ -10,7 +10,7 @@ from async_lru import alru_cache
 from discord import ButtonStyle, Interaction, TextStyle, ui
 from valorantx import CurrencyType, MissionType
 
-from utils.chat_formatting import bold, strikethrough
+from utils.chat_formatting import bold
 from utils.errors import CommandError
 from utils.formats import format_relative
 from utils.i18n import _
@@ -18,7 +18,7 @@ from utils.pages import LattePages, ListPageSource
 from utils.views import ViewAuthor
 
 from ._database import ValorantUser
-from ._embeds import Embed, MatchEmbed
+from ._embeds import Embed, MatchEmbed, nightmarket_e, store_e
 from ._enums import PointEmoji, ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
@@ -184,6 +184,12 @@ class SwitchingViewX(ViewAuthor):
         self.riot_auth_list = v_user.get_riot_accounts()
         self._build_buttons(row)
 
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if await super().interaction_check(interaction):
+            self.v_locale = ValorantLocale.from_discord(str(interaction.locale))
+            return True
+        return False
+
     def _build_buttons(self, row: int = 0) -> None:
         for index, acc in enumerate(self.riot_auth_list, start=1):
             if index >= 4:
@@ -224,37 +230,13 @@ class StoreSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction, v_user, client, row=0)
 
-    @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+    @alru_cache(maxsize=32)
+    async def get_embeds(self, riot_auth: RiotAuth, locale: Optional[valorantx.Locale]) -> List[discord.Embed]:
         sf = await self.v_client.fetch_store_front(riot_auth)  # type: ignore
-        store = sf.get_store()
-
-        embeds = [
-            Embed(
-                description=_("Daily store for {user}\n").format(user=bold(riot_auth.display_name))
-                + f"Resets {format_relative(store.reset_at)}"
-            )
-        ]
-
-        for skin in store.get_skins():
-            e = Embed(
-                title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(self.locale)))}",  # type: ignore
-                description=f"{PointEmoji.valorant} {skin.price}",
-                colour=self.bot.theme.dark,  # type: ignore
-            )
-            if skin.display_icon is not None:
-                e.url = skin.display_icon.url
-                e.set_thumbnail(url=skin.display_icon)
-
-            if skin.rarity is not None:
-                e.colour = int(skin.rarity.highlight_color[0:6], 16)
-
-            embeds.append(e)
-
-        return embeds
+        return store_e(sf.get_store(), riot_auth, locale=locale)
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth)
+        embeds = await self.get_embeds(riot_auth, self.v_locale)
         if self.message is None:
             self.message = await self.interaction.followup.send(embeds=embeds, view=self)
             return
@@ -265,42 +247,18 @@ class NightMarketSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction, v_user, client, row=0)
 
-    @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+    @alru_cache(maxsize=32)
+    async def get_embeds(self, riot_auth: RiotAuth, locale: valorantx.Locale) -> List[discord.Embed]:
         sf = await self.v_client.fetch_store_front(riot_auth)  # type: ignore
         nightmarket = sf.get_nightmarket()
 
         if nightmarket is None:
             raise CommandError(f"{bold('Nightmarket')} is not available.")
 
-        embeds = [
-            Embed(
-                description=f"NightMarket for {bold(riot_auth.display_name)}\n"
-                f"Expires {format_relative(nightmarket.expire_at)}",
-                colour=self.bot.theme.purple,
-            )
-        ]
-
-        for skin in nightmarket.get_skins():
-            e = Embed(
-                title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(self.locale)))}",  # type: ignore
-                description=f"{PointEmoji.valorant} {bold(str(skin.discount_price))}\n"
-                f"{PointEmoji.valorant}  {strikethrough(str(skin.price))} (-{skin.discount_percent}%)",
-                colour=self.bot.theme.dark,
-            )
-            if skin.display_icon is not None:
-                e.url = skin.display_icon.url
-                e.set_thumbnail(url=skin.display_icon)
-
-            if skin.rarity is not None:
-                e.colour = int(skin.rarity.highlight_color[0:6], 16)
-
-            embeds.append(e)
-
-        return embeds
+        return nightmarket_e(nightmarket, riot_auth, locale=locale)
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth)
+        embeds = await self.get_embeds(riot_auth, self.v_locale)
         if self.message is None:
             self.message = await self.interaction.followup.send(embeds=embeds, view=self)
             return
@@ -924,10 +882,10 @@ class CarrierSwitchX(SwitchingViewX, LattePages):
 
 
 class MatchDetailsPageSourceX(ListPageSource):
-    def __init__(self, md: valorantx.MatchDetails) -> None:
-        total_pages = 3 if md.game_mode != valorantx.GameModeType.deathmatch else 2
+    def __init__(self, match_details: valorantx.MatchDetails) -> None:
+        total_pages = 3 if match_details.game_mode != valorantx.GameModeType.deathmatch else 2
         super().__init__(list(i for i in range(0, total_pages)), per_page=1)
-        embeds = MatchEmbed(md)
+        embeds = MatchEmbed(match_details)
         self.desktop = embeds.get_desktop()
         self.mobile = embeds.get_mobile()
 
@@ -936,17 +894,23 @@ class MatchDetailsPageSourceX(ListPageSource):
 
 
 class MatchDetailsViewX(ViewAuthor, LattePages):
+
+    is_on_mobile: bool = False
+
     def __init__(self, interaction: Interaction, other_view: Optional[discord.ui.View] = None, **kwargs) -> None:
         super().__init__(interaction, compact=True, timeout=kwargs.pop('timeout', 600.0), **kwargs)
-        self.is_on_mobile = False
+
+        if member := interaction.guild.get_member(interaction.user.id):
+            self.is_on_mobile = member.is_on_mobile()
+
         self.other_view: Optional[Union[discord.ui.View, CarrierSwitchX]] = other_view
-        self.toggle_ui.row = 0
         if self.other_view is None:
             self.remove_item(self.back_to_home)
 
-    @ui.button(emoji='📱', style=ButtonStyle.green, custom_id='mobile', row=0)
+    @ui.button(emoji='🖥️', style=ButtonStyle.green, custom_id='mobile', row=0)
     async def toggle_ui(self, interaction: Interaction, button: ui.Button) -> None:
-        button.emoji, self.is_on_mobile = '📱' if self.is_on_mobile else '🖥️', not self.is_on_mobile
+        button.emoji = '🖥️' if self.is_on_mobile else '📱'
+        self.is_on_mobile = not self.is_on_mobile
         await self.show_checked_page(interaction, 0)
 
     @ui.button(label=_("Home"), style=ButtonStyle.green, custom_id='home_button')

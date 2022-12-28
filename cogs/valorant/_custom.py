@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
 
 import valorantx
-from valorantx import CurrencyType, GameModeType, RoundResultCode
-from valorantx.models.match import RoundResult
+from valorantx import CurrencyType, GameModeType
+from valorantx.models import match
 
 from ._enums import AbilitiesEmoji, AgentEmoji, ContentTierEmoji, GameModeEmoji, PointEmoji, RoundResultEmoji, TierEmoji
 
@@ -68,30 +68,10 @@ class ContentTier(valorantx.ContentTier):
         return ContentTierEmoji.get(self.dev_name)
 
 
-class MatchRoundResult(RoundResult):
+class MatchRoundResult(match.RoundResult):
     @property
     def emoji(self) -> str:
-        if self.result_code != RoundResultCode.surrendered:
-            if self.winning_team() == self.match.me.team:
-                if self.result_code == RoundResultCode.defuse:
-                    return RoundResultEmoji.diffuse_win
-                elif self.result_code == RoundResultCode.elimination:
-                    return RoundResultEmoji.elimination_win
-                elif self.result_code == RoundResultCode.detonate:
-                    return RoundResultEmoji.explosion_win
-                else:
-                    return RoundResultEmoji.time_loss
-            else:
-                if self.result_code == RoundResultCode.defuse:
-                    return RoundResultEmoji.diffuse_loss
-                elif self.result_code == RoundResultCode.elimination:
-                    return RoundResultEmoji.elimination_loss
-                elif self.result_code == RoundResultCode.detonate:
-                    return RoundResultEmoji.explosion_loss
-                else:
-                    return RoundResultEmoji.time_win
-        else:
-            return RoundResultEmoji.surrendered
+        return RoundResultEmoji.get(str(self.result_code), self.winning_team() == self.match.me.team)
 
 
 class GameMode(valorantx.GameMode):
@@ -111,7 +91,7 @@ class GameMode(valorantx.GameMode):
 
     def __display_name_override(self) -> None:
         if self.uuid == '96bd3920-4f36-d026-2b28-c683eb0bcac5':
-            if self.is_ranked():
+            if self._is_ranked:
                 self._display_name = {
                     "ar-AE": "تنافسي",
                     "de-DE": "Gewertet",
@@ -158,7 +138,7 @@ class GameMode(valorantx.GameMode):
 class MatchDetails(valorantx.MatchDetails):
     def __init__(self, client: Client, data: Any) -> None:
         super().__init__(client=client, data=data)
-        self._round_results: List[RoundResult] = (
+        self._round_results: List[MatchRoundResult] = (
             [MatchRoundResult(self, data) for data in data['roundResults']] if data.get('roundResults') else []
         )
 

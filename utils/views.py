@@ -4,7 +4,7 @@ import io
 import logging
 import time
 import traceback
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 import discord
 import valorantx
@@ -37,8 +37,6 @@ if TYPE_CHECKING:
 
 
 _log = logging.getLogger(__name__)
-
-# TODO: pages prompt
 
 
 def key(interaction: discord.Interaction) -> Union[discord.User, discord.Member]:
@@ -203,6 +201,8 @@ class ViewAuthor(BaseView):
 
         if user != self.author:
             return False
+
+        self.locale = interaction.locale
 
         bucket = self.cooldown.get_bucket(interaction)
         if bucket is not None:

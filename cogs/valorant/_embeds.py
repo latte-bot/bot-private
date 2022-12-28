@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 import discord
 import valorantx
 from async_lru import alru_cache
-from discord import Interaction
 from valorantx import GameModeType
-from valorantx.models import Bundle
 
-from utils.chat_formatting import bold
+from utils.chat_formatting import bold, strikethrough
+from utils.enums import Theme
 from utils.formats import format_relative
+from utils.i18n import _
 
-from ._enums import ContentTierEmoji, PointEmoji, ResultColor, ValorantLocale as VLocale
+from ._enums import PointEmoji, ResultColor
 
 if TYPE_CHECKING:
     from discord import Client
@@ -24,91 +24,6 @@ if TYPE_CHECKING:
     ClientBot = Union[Client, LatteBot]
 
     from valorantx.models.match import AbilityCasts, MatchPlayer
-
-
-class MakeEmbed:
-    def __init__(self, interaction: Interaction) -> None:
-        self.interaction = interaction
-        self.bot: ClientBot = interaction.client
-        self.locale: str = VLocale.from_discord(str(interaction.locale))
-        self.embeds: List[discord.Embed] = []
-
-    @alru_cache(maxsize=5)
-    async def build_store(
-        self,
-        store_front: valorantx.StoreFront,
-        riot_acc: RiotAuth,
-        *,
-        locale: Optional[Union[str, VLocale]] = None,
-    ) -> List[discord.Embed]:
-        locale = locale or self.locale
-
-        store = store_front.get_store()
-
-        embeds = [
-            Embed(
-                description=f"Daily store for {bold(riot_acc.display_name)}\n"  # type: ignore
-                f"Resets {format_relative(store.reset_at)}"
-            )
-        ]
-
-        for skin in store.get_skins():
-            emoji = ContentTierEmoji.get(skin.rarity.dev_name)
-            e = Embed(
-                title=f"{emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",
-                description=f"{PointEmoji.valorant} {skin.price}",
-                colour=self.bot.theme.dark,
-            )
-            if skin.display_icon is not None:
-                e.url = skin.display_icon.url
-                e.set_thumbnail(url=skin.display_icon.url)
-            embeds.append(e)
-
-        self.embeds = embeds
-        return embeds
-
-    @alru_cache(maxsize=5)
-    async def build_battlepass(
-        self,
-        contract: valorantx.Contracts,
-        riot_acc: RiotAuth,
-        *,
-        locale: Optional[Union[str, VLocale]] = None,
-    ) -> List[discord.Embed]:
-
-        locale = locale or self.locale
-
-        btp = contract.get_latest_contract(relation_type=valorantx.RelationType.season)
-
-        next_reward = btp.get_next_reward()
-
-        embed = discord.Embed(
-            title=f'Battlepass for {bold(riot_acc.display_name)}',
-            description=f"{bold('NEXT')}: {next_reward.display_name}",
-        )
-        embed.set_footer(text=f'TIER {btp.current_tier} | {btp.name_localizations.from_locale(str(locale))}')
-
-        if isinstance(next_reward, valorantx.SkinLevel):
-            if next_reward.display_icon is not None:
-                embed.set_thumbnail(url=next_reward.display_icon)
-        elif isinstance(next_reward, valorantx.PlayerCard):
-            if next_reward.wide_icon is not None:
-                embed.set_thumbnail(url=next_reward.wide_icon)
-            else:
-                if next_reward.display_icon is not None:
-                    embed.set_thumbnail(url=next_reward.display_icon)
-        else:
-            if not isinstance(next_reward, valorantx.PlayerTitle):
-                if next_reward.display_icon is not None:
-                    embed.set_thumbnail(url=next_reward.display_icon)
-
-        if btp.current_tier <= 50:
-            embed.colour = self.bot.theme.purple
-        else:
-            embed.colour = self.bot.theme.gold
-
-        self.embeds = [embed]
-        return [embed]
 
 
 class Embed(discord.Embed):
@@ -124,72 +39,80 @@ class Embed(discord.Embed):
             self.add_field(name=n, value=v, inline=field_inline)
 
 
-# def store_e(offer: StoreOffer) -> List[Embed]:
-#
-#     e_list = [
-#         Embed(description="Daily store for **{username}** \nResets {duration}"),
-#     ]
-#
-#     for skin in offer.skins:
-#         e = Embed(description=f"{skin.tier} **{skin.name_localizations.american_english}**\n VP {skin.price}")
-#         if skin.icon is not None:
-#             e.set_thumbnail(url=skin.icon)
-#         e_list.append(e)
-#
-#     return e_list
-#
-# def store_e(offer: StoreOffer) -> List[Embed]:
-#
-#     e_list = [
-#         Embed(description="Daily store for **{username}** \nResets {duration}"),
-#     ]
-#
-#     for skin in offer.skins:
-#         e = Embed(description=f"{skin.tier} **{skin.name_localizations.american_english}**\n VP {skin.price}")
-#         if skin.icon is not None:
-#             e.set_thumbnail(url=skin.icon)
-#         e_list.append(e)
-#
-#     return e_list
-
-
-# def wallet_e(wallet: Wallet) -> Embed:
-#     e = Embed(title=f"Point:")
-#     e.add_field(name='vp', value=f"{wallet.valorant_points}")
-#     e.add_field(name='rad', value=f"{wallet.radiant_points}")
-#     e.set_footer(text=wallet._client.user.display_name)
-#
-#     return e
-
-
-def bundles_e(bundle: Bundle) -> List[Embed]:
-    def static_item_embed(partial_item: Any, *, color: Union[discord.Color, int] = 0x0F1923) -> Embed:
-        embed = Embed(
-            title='EMOJI {}'.format(partial_item.name_localizations.american_english),
-            description='VP {}'.format(partial_item.price),
-            color=color,
-        )
-        if partial_item.icon is not None:
-            embed.set_thumbnail(url=partial_item.icon)
-        return embed
-
-    base_e = Embed(
-        title=bundle.name_localizations.american_english,
-        description='VP {}'.format(bundle.price),
+def skin_e(
+    skin: Union[valorantx.Skin, valorantx.SkinLevel, valorantx.SkinChroma],
+    locale: valorantx.Locale,
+    *,
+    is_nightmarket: bool = False,
+) -> discord.Embed:
+    embed = Embed(
+        title=f"{skin.rarity.emoji} {bold(skin.name_localizations.from_locale(str(locale)))}",
+        colour=Theme.purple,
     )
 
-    e_list = [
-        base_e,
+    if not is_nightmarket:
+        embed.description = f"{PointEmoji.valorant} {bold(skin.price)}"
+    else:
+        embed.description = (
+            f"{PointEmoji.valorant} {bold(str(skin.discount_price))}\n"
+            f"{PointEmoji.valorant} {strikethrough(str(skin.price))} (-{skin.discount_percent}%)"
+        )
+
+    if skin.display_icon is not None:
+        embed.url = skin.display_icon.url
+        embed.set_thumbnail(url=skin.display_icon)
+
+    if skin.rarity is not None:
+        embed.colour = int(skin.rarity.highlight_color[0:6], 16)
+
+    return embed
+
+
+def store_e(
+    store: valorantx.StoreOffer, riot_auth: RiotAuth, *, locale: Optional[valorantx.Locale] = None
+) -> List[discord.Embed]:
+
+    locale = riot_auth.locale if locale is None else locale
+
+    embeds = [
+        Embed(
+            description=_("Daily store for {user}\n").format(user=bold(riot_auth.display_name))
+            + f"Resets {format_relative(store.reset_at)}",
+            colour=Theme.purple,
+        )
     ]
 
-    # for item in bundle.items:
-    #     e_list.append(static_item_embed(item))
+    for skin in store.get_skins():
+        embeds.append(skin_e(skin, locale))
 
-    return e_list
+    return embeds
 
 
-# member_from_cache = interaction.guild.get_member(interaction.user.id)
-# cache from voice
+def nightmarket_e(
+    nightmarket: valorantx.NightMarketOffer, riot_auth: RiotAuth, *, locale: Optional[valorantx.Locale] = None
+) -> List[discord.Embed]:
+
+    locale = riot_auth.locale if locale is None else locale
+
+    embeds = [
+        Embed(
+            description=f"NightMarket for {bold(riot_auth.display_name)}\n"
+            f"Expires {format_relative(nightmarket.expire_at)}",
+            colour=Theme.purple,
+        )
+    ]
+
+    for skin in nightmarket.get_skins():
+        embeds.append(skin_e(skin, locale, is_nightmarket=True))
+
+    return embeds
+
+
+# def wallet_e(wallet: valorantx.Wallet) -> Embed:
+#     return e
+
+# def bundles_e(bundle: valorantx.Bundle) -> List[Embed]:
+#     return e_list
 
 
 class MatchEmbed:
@@ -197,29 +120,33 @@ class MatchEmbed:
         self._match = match
         self._desktops: List[discord.Embed] = []
         self._mobiles: List[discord.Embed] = []
-
-        self.me: Optional[MatchPlayer] = self._match.me
-
-        # map
-        self._map = self._match.map
-
-        # me team
-        self._mt = self._match.get_me_team()
-        self._mt_players = sorted(self._mt.get_players(), key=lambda p: p.acs, reverse=True)
-
-        # enemy team
-        self._et = self._match.get_enemy_team()
-        self._et_players = sorted(self._et.get_players(), key=lambda p: p.acs, reverse=True)
+        self._build()
 
     def get_desktop(self) -> List[discord.Embed]:
-        if self._match.game_mode == GameModeType.deathmatch:
-            return [self.desktop_1(), self.desktop_3()]
-        return [self.desktop_1(), self.desktop_2(), self.desktop_3()]
+        return self._desktops
 
     def get_mobile(self) -> List[discord.Embed]:
-        if self._match.game_mode == GameModeType.deathmatch:
-            return [self.mobile_1(), self.mobile_3()]
-        return [self.mobile_1(), self.mobile_2(), self.mobile_3()]
+        return self._mobiles
+
+    @property
+    def me(self) -> Optional[MatchPlayer]:
+        return self._match.me
+
+    @property
+    def _map(self) -> valorantx.Map:
+        return self._match.map
+
+    def get_me_team(self) -> Any:  # TODO: fix this
+        return self._match.get_me_team()
+
+    def get_enemy_team(self) -> Any:  # TODO: fix this
+        return self._match.get_enemy_team()
+
+    def get_me_team_players(self) -> List[MatchPlayer]:
+        return sorted(self.get_me_team().get_players(), key=lambda p: p.acs, reverse=True)
+
+    def get_enemy_team_players(self) -> List[MatchPlayer]:
+        return sorted(self.get_enemy_team().get_players(), key=lambda p: p.acs, reverse=True)
 
     def _get_mvp_star(self, player: MatchPlayer) -> str:
         if player == self._match.get_match_mvp():
@@ -253,12 +180,15 @@ class MatchEmbed:
     # @lru_cache(maxsize=2)
     def static_embed(self, performance: bool = False) -> discord.Embed:
 
+        me_team = self.get_me_team()
+        enemy_team = self.get_enemy_team()
+
         e = discord.Embed(
             title='{mode} {map} - {won}:{lose}'.format(
                 mode=self._match.game_mode.emoji,  # type: ignore
                 map=self._map.display_name,
-                won=self._mt.rounds_won,
-                lose=self._et.rounds_won,
+                won=me_team.rounds_won if me_team is not None else 0,
+                lose=enemy_team.rounds_won if enemy_team is not None else 0,
             ),
             timestamp=self._match.started_at,
             colour=ResultColor.win,
@@ -326,7 +256,7 @@ class MatchEmbed:
 
         return e
 
-    def abilities_text(self, abilities: AbilityCasts) -> str:
+    def __abilities_text(self, abilities: AbilityCasts) -> str:
         return '{c_emoji} {c_casts} {q_emoji} {q_casts} {e_emoji} {e_casts} {x_emoji} {x_casts}'.format(
             c_emoji=abilities.c.emoji,  # type: ignore
             c_casts=round(abilities.c_casts / self.me.rounds_played, 1),
@@ -343,28 +273,31 @@ class MatchEmbed:
 
         e = self.static_embed()
 
+        mt_players = self.get_me_team_players()
+        et_players = self.get_enemy_team_players()
+
         if self._match.game_mode != GameModeType.deathmatch:
             # MY TEAM
             e.add_field(
                 name='MY TEAM',
-                value='\n'.join([self._player_display(p) for p in self._mt_players]),
+                value='\n'.join([self._player_display(p) for p in mt_players]),
             )
             e.add_field(
                 name='ACS',
-                value="\n".join([self._acs_display(p) for p in self._mt_players]),
+                value="\n".join([self._acs_display(p) for p in mt_players]),
             )
-            e.add_field(name='KDA', value="\n".join([str(p.kda) for p in self._mt_players]))
+            e.add_field(name='KDA', value="\n".join([str(p.kda) for p in mt_players]))
 
             # ENEMY TEAM
             e.add_field(
                 name='ENEMY TEAM',
-                value='\n'.join([self._player_display(p, is_bold=False) for p in self._et_players]),  # type: ignore
+                value='\n'.join([self._player_display(p, is_bold=False) for p in et_players]),  # type: ignore
             )
             e.add_field(
                 name='ACS',
-                value="\n".join([self._acs_display(p) for p in self._et_players]),
+                value="\n".join([self._acs_display(p) for p in et_players]),
             )
-            e.add_field(name='KDA', value="\n".join([str(p.kda) for p in self._et_players]))
+            e.add_field(name='KDA', value="\n".join([str(p.kda) for p in et_players]))
         else:
             players = sorted(self._match.get_players(), key=lambda p: p.score, reverse=True)
             e.add_field(
@@ -381,7 +314,7 @@ class MatchEmbed:
             if i == 12:
                 timelines.append(' | ')
 
-            if r.winning_team() == self._mt:
+            if r.winning_team() == self.get_me_team():
                 timelines.append(r.emoji)  # type: ignore
             else:
                 timelines.append(r.emoji)  # type: ignore
@@ -402,26 +335,29 @@ class MatchEmbed:
 
         e = self.static_embed()
 
+        mt_players = self.get_me_team_players()
+        et_players = self.get_enemy_team_players()
+
         # MY TEAM
         e.add_field(
             name='MY TEAM',
-            value='\n'.join([self._player_display(p) for p in self._mt_players]),
+            value='\n'.join([self._player_display(p) for p in mt_players]),
         )
-        e.add_field(name='FK', value="\n".join([str(p.first_kills) for p in self._mt_players]))
+        e.add_field(name='FK', value="\n".join([str(p.first_kills) for p in mt_players]))
         e.add_field(
             name='HS%',
-            value='\n'.join([(str(round(p.head_shot_percent, 1)) + '%') for p in self._mt_players]),
+            value='\n'.join([(str(round(p.head_shot_percent, 1)) + '%') for p in mt_players]),
         )
 
         # ENEMY TEAM
         e.add_field(
             name='ENEMY TEAM',
-            value='\n'.join([self._player_display(p, is_bold=False) for p in self._et_players]),  # type: ignore
+            value='\n'.join([self._player_display(p, is_bold=False) for p in et_players]),  # type: ignore
         )
-        e.add_field(name='FK', value='\n'.join([str(p.first_kills) for p in self._et_players]))
+        e.add_field(name='FK', value='\n'.join([str(p.first_kills) for p in et_players]))
         e.add_field(
             name='HS%',
-            value='\n'.join([(str(round(p.head_shot_percent, 1)) + '%') for p in self._et_players]),
+            value='\n'.join([(str(round(p.head_shot_percent, 1)) + '%') for p in et_players]),
         )
 
         return e
@@ -453,7 +389,7 @@ class MatchEmbed:
 
         abilities = self._match.me.ability_casts
         if abilities is not None:
-            text = self.abilities_text(abilities)
+            text = self.__abilities_text(abilities)
             e.add_field(name='Abilities', value=text, inline=False)
 
         return e
@@ -467,7 +403,7 @@ class MatchEmbed:
 
             # MY TEAM
             e.add_field(name='\u200b', value=bold('MY TEAM'), inline=False)
-            for player in self._mt_players:
+            for player in self.get_me_team_players():
                 e.add_field(
                     name=self._player_display(player),
                     value=f'ACS: {self._acs_display(player)}\nKDA: {player.kda}',
@@ -476,7 +412,7 @@ class MatchEmbed:
 
             # ENEMY TEAM
             e.add_field(name='\u200b', value=bold('ENEMY TEAM'), inline=False)
-            for player in self._et_players:
+            for player in self.get_enemy_team_players():
                 e.add_field(
                     name=self._player_display(player),  # type: ignore
                     value=f'ACS: {self._acs_display(player)}\nKDA: {player.kda}',
@@ -502,7 +438,7 @@ class MatchEmbed:
             if i == 12:
                 timelines.append(' | ')
 
-            if r.winning_team() == self._mt:
+            if r.winning_team() == self.get_me_team():
                 timelines.append(r.emoji)  # type: ignore
             else:
                 timelines.append(r.emoji)  # type: ignore
@@ -522,7 +458,7 @@ class MatchEmbed:
 
         # MY TEAM
         e.add_field(name='\u200b', value=bold('MY TEAM'))
-        for player in self._mt_players:
+        for player in self.get_me_team_players():
             e.add_field(
                 name=self._player_display(player),  # type: ignore
                 value=f'FK: {player.first_kills}\nHS%: {round(player.head_shot_percent, 1)}%',
@@ -531,7 +467,7 @@ class MatchEmbed:
 
         # ENEMY TEAM
         e.add_field(name='\u200b', value=bold('ENEMY TEAM'), inline=False)
-        for player in self._et_players:
+        for player in self.get_enemy_team_players():
             e.add_field(
                 name=self._player_display(player, is_bold=False),
                 value=f'FK: {player.first_kills}\nHS%: {round(player.head_shot_percent, 1)}%',
@@ -544,12 +480,14 @@ class MatchEmbed:
         e = self.static_embed(performance=True)
         e.add_field(
             name='KDA Opponent',
-            value='\n'.join([(p.kda + ' ' + self._player_display(p.opponent)) for p in self._match.me.opponents]),  # type: ignore
+            value='\n'.join(
+                [(p.kda + ' ' + self._player_display(p.opponent)) for p in self._match.me.opponents]
+            ),  # type: ignore
         )
 
         abilities = self._match.me.ability_casts
         if abilities is not None:
-            text = self.abilities_text(abilities)
+            text = self.__abilities_text(abilities)
             e.add_field(name='Abilities', value=text, inline=False)
 
         return e
@@ -577,3 +515,11 @@ class MatchEmbed:
                 inline=True,
             )
         return e
+
+    def _build(self) -> None:
+        if self._match.game_mode == GameModeType.deathmatch:
+            self._desktops = [self.desktop_1(), self.desktop_3()]
+            self._mobiles = [self.mobile_1(), self.mobile_3()]
+        else:
+            self._desktops = [self.desktop_1(), self.desktop_2(), self.desktop_3()]
+            self._mobiles = [self.mobile_1(), self.mobile_2(), self.mobile_3()]

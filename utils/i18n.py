@@ -50,10 +50,12 @@ class Translator(app_commands.Translator):
     # _localize_file = lru_cache(maxsize=1)(lambda self, locale: self._load_file(locale))
     _current_locale: discord.Locale = discord.Locale.american_english
     _translations: Dict[str, Any] = {str(locale): {} for locale in Locale}
-    _strings: Dict[discord.Locale, Dict[str, str]] = {locale: {} for locale in discord.Locale}
+    _strings: Dict[discord.Locale, Dict[str, Any]] = {locale: {} for locale in discord.Locale}
 
-    def __init__(self, path: Optional[str] = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    _user_locale: Dict[int, discord.Locale] = {}
+
+    def __init__(self, path: Optional[str] = None) -> None:
+        super().__init__()
         self._path = path
         self.__latest_command: Optional[Union[Command, Group, ContextMenu]] = None
         self.__latest_binding: Optional[commands.Cog] = None
@@ -92,8 +94,8 @@ class Translator(app_commands.Translator):
         except FileNotFoundError:
             _log.warning(f'File {fp!r} not found')
 
-    def set_locale(self, locale: Locale) -> None:
-        self._current_locale = locale
+    def set_locale(self, interaction: discord.Interaction) -> None:
+        self._user_locale[interaction.user.id] = interaction.locale
 
     # def load_translations(self):
     #     """

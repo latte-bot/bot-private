@@ -393,10 +393,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await interaction.response.defer(ephemeral=True)
             wait_modal.stop()
 
-        except valorantx.RiotAuthenticationError:
-            raise CommandError('Invalid username or password.')
-        except aiohttp.ClientResponseError:
-            raise CommandError('Riot server is currently unavailable.')
+        except valorantx.RiotAuthenticationError as e:
+            raise CommandError('Invalid username or password.') from e
+        except aiohttp.ClientResponseError as e:
+            raise CommandError('Riot server is currently unavailable.') from e
         else:
             await interaction.response.defer(ephemeral=True)
 

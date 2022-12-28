@@ -245,7 +245,7 @@ class LatteBot(commands.AutoShardedBot):
             )
             return False
 
-        self.translator.set_locale(interaction.locale)
+        self.translator.set_locale(interaction)
 
         if await self.is_owner(interaction.user):
             return True
@@ -291,7 +291,7 @@ class LatteBot(commands.AutoShardedBot):
 
         _log.info(
             f'Logged in as: {self.user} '
-            f'color: {self._activity} '
+            f'Activity: {self._activity} '
             f'Servers: {len(self.guilds)} '
             f'Users: {sum(guild.member_count for guild in self.guilds)}'
         )

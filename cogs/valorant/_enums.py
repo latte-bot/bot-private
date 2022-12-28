@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum, IntEnum
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import valorantx
 
@@ -170,8 +170,8 @@ class ContentTierEmoji(str, Enum):
 
 
 class RoundResultEmoji(str, Enum):
-    diffuse_loss = '<:diffuse_loss:1042809400592715816>'
-    diffuse_win = '<:diffuse_win:1042809402526281778>'
+    defuse_loss = '<:diffuse_loss:1042809400592715816>'
+    defuse_win = '<:diffuse_win:1042809402526281778>'
     elimination_loss = '<:elimination_loss:1042809418661761105>'
     elimination_win = '<:elimination_win:1042809420549206026>'
     explosion_loss = '<:explosion_loss:1042809464274812988>'
@@ -179,13 +179,24 @@ class RoundResultEmoji(str, Enum):
     time_loss = '<:time_loss:1042809483270832138>'
     time_win = '<:time_win:1042809485128896582>'
     surrendered = '<:EarlySurrender_Flag:1042829113741819996>'
+    detonate_loss = explosion_loss
+    detonate_win = explosion_win
 
     def __str__(self) -> str:
         return str(self.value)
 
+    @classmethod
+    def get(cls, name: str, is_win: Optional[bool] = None) -> str:
+        if name.lower() != 'surrendered':
+            return cls.__members__.get(
+                name.lower() + ('_win' if is_win else '_loss'),
+                (cls.time_win if is_win else cls.time_loss),
+            )
+        return cls.surrendered
+
 
 class TierEmoji(str, Enum):
-    love = '<:tier_love:>'
+    love = '<:love:1056499604033642578>'
     radiant = '<:tier_radiant:1043967005956509760>'
     immortal_3 = '<:tier_immortal_3:1043966994665443398>'
     immortal_2 = '<:tier_immortal_2:1043966983068209243>'

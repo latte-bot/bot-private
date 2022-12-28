@@ -5,7 +5,7 @@ from typing import Any, Iterable, Tuple, Union
 
 import discord
 
-__all__ = ('Palette', 'LatteEmbed', 'LatteFonts', 'LatteImages', 'LatteCDN')
+__all__: Tuple[str, ...] = ('Palette', 'LatteEmbed', 'LatteFonts', 'LatteImages', 'LatteCDN')
 
 IMAGE_PATH = 'assets/images/'
 FONT_PATH = 'assets/fonts/'
