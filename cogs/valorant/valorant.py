@@ -34,7 +34,7 @@ from utils.views import BaseView
 # local
 from ._client import Client as ValorantClient, RiotAuth
 from ._database import Database, ValorantUser
-from ._embeds import Embed
+from ._embeds import Embed, store_e
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
 from ._views import (  # StatsView,
@@ -1247,7 +1247,9 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         store_front = await t_client.fetch_store_front()
 
-        await StoreSwitchX.from_riot_auth(interaction, try_auth, store_front)
+        embeds = store_e(store_front, try_auth)
+        await interaction.followup.send(embeds=embeds, ephemeral=True)
+
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(
