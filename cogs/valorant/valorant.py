@@ -1242,9 +1242,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         else:
             await interaction.response.defer(ephemeral=True)
 
-        t_client = ValorantClient()
-
-        store_front = await t_client.fetch_store_front(try_auth)
+        async with ValorantClient() as client:
+            store_front = await client.fetch_store_front(try_auth)
 
         embeds = store_e(store_front, try_auth)
         await interaction.followup.send(embeds=embeds, ephemeral=True)
