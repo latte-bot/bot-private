@@ -1203,7 +1203,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @app_commands.choices(
         type_=[
             Choice(name=_T('store'), value='store'),
-            Choice(name=_T('nightmarket'), value='nightmarket'),
+            # Choice(name=_T('nightmarket'), value='nightmarket'),
         ]
     )
     async def temp(
@@ -1246,6 +1246,8 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         t_client.set_authorize(try_auth)
 
         store_front = await t_client.fetch_store_front()
+
+        await StoreSwitchX.from_riot_auth(interaction, try_auth, store_front)
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(

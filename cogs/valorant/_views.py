@@ -242,6 +242,14 @@ class StoreSwitchX(SwitchingViewX):
             return
         await self.message.edit(embeds=embeds, view=self)
 
+    @staticmethod
+    async def from_riot_auth(interaction: Interaction, riot_auth: RiotAuth, sf: valorantx.StoreFront) -> StoreSwitchX:
+        embeds = store_e(sf.get_store(), riot_auth, locale=ValorantLocale.from_discord(str(interaction.locale)))
+        if interaction.response.is_done():
+            await interaction.followup.send(embeds=embeds, ephemeral=True)
+            return
+        await interaction.response.send_message(embeds=embeds, ephemeral=True)
+
 
 class NightMarketSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
