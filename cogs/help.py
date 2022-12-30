@@ -92,7 +92,7 @@ class CogButton(ui.Button['HelpCommand']):
         assert self.view is not None
 
         self.view.current_cog = self.cog
-        self.view.source = HelpPageSource(self.get_cog_app_commands(list(self.cog.walk_app_commands())), per_page=6)
+        self.view.source = HelpPageSource(self.get_cog_app_commands(list(self.cog.walk_app_commands())))
 
         max_pages = self.view.get_max_pages()
         if max_pages is not None and max_pages > 1:
