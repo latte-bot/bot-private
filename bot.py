@@ -63,7 +63,7 @@ class LatteBot(commands.AutoShardedBot):
             allowed_mentions=allowed_mentions,
             intents=intents,
             description=description,
-            application_id=977433932146569216,
+            application_id=894156599906689095,
             # application_id=989337541389987861,
             chunk_guilds_at_startup=False,
         )
