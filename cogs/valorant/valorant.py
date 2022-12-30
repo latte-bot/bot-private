@@ -1243,13 +1243,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await interaction.response.defer(ephemeral=True)
 
         t_client = ValorantClient()
-        t_client.set_authorize(try_auth)
 
-        store_front = await t_client.fetch_store_front()
+        store_front = await t_client.fetch_store_front(try_auth)
 
         embeds = store_e(store_front, try_auth)
         await interaction.followup.send(embeds=embeds, ephemeral=True)
-
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(
