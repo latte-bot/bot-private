@@ -13,6 +13,7 @@ class LatteAppError(AppCommandError):
         self.view: Optional[discord.ui.View] = kwargs.pop("view", None)
         self.ephemeral: bool = kwargs.pop("ephemeral", True)
         self.extras = kwargs
+        self.delete_after: Optional[float] = kwargs.pop("delete_after", None)
 
 
 class CommandError(LatteAppError):

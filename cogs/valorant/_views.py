@@ -242,6 +242,7 @@ class StoreSwitchX(SwitchingViewX):
             return
         await self.message.edit(embeds=embeds, view=self)
 
+
 class NightMarketSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction, v_user, client, row=0)

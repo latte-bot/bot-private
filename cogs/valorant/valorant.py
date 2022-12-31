@@ -1249,7 +1249,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             embeds = store_e(store_front.get_store(), try_auth)
         elif type.value == 'nightmarket':
             embeds = nightmarket_e(nightmarket, riot_auth)(store_front.get_nightmarket(), try_auth)
-        
+
         await interaction.followup.send(embeds=embeds, ephemeral=True)
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
