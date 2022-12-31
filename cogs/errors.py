@@ -74,7 +74,8 @@ class ErrorHandler(commands.Cog):
         # # traceback
         traceback.print_exception(type(error), error, error.__traceback__)  # TODO: remove this when release
 
-        async def send_error(*args, **kwargs) -> None:
+        async def send_error(**kwargs) -> None:
+            delete_after =  
             if interaction.response.is_done():
                 await interaction.followup.send(*args, **kwargs, ephemeral=True)
             else:

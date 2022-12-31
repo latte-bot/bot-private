@@ -34,7 +34,7 @@ from utils.views import BaseView
 # local
 from ._client import Client as ValorantClient, RiotAuth
 from ._database import Database, ValorantUser
-from ._embeds import Embed, store_e
+from ._embeds import Embed, store_e, nightmarket_e
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
 from ._views import (  # StatsView,
@@ -1203,7 +1203,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     @app_commands.choices(
         type_=[
             Choice(name=_T('store'), value='store'),
-            # Choice(name=_T('nightmarket'), value='nightmarket'),
+            Choice(name=_T('nightmarket'), value='nightmarket'),
         ]
     )
     async def temp(
@@ -1245,7 +1245,11 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         async with ValorantClient() as client:
             store_front = await client.fetch_store_front(try_auth)
 
-        embeds = store_e(store_front.get_store(), try_auth)
+        if type.value == 'store':
+            embeds = store_e(store_front.get_store(), try_auth)
+        elif type.value == 'nightmarket':
+            embeds = nightmarket_e(nightmarket, riot_auth)(store_front.get_nightmarket(), try_auth)
+        
         await interaction.followup.send(embeds=embeds, ephemeral=True)
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
