@@ -1245,10 +1245,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         async with ValorantClient() as client:
             store_front = await client.fetch_store_front(try_auth)
 
-        if type.value == 'store':
+        if type_.value == 'store':
             embeds = store_e(store_front.get_store(), try_auth)
-        elif type.value == 'nightmarket':
-            embeds = nightmarket_e(nightmarket, riot_auth)(store_front.get_nightmarket(), try_auth)
+        elif type_.value == 'nightmarket':
+            embeds = nightmarket_e(store_front.get_nightmarket(), try_auth)
 
         await interaction.followup.send(embeds=embeds, ephemeral=True)
 
