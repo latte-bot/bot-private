@@ -26,5 +26,5 @@ pygit2>=1.11.1
 uvloop; sys_platform != 'win32'
 
 # valorantx
-valorantx @ git+https://${X_ACCESS_TOKEN}@github.com/staciax/valorantx.git@${VLX_BRANCH}
-valorantx-scraper @ git+https://${X_ACCESS_TOKEN}@github.com/staciax/valorantx-scraper.git@${VLXS_BRANCH}
+valorantx @ git+https://${GITHUB_TOKEN}@github.com/staciax/valorantx.git@${VLX_BRANCH}
+valorantx-scraper @ git+https://${GITHUB_TOKEN}@github.com/staciax/valorantx-scraper.git@${VLXS_BRANCH}

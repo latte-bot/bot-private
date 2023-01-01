@@ -173,15 +173,38 @@ class About(commands.Cog):
     async def i18n(self, interaction: Interaction) -> None:
         await interaction.response.send_message('')
 
-    @app_commands.command(name=_T('partnership'), description=_T('Shows the partnership information of the bot.'))
+    @app_commands.command(name=_T('source'), description=_T('Shows the source code of the bot.'))
+    @app_commands.describe(command=_T('The command to show the source code of.'))
     @dynamic_cooldown(cooldown_5s)
-    async def partnership(self, interaction: Interaction) -> None:
+    @app_commands.guild_only()
+    async def source(self, interaction: Interaction, command: str) -> None:
         ...
 
-    @app_commands.command(name=_T('donate'), description=_T('Donate to the bot.'))
-    @dynamic_cooldown(cooldown_5s)
-    async def donate(self, interaction: Interaction) -> None:
-        ...
+    @source.autocomplete('command')
+    async def source_autocomplete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
+
+        entries = []
+
+        namespace = interaction.namespace.command
+
+        for command in self.bot.get_app_commands():
+            if not namespace:
+                entries.append(command)
+            else:
+                if command.qualified_name.startswith(namespace):
+                    entries.append(command)
+
+        return [Choice(name=entry.qualified_name, value=entry.qualified_name) for entry in entries][:25]
+
+    # @app_commands.command(name=_T('partnership'), description=_T('Shows the partnership information of the bot.'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def partnership(self, interaction: Interaction) -> None:
+    #     ...
+
+    # @app_commands.command(name=_T('donate'), description=_T('Donate to the bot.'))
+    # @dynamic_cooldown(cooldown_5s)
+    # async def donate(self, interaction: Interaction) -> None:
+    #     ...
 
     @app_commands.command(name=_T('feedback'), description=_T('Send feedback to the bot.'))
     @dynamic_cooldown(cooldown_5s)

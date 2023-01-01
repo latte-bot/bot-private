@@ -34,7 +34,7 @@ from utils.views import BaseView
 # local
 from ._client import Client as ValorantClient, RiotAuth
 from ._database import Database, ValorantUser
-from ._embeds import Embed, store_e, nightmarket_e
+from ._embeds import Embed, nightmarket_e, store_e
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
 from ._views import (  # StatsView,
@@ -1175,9 +1175,6 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             else:
                 return []
 
-            import time
-
-            start = time.time()
             for value in sorted(value_list, key=lambda a: a.name_localizations.from_locale(str(locale))):
                 if value.name_localizations.from_locale(str(locale)).lower().startswith(namespace.lower()):
 
@@ -1194,22 +1191,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
                 if len(results) >= mex_index:
                     break
 
-            end = time.time()
-            print(f"autocomplete took {end - start} seconds")
-
         return results[:mex_index]
 
-    @app_commands.command(name=_T('temp'))
-    @app_commands.choices(
-        type_=[
-            Choice(name=_T('store'), value='store'),
-            Choice(name=_T('nightmarket'), value='nightmarket'),
-        ]
-    )
+    @app_commands.command(name=_T('temp'), description=_T('This command not save your data'))
+    @app_commands.describe(username=_T('username (not save)'), password=_T('password (not save)'))
+    @app_commands.guild_only()
     async def temp(
         self,
         interaction: Interaction,
-        type_: Choice[str],
         username: app_commands.Range[str, 1, 24],
         password: app_commands.Range[str, 1, 128],
     ) -> None:
@@ -1243,14 +1232,49 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             await interaction.response.defer(ephemeral=True)
 
         async with ValorantClient() as client:
+            # __aenter__
             store_front = await client.fetch_store_front(try_auth)
+            client.clear()
+            # __aexit__
 
-        if type_.value == 'store':
-            embeds = store_e(store_front.get_store(), try_auth)
-        elif type_.value == 'nightmarket':
-            embeds = nightmarket_e(store_front.get_nightmarket(), try_auth)
+        class Switch(ui.View):
+            def __init__(self, store_front: valorantx.StoreFront, riot_auth: RiotAuth):
+                super().__init__(timeout=None)
+                self.store = store_front.get_store()
+                self.nightmarket = store_front.get_nightmarket()
+                self.riot_auth = riot_auth
+                if not self.nightmarket:
+                    self.nightmarket_button.disabled = True
+                    self.nightmarket_button.style = discord.ButtonStyle.grey
 
-        await interaction.followup.send(embeds=embeds, ephemeral=True)
+            def store_e(self) -> List[discord.Embed]:
+                return store_e(self.store, self.riot_auth)
+
+            def nightmarket_e(self) -> List[discord.Embed]:
+                return nightmarket_e(self.nightmarket, self.riot_auth)
+
+            def _toggle(self) -> None:
+                self.store_button.disabled = not self.store_button.disabled
+                if self.nightmarket is not None:
+                    self.nightmarket_button.disabled = not self.nightmarket_button.disabled
+
+            @ui.button(label='Store', style=discord.ButtonStyle.blurple, disabled=True)
+            async def store_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                self._toggle()
+                embeds = store_e(self.store, self.riot_auth)
+                await interaction.response.edit_message(embeds=embeds, view=self)
+
+            @ui.button(label='Nightmarket', style=discord.ButtonStyle.blurple)
+            async def nightmarket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                self._toggle()
+                embeds = nightmarket_e(self.nightmarket, self.riot_auth)
+                await interaction.response.edit_message(embeds=embeds, view=self)
+
+            async def start(self, interaction: Interaction):
+                await interaction.followup.send(embeds=self.store_e(), view=self, ephemeral=True)
+
+        view = Switch(store_front, try_auth)
+        await view.start(interaction)
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(
