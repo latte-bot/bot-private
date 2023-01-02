@@ -395,7 +395,7 @@ def bundle_e(
 
 
 def bundle_item_e(item: BundleItem, *, locale: valorantx.Locale = valorantx.Locale.american_english) -> discord.Embed:
-    emoji = item.rarity.emoji if isinstance(item, Skin) else ''  # type: ignore
+    emoji = item.rarity.emoji if isinstance(item, valorantx.Skin) else ''  # type: ignore
     embed = Embed(
         title=f"{emoji} {bold(item.name_localizations.from_locale(str(locale)))}",
         description=f"{PointEmoji.valorant} {item.price}",

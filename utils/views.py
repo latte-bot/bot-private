@@ -245,9 +245,6 @@ class ViewAuthor(BaseView):
         self._author = value
 
 
-# TODO: PageSource for PagesPrompt
-
-
 class InheritPages(discord.ui.View):
 
     if TYPE_CHECKING:

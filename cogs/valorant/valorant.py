@@ -814,16 +814,14 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         if agent_ is not None:
 
-            embed = agent_e(agent_, self.v_locale(interaction.locale))
+            embed = agent_e(agent_, locale=self.v_locale(interaction.locale))
 
             # TODO: add agent abilities
 
             view = BaseView().add_items(
-                (
-                    ui.Button(label="Full Portrait", url=agent_.full_portrait.url),
-                    ui.Button(label="Display Icon", url=agent_.display_icon.url),
-                    ui.Button(label="Background", url=agent_.background.url),
-                )
+                ui.Button(label="Full Portrait", url=agent_.full_portrait.url),
+                ui.Button(label="Display Icon", url=agent_.display_icon.url),
+                ui.Button(label="Background", url=agent_.background.url),
             )
 
             await interaction.followup.send(embed=embed, view=view)
@@ -851,7 +849,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         buddy_ = self.v_client.get_buddy_level(buddy)
 
         if buddy_ is not None:
-            embed = buddy_e(buddy_, self.v_locale(interaction.locale))
+            embed = buddy_e(buddy_, locale=self.v_locale(interaction.locale))
 
             view = BaseView().add_item(ui.Button(label="Display Icon", url=buddy_.display_icon.url))
 
@@ -871,7 +869,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         bundle_ = self.v_client.get_bundle(bundle)
 
         if bundle_ is not None:
-            embeds = bundle_e(bundle_, self.v_locale(interaction.locale))
+            embeds = bundle_e(bundle_, locale=self.v_locale(interaction.locale))
             await interaction.followup.send(embeds=embeds)
         else:
             raise CommandError(f"Could not find bundle with name {bold(bundle)}")
@@ -888,7 +886,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         if spray_ is not None:
 
-            embed = spray_e(spray_, self.v_locale(interaction.locale))
+            embed = spray_e(spray_, locale=self.v_locale(interaction.locale))
 
             view = BaseView()
 
@@ -936,7 +934,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         player_card = self.v_client.get_player_card(card)
 
         if player_card is not None:
-            embed = player_card_e(player_card, self.v_locale(interaction.locale))
+            embed = player_card_e(player_card, locale=self.v_locale(interaction.locale))
 
             view = BaseView()
             # TODO: player card views selection
