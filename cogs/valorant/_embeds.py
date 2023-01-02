@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 
 import discord
 import valorantx
-from async_lru import alru_cache
+
+# from async_lru import alru_cache
 from valorantx import GameModeType, MissionType
 
 from utils.chat_formatting import bold, strikethrough
@@ -130,6 +131,7 @@ def wallet_e(
         name=f'{rad.name_localizations.from_locale(str(locale)).removesuffix(" Points")}',
         value=f'{rad.emoji} {wallet.radiant_points}',  # type: ignore
     )
+    return embed
 
 
 def game_pass_e(
@@ -255,7 +257,7 @@ def skin_loadout_e(skin: SkinLoadout, *, locale: valorantx.Locale = valorantx.Lo
         description=(skin.rarity.emoji if skin.rarity is not None else '')  # type: ignore
         + ' '
         + bold(skin_dn)
-        + (bold(' ★') if skin.is_favorite() else ''),
+        + (' ★' if skin.is_favorite() else ''),
         colour=int(skin.rarity.highlight_color[0:6], 16) if skin.rarity is not None else Theme.dark,
     )
     embed.set_thumbnail(url=skin.display_icon)

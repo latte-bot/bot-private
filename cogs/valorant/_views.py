@@ -29,12 +29,10 @@ from ._embeds import (
 from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
-    from valorantx import Collection, NightMarket, SkinCollection, SprayCollection
+    from valorantx import NightMarket
     from valorantx.models import contract
 
-    from ._client import Client as ValorantClient
-    from .valorant import RiotAuth
-
+    from ._client import Client as ValorantClient, RiotAuth
 
 # V = TypeVar('V', bound='View')
 # - multi-factor modal
@@ -233,6 +231,15 @@ class SwitchingViewX(ViewAuthor):
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         pass
 
+    async def send(self, **kwargs: Any) -> None:
+        try:
+            if self.message is None:
+                self.message = await self.interaction.followup.send(**kwargs, view=self)
+                return
+            await self.message.edit(**kwargs, view=self)
+        except discord.HTTPException:
+            pass
+
 
 class StoreSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
@@ -245,10 +252,7 @@ class StoreSwitchX(SwitchingViewX):
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         embeds = await self.get_embeds(riot_auth, self.v_locale)
-        if self.message is None:
-            self.message = await self.interaction.followup.send(embeds=embeds, view=self)
-            return
-        await self.message.edit(embeds=embeds, view=self)
+        await self.send(embeds=embeds)
 
 
 class NightMarketSwitchX(SwitchingViewX):
@@ -267,10 +271,7 @@ class NightMarketSwitchX(SwitchingViewX):
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         embeds = await self.get_embeds(riot_auth, self.v_locale)
-        if self.message is None:
-            self.message = await self.interaction.followup.send(embeds=embeds, view=self)
-            return
-        await self.message.edit(embeds=embeds, view=self)
+        await self.send(embeds=embeds)
 
 
 class GamePassPageSourceX(ListPageSource['contract.Reward']):
@@ -314,16 +315,13 @@ class PointSwitchX(SwitchingViewX):
         super().__init__(interaction, v_user, client, row=0)
 
     @alru_cache(maxsize=32)
-    async def get_embeds(self, riot_auth: RiotAuth, locale: valorantx.Locale) -> List[discord.Embed]:
+    async def get_embeds(self, riot_auth: RiotAuth, locale: valorantx.Locale) -> discord.Embed:
         wallet = await self.v_client.fetch_wallet(riot_auth)  # type: ignore
-        return [wallet_e(wallet, riot_auth, locale=locale)]
+        return wallet_e(wallet, riot_auth, locale=locale)
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth, self.v_locale)
-        if self.message is None:
-            self.message = await self.interaction.followup.send(embeds=embeds, view=self)
-            return
-        await self.message.edit(embeds=embeds, view=self)
+        embed = await self.get_embeds(riot_auth, self.v_locale)
+        await self.send(embed=embed)
 
 
 class MissionSwitchX(SwitchingViewX):
@@ -331,18 +329,14 @@ class MissionSwitchX(SwitchingViewX):
         super().__init__(interaction, v_user, client, row=0)
 
     @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+    async def get_embeds(self, riot_auth: RiotAuth) -> discord.Embed:
 
         contracts = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
-        return [mission_e(contracts, riot_auth, locale=self.v_locale)]
+        return mission_e(contracts, riot_auth, locale=self.v_locale)
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth)
-
-        if self.message is None:
-            self.message = await self.interaction.followup.send(embeds=embeds, view=self)
-            return
-        await self.message.edit(embeds=embeds, view=self)
+        embed = await self.get_embeds(riot_auth)
+        await self.send(embed=embed)
 
 
 class CollectionSwitchX(SwitchingViewX):
@@ -424,10 +418,7 @@ class CollectionSwitchX(SwitchingViewX):
 
         self.pages = await self.build_pages(riot_auth, self.collection, self.mmr)
 
-        if self.message is not None:
-            await self.message.edit(embeds=self.pages, view=self)
-            return
-        self.message = await self.interaction.followup.send(embeds=self.pages, view=self)
+        await self.send(embeds=self.pages)
 
 
 class SprayCollectionView(ViewAuthor):  # Non-X
@@ -443,8 +434,8 @@ class SprayCollectionView(ViewAuthor):  # Non-X
             # TODO: slot number in spray model
             embed = spray_loadout_e(spray, slot, locale=self.other_view.v_locale)
 
-            if embed.thumbnail is not None:
-                color_thief = await self.bot.get_or_fetch_colors(spray.uuid, embed.url)
+            if embed._thumbnail.get('url'):
+                color_thief = await self.bot.get_or_fetch_colors(spray.uuid, embed._thumbnail['url'])
                 embed.colour = random.choice(color_thief)
 
             embeds.append(embed)
@@ -576,18 +567,18 @@ class SelectMatchHistoryX(ui.Select['CarrierSwitchX']):
             enemy_team = match.get_enemy_team()
             me_team = match.get_me_team()
 
-            players = match.get_players()
+            players = sorted(match.get_players(), key=lambda p: p.kills, reverse=True)
 
             left_team_score = me_team.rounds_won if me_team is not None else 0
             right_team_score = enemy_team.rounds_won if enemy_team is not None else 0
 
             if match.game_mode == valorantx.GameModeType.deathmatch:
                 if match.me.is_winner():
-                    _2nd_place = (sorted(players, key=lambda p: p.kills, reverse=True)[1]) if len(players) > 1 else None
+                    _2nd_place = (players[1]) if len(players) > 1 else None
                     _1st_place = match.me
                 else:
                     _2nd_place = match.me
-                    _1st_place = (sorted(players, key=lambda p: p.kills, reverse=True)[0]) if len(players) > 0 else None
+                    _1st_place = (players[0]) if len(players) > 0 else None
 
                 left_team_score = (_1st_place.kills if match.me.is_winner() else _2nd_place.kills) if _1st_place else 0
                 right_team_score = (_2nd_place.kills if match.me.is_winner() else _1st_place.kills) if _2nd_place else 0
