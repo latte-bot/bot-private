@@ -264,8 +264,9 @@ def skin_loadout_e(skin: SkinLoadout, *, locale: valorantx.Locale = valorantx.Lo
 
     buddy = skin.get_buddy()
     if buddy is not None:
+        buddy_dn = buddy.name_localizations.from_locale(str(locale))
         embed.set_footer(
-            text=f'{buddy.display_name}' + (' ★' if buddy.is_favorite() else ''),
+            text=f'{buddy_dn}' + (' ★' if buddy.is_favorite() else ''),
             icon_url=buddy.display_icon,
         )
     return embed
@@ -274,8 +275,9 @@ def skin_loadout_e(skin: SkinLoadout, *, locale: valorantx.Locale = valorantx.Lo
 def spray_loadout_e(
     spray: SprayLoadout, slot: int, *, locale: valorantx.Locale = valorantx.Locale.american_english
 ) -> discord.Embed:
+    spray_dn = spray.name_localizations.from_locale(str(locale))
     embed = discord.Embed(
-        description=bold(str(slot) + '. ' + spray.display_name) + (bold(' ★') if spray.is_favorite() else '')
+        description=bold(str(slot) + '. ' + spray_dn) + (' ★' if spray.is_favorite() else '')
     )
     spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
     if spray_icon is not None:
