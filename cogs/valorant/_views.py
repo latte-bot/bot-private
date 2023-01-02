@@ -8,21 +8,29 @@ import discord
 import valorantx
 from async_lru import alru_cache
 from discord import ButtonStyle, Interaction, TextStyle, ui
-from valorantx import CurrencyType, MissionType
 
 from utils.chat_formatting import bold
 from utils.errors import CommandError
-from utils.formats import format_relative
 from utils.i18n import _
 from utils.pages import LattePages, ListPageSource
 from utils.views import ViewAuthor
 
 from ._database import ValorantUser
-from ._embeds import Embed, MatchEmbed, nightmarket_e, store_e
-from ._enums import PointEmoji, ResultColor, ValorantLocale
+from ._embeds import (
+    MatchEmbed,
+    game_pass_e,
+    mission_e,
+    nightmarket_e,
+    skin_loadout_e,
+    spray_loadout_e,
+    store_e,
+    wallet_e,
+)
+from ._enums import ResultColor, ValorantLocale
 
 if TYPE_CHECKING:
     from valorantx import Collection, NightMarket, SkinCollection, SprayCollection
+    from valorantx.models import contract
 
     from ._client import Client as ValorantClient
     from .valorant import RiotAuth
@@ -265,45 +273,22 @@ class NightMarketSwitchX(SwitchingViewX):
         await self.message.edit(embeds=embeds, view=self)
 
 
-class GamePassPageSourceX(ListPageSource):
+class GamePassPageSourceX(ListPageSource['contract.Reward']):
     def __init__(
         self, contracts: valorantx.Contracts, relation_type: valorantx.RelationType, riot_auth: valorantx.RiotAuth
     ) -> None:
-        if relation_type == valorantx.RelationType.agent:
-            self.contract = contracts.special_contract()
-        else:
-            self.contract = contracts.get_latest_contract(relation_type=relation_type)
+        self.type = relation_type
         self.riot_auth = riot_auth
+        self.contract = (
+            contracts.special_contract()
+            if relation_type == valorantx.RelationType.agent
+            else contracts.get_latest_contract(relation_type=relation_type)
+        )
         super().__init__(self.contract.content.get_all_rewards(), per_page=1)
 
-    async def format_page(self, menu: Any, page: Any):
-
+    async def format_page(self, menu: GamePassSwitchX, page: Any):
         reward = self.entries[menu.current_page]
-        item = reward.get_item()
-
-        embed = discord.Embed(
-            title='Battlepass for {display_name}'.format(display_name=bold(self.riot_auth.display_name))
-        )
-        embed.set_footer(
-            text='TIER {tier} | {gamepass}'.format(
-                tier=menu.current_page + 1, gamepass=self.contract.name_localizations.from_locale(str(menu.locale))
-            )
-        )
-
-        if item is not None:
-            embed.description = '{item}'.format(item=item.display_name)
-            if not isinstance(item, valorantx.PlayerTitle):
-                if item.display_icon is not None:
-                    if isinstance(item, valorantx.SkinLevel):
-                        embed.set_image(url=item.display_icon)
-                    elif isinstance(item, valorantx.PlayerCard):
-                        embed.set_image(url=item.wide_icon)
-                    # elif isinstance(item, valorantx.Agent):
-                    #     embed.set_image(url=item.full_portrait_v2 or item.full_portrait)
-                    else:
-                        embed.set_thumbnail(url=item.display_icon)
-
-        return embed
+        return game_pass_e(reward, self.contract, self.type, self.riot_auth, menu.current_page, locale=menu.v_locale)
 
 
 class GamePassSwitchX(SwitchingViewX, LattePages):
@@ -328,29 +313,13 @@ class PointSwitchX(SwitchingViewX):
     def __init__(self, interaction: Interaction, v_user: ValorantUser, client: ValorantClient) -> None:
         super().__init__(interaction, v_user, client, row=0)
 
-    @alru_cache(maxsize=5)
-    async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
+    @alru_cache(maxsize=32)
+    async def get_embeds(self, riot_auth: RiotAuth, locale: valorantx.Locale) -> List[discord.Embed]:
         wallet = await self.v_client.fetch_wallet(riot_auth)  # type: ignore
-
-        vp = self.v_client.get_currency(uuid=str(CurrencyType.valorant))
-        rad = self.v_client.get_currency(uuid=str(CurrencyType.radianite))
-
-        vp_display_name = vp.name_localizations.from_locale(str(self.locale))
-
-        embed = Embed(title=f"{riot_auth.display_name} Point:")
-        embed.add_field(
-            name=f"{(vp_display_name if vp_display_name != 'VP' else 'Valorant')}",
-            value=f"{vp.emoji} {wallet.valorant_points}",  # type: ignore
-        )
-        embed.add_field(
-            name=f'{rad.name_localizations.from_locale(str(self.locale)).removesuffix(" Points")}',
-            value=f'{rad.emoji} {wallet.radiant_points}',  # type: ignore
-        )
-
-        return [embed]
+        return [wallet_e(wallet, riot_auth, locale=locale)]
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
-        embeds = await self.get_embeds(riot_auth)
+        embeds = await self.get_embeds(riot_auth, self.v_locale)
         if self.message is None:
             self.message = await self.interaction.followup.send(embeds=embeds, view=self)
             return
@@ -365,69 +334,7 @@ class MissionSwitchX(SwitchingViewX):
     async def get_embeds(self, riot_auth: RiotAuth) -> List[discord.Embed]:
 
         contracts = await self.v_client.fetch_contracts(riot_auth)  # type: ignore
-
-        daily = []
-        weekly = []
-        tutorial = []
-        npe = []
-
-        all_completed = True
-
-        daily_format = '{0} | **+ {1.xp:,} XP**\n- **`{1.progress}/{1.target}`**'
-        for mission in contracts.missions:
-            title = mission.title_localizations.from_locale(str(self.locale))
-            if mission.type == MissionType.daily:
-                daily.append(daily_format.format(title, mission))
-            elif mission.type == MissionType.weekly:
-                weekly.append(daily_format.format(title, mission))
-            elif mission.type == MissionType.tutorial:
-                tutorial.append(daily_format.format(title, mission))
-            elif mission.type == MissionType.npe:
-                npe.append(daily_format.format(title, mission))
-
-            if not mission.is_completed():
-                all_completed = False
-
-        embed = Embed(title=f"{riot_auth.display_name} Mission:")
-        if all_completed:
-            embed.colour = 0x77DD77
-
-        if len(daily) > 0:
-            embed.add_field(
-                name=f"**Daily**",
-                value='\n'.join(daily),
-                inline=False,
-            )
-
-        if len(weekly) > 0:
-
-            weekly_refill_time = None
-            if contracts.mission_metadata is not None:
-                if contracts.mission_metadata.weekly_refill_time is not None:
-                    weekly_refill_time = format_relative(contracts.mission_metadata.weekly_refill_time)
-
-            embed.add_field(
-                name=f"**Weekly**",
-                value='\n'.join(weekly)
-                + ('\n\n' + "Refill Time: " + weekly_refill_time if weekly_refill_time is not None else ''),
-                inline=False,
-            )
-
-        if len(tutorial) > 0:
-            embed.add_field(
-                name=f"**Tutorial**",
-                value='\n'.join(tutorial),
-                inline=False,
-            )
-
-        if len(npe) > 0:
-            embed.add_field(
-                name=f"**NPE**",
-                value='\n'.join(npe),
-                inline=False,
-            )
-
-        return [embed]
+        return [mission_e(contracts, riot_auth, locale=self.v_locale)]
 
     async def start_view(self, riot_auth: RiotAuth, **kwargs: Any) -> None:
         embeds = await self.get_embeds(riot_auth)
@@ -533,13 +440,13 @@ class SprayCollectionView(ViewAuthor):  # Non-X
     async def build_pages(self, collection: valorantx.Collection) -> List[discord.Embed]:
         embeds = []
         for slot, spray in enumerate(collection.get_sprays(), start=1):
-            spray_fav = ' ★' if spray.is_favorite() else ''
-            embed = discord.Embed(description=bold(str(slot) + '. ' + spray.display_name) + spray_fav)
-            spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
-            if spray_icon is not None:
-                embed.set_thumbnail(url=spray_icon)
-                spray_color_thief = await self.bot.get_or_fetch_colors(spray.uuid, spray.display_icon)
-                embed.colour = random.choice(spray_color_thief)
+            # TODO: slot number in spray model
+            embed = spray_loadout_e(spray, slot, locale=self.other_view.v_locale)
+
+            if embed.thumbnail is not None:
+                color_thief = await self.bot.get_or_fetch_colors(spray.uuid, embed.url)
+                embed.colour = random.choice(color_thief)
+
             embeds.append(embed)
         return embeds
 
@@ -630,37 +537,7 @@ class SkinCollectionSourceX(ListPageSource):
         view: SkinCollectionViewX,
         entries: List[Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]],
     ) -> List[discord.Embed]:
-        embeds = []
-
-        for skin in entries:
-
-            skin_fav = ' ★' if skin.is_favorite() else ''
-
-            embed = discord.Embed(
-                description=(skin.rarity.emoji if skin.rarity is not None else '')  # type: ignore
-                + ' '
-                + bold(
-                    (
-                        skin.display_name
-                        if not isinstance(skin, valorantx.SkinChromaLoadout)
-                        else (skin.get_skin().display_name if skin.get_skin() is not None else '')
-                    )
-                    + skin_fav
-                ),
-                colour=int(skin.rarity.highlight_color[0:6], 16) if skin.rarity is not None else view.bot.theme.dark,
-            )
-            embed.set_thumbnail(url=skin.display_icon)
-
-            buddy = skin.get_buddy()
-            if buddy is not None:
-                buddy_fav = ' ★' if buddy.is_favorite() else ''
-                embed.set_footer(
-                    text=f'{buddy.display_name}' + buddy_fav,
-                    icon_url=buddy.display_icon,
-                )
-            embeds.append(embed)
-
-        return embeds
+        return [skin_loadout_e(skin, locale=view.other_view.v_locale) for skin in entries]
 
 
 class SkinCollectionViewX(ViewAuthor, LattePages):
@@ -676,6 +553,10 @@ class SkinCollectionViewX(ViewAuthor, LattePages):
         self.other_view.reset_timeout()
         await interaction.response.defer()
         await self.other_view.message.edit(embeds=self.other_view.pages, view=self.other_view)
+
+    @ui.button(label=_('Change Skin'), style=discord.ButtonStyle.grey, custom_id='change_skin', row=1, disabled=True)
+    async def change_skin(self, interaction: Interaction, button: ui.Button):
+        pass
 
     async def start(self) -> None:
         self.source = SkinCollectionSourceX(self.other_view.collection)

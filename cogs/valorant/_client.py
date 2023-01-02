@@ -30,14 +30,14 @@ class RiotAuth(valorantx.RiotAuth):
     def __init__(
         self,
         discord_id: int = 0,
-        guild_id: int = 0,
+        guild_id: Optional[int] = None,
         bot: LatteBot = MISSING,
         **kwargs,
     ) -> None:
         super().__init__()
         self.bot = bot
         self.discord_id: int = discord_id
-        self.guild_id: int = guild_id
+        self.guild_id: int = guild_id or discord_id
         self.acc_num: int = 1
         self.date_signed: Optional[datetime.datetime] = None
 

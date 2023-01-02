@@ -76,14 +76,11 @@ class ErrorHandler(commands.Cog):
         async def send_error(**kwargs: Any) -> None:
             if interaction.response.is_done():
                 message = await interaction.followup.send(**kwargs, ephemeral=True)
-                delete_after = kwargs.get('delete_after')
-                if delete_after:
-                    await message.delete(delay=delete_after)
+                await message.delete(delay=60.0)
                 return
-            await interaction.response.send_message(**kwargs, ephemeral=True)
+            await interaction.response.send_message(delete_after=60.0, **kwargs, ephemeral=True)
 
         view = ViewAuthor(interaction)
-        delete_after = None
 
         if isinstance(error, (valorantx.RateLimited, valorantx.RiotRatelimitError)):
             content = _("You are being rate limited. Please try again later.")
@@ -95,7 +92,6 @@ class ErrorHandler(commands.Cog):
             content = _("Unknown error occurred while fetching data from Valorant API")
         elif isinstance(error, LatteAppError):
             content = getattr(error, 'original', error)
-            delete_after = error.delete_after
         elif isinstance(error, CommandNotFound):
             content = _('Command not found')
         elif isinstance(error, MissingPermissions):
@@ -153,7 +149,7 @@ class ErrorHandler(commands.Cog):
             description=content,
             color=self.bot.theme.error,
         )
-        await send_error(embed=embed, view=view, delete_after=(delete_after or 120.0))
+        await send_error(embed=embed, view=view)
 
 
 async def setup(bot: LatteBot) -> None:

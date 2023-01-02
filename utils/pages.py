@@ -1,9 +1,11 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Generic, List, Optional, TypeVar, Union
 
 import discord
 from discord import Interaction, ui
 
 from .i18n import _
+
+T = TypeVar('T')
 
 # original code from # https://github.com/Rapptz/RoboDanny/blob/rewrite/cogs/utils/paginator.py
 
@@ -23,7 +25,7 @@ class NumberedPageModal(discord.ui.Modal, title='Go to page'):
         self.stop()
 
 
-class PageSource:
+class PageSource(Generic[T]):
 
     """An interface representing a menu page's data source for the actual menu page.
     Subclasses must implement the backing resource along with the following methods:
@@ -124,7 +126,7 @@ class PageSource:
         raise NotImplementedError
 
 
-class ListPageSource(PageSource):
+class ListPageSource(PageSource[T]):
     """A data source for a sequence of items.
     This page source does not handle any sort of formatting, leaving it up
     to the user. To do so, implement the :meth:`format_page` method.
@@ -136,7 +138,7 @@ class ListPageSource(PageSource):
         How many elements are in a page.
     """
 
-    def __init__(self, entries: List[Any], *, per_page: int):
+    def __init__(self, entries: List[T], per_page: int = 12):
         self.entries = entries
         self.per_page = per_page
 

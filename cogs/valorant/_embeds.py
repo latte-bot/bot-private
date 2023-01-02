@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 
 import discord
 import valorantx
 from async_lru import alru_cache
-from valorantx import GameModeType
+from valorantx import GameModeType, MissionType
 
 from utils.chat_formatting import bold, strikethrough
 from utils.enums import Theme
@@ -22,8 +23,10 @@ if TYPE_CHECKING:
     from ._client import RiotAuth
 
     ClientBot = Union[Client, LatteBot]
+    from valorantx.models import contract, match
 
-    from valorantx.models.match import AbilityCasts, MatchPlayer
+    SkinLoadout = Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]
+    SprayLoadout = Union[valorantx.SprayLoadout, valorantx.SprayLevelLoadout]
 
 
 class Embed(discord.Embed):
@@ -108,11 +111,174 @@ def nightmarket_e(
     return embeds
 
 
-# def wallet_e(wallet: valorantx.Wallet) -> Embed:
-#     return e
+def wallet_e(
+    wallet: valorantx.Wallet, riot_auth: RiotAuth, *, locale: Optional[valorantx.Locale] = None
+) -> discord.Embed:
 
-# def bundles_e(bundle: valorantx.Bundle) -> List[Embed]:
-#     return e_list
+    vp = wallet.get_valorant()
+    rad = wallet.get_radiant()
+
+    vp_name = vp.name_localizations.from_locale(str(locale))
+
+    embed = embed = Embed(title=f"{riot_auth.display_name} Point:")
+
+    embed.add_field(
+        name=f"{(vp_name if vp_name != 'VP' else 'Valorant')}",
+        value=f"{vp.emoji} {wallet.valorant_points}",  # type: ignore
+    )
+    embed.add_field(
+        name=f'{rad.name_localizations.from_locale(str(locale)).removesuffix(" Points")}',
+        value=f'{rad.emoji} {wallet.radiant_points}',  # type: ignore
+    )
+
+
+def game_pass_e(
+    reward: contract.Reward,
+    contract: contract.ContractU,
+    relation_type: valorantx.RelationType,
+    riot_auth: RiotAuth,
+    page: int,
+    *,
+    locale: Optional[valorantx.Locale] = None,
+) -> discord.Embed:
+
+    item = reward.get_item()
+
+    if relation_type is valorantx.RelationType.agent:
+        display_name = 'Agent'
+    elif relation_type is valorantx.RelationType.event:
+        display_name = 'Eventpass'
+    else:
+        display_name = 'Battlepass'
+    embed = discord.Embed(
+        title='{gamepass} for {display_name}'.format(gamepass=display_name, display_name=bold(riot_auth.display_name))
+    )
+    embed.set_footer(
+        text='TIER {tier} | {gamepass}'.format(
+            tier=page + 1, gamepass=contract.name_localizations.from_locale(str(locale))
+        )
+    )
+
+    if item is not None:
+        embed.description = '{item}'.format(item=item.display_name)
+        if not isinstance(item, valorantx.PlayerTitle):
+            if item.display_icon is not None:
+                if isinstance(item, valorantx.SkinLevel):
+                    embed.set_image(url=item.display_icon)
+                elif isinstance(item, valorantx.PlayerCard):
+                    embed.set_image(url=item.wide_icon)
+                # elif isinstance(item, valorantx.Agent):
+                #     embed.set_image(url=item.full_portrait_v2 or item.full_portrait)
+                else:
+                    embed.set_thumbnail(url=item.display_icon)
+
+    return embed
+
+
+def mission_e(
+    contracts: valorantx.Contracts, riot_auth: RiotAuth, *, locale: Optional[valorantx.Locale] = None
+) -> discord.Embed:
+    daily = []
+    weekly = []
+    tutorial = []
+    npe = []
+
+    all_completed = True
+
+    daily_format = '{0} | **+ {1.xp:,} XP**\n- **`{1.progress}/{1.target}`**'
+    for mission in contracts.missions:
+        title = mission.title_localizations.from_locale(str(locale))
+        if mission.type == MissionType.daily:
+            daily.append(daily_format.format(title, mission))
+        elif mission.type == MissionType.weekly:
+            weekly.append(daily_format.format(title, mission))
+        elif mission.type == MissionType.tutorial:
+            tutorial.append(daily_format.format(title, mission))
+        elif mission.type == MissionType.npe:
+            npe.append(daily_format.format(title, mission))
+
+        if not mission.is_completed():
+            all_completed = False
+
+    embed = Embed(title=f"{riot_auth.display_name} Mission:")
+    if all_completed:
+        embed.colour = 0x77DD77
+
+    if len(daily) > 0:
+        embed.add_field(
+            name=f"**Daily**",
+            value='\n'.join(daily),
+            inline=False,
+        )
+
+    if len(weekly) > 0:
+
+        embed.add_field(
+            name=f"**Weekly**",
+            value='\n'.join(weekly)
+            + '\n\n Refill Time: {refill_time}'.format(
+                refill_time=format_relative(contracts.mission_metadata.weekly_refill_time)
+                if contracts.mission_metadata.weekly_refill_time is not None
+                else '-'
+            ),
+        )
+
+    if len(tutorial) > 0:
+        embed.add_field(
+            name=f"**Tutorial**",
+            value='\n'.join(tutorial),
+            inline=False,
+        )
+
+    if len(npe) > 0:
+        embed.add_field(
+            name=f"**NPE**",
+            value='\n'.join(npe),
+            inline=False,
+        )
+
+    return embed
+
+
+def skin_loadout_e(skin: SkinLoadout, *, locale: valorantx.Locale = valorantx.Locale.american_english) -> discord.Embed:
+
+    if isinstance(skin, valorantx.SkinChromaLoadout):
+        _skin = skin.get_skin()
+        if _skin is not None:
+            skin_dn = _skin.name_localizations.from_locale(str(locale))
+        else:
+            skin_dn = skin.name_localizations.from_locale(str(locale))
+    else:
+        skin_dn = skin.name_localizations.from_locale(str(locale))
+
+    embed = discord.Embed(
+        description=(skin.rarity.emoji if skin.rarity is not None else '')  # type: ignore
+        + ' '
+        + bold(skin_dn)
+        + (bold(' ★') if skin.is_favorite() else ''),
+        colour=int(skin.rarity.highlight_color[0:6], 16) if skin.rarity is not None else Theme.dark,
+    )
+    embed.set_thumbnail(url=skin.display_icon)
+
+    buddy = skin.get_buddy()
+    if buddy is not None:
+        embed.set_footer(
+            text=f'{buddy.display_name}' + (' ★' if buddy.is_favorite() else ''),
+            icon_url=buddy.display_icon,
+        )
+    return embed
+
+
+def spray_loadout_e(
+    spray: SprayLoadout, slot: int, *, locale: valorantx.Locale = valorantx.Locale.american_english
+) -> discord.Embed:
+    embed = discord.Embed(
+        description=bold(str(slot) + '. ' + spray.display_name) + (bold(' ★') if spray.is_favorite() else '')
+    )
+    spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
+    if spray_icon is not None:
+        embed.set_thumbnail(url=spray_icon)
+    return embed
 
 
 class MatchEmbed:
@@ -129,7 +295,7 @@ class MatchEmbed:
         return self._mobiles
 
     @property
-    def me(self) -> Optional[MatchPlayer]:
+    def me(self) -> Optional[match.MatchPlayer]:
         return self._match.me
 
     @property
@@ -142,20 +308,20 @@ class MatchEmbed:
     def get_enemy_team(self) -> Any:  # TODO: fix this
         return self._match.get_enemy_team()
 
-    def get_me_team_players(self) -> List[MatchPlayer]:
+    def get_me_team_players(self) -> List[match.MatchPlayer]:
         return sorted(self.get_me_team().get_players(), key=lambda p: p.acs, reverse=True)
 
-    def get_enemy_team_players(self) -> List[MatchPlayer]:
+    def get_enemy_team_players(self) -> List[match.MatchPlayer]:
         return sorted(self.get_enemy_team().get_players(), key=lambda p: p.acs, reverse=True)
 
-    def _get_mvp_star(self, player: MatchPlayer) -> str:
+    def _get_mvp_star(self, player: match.MatchPlayer) -> str:
         if player == self._match.get_match_mvp():
             return '★'
         elif player == self._match.get_team_mvp():
             return '☆'
         return ''
 
-    def _tier_display(self, player: MatchPlayer) -> str:
+    def _tier_display(self, player: match.MatchPlayer) -> str:
         tier = player.get_competitive_rank()
         return (
             (' ' + tier.emoji + ' ')  # type: ignore
@@ -163,7 +329,7 @@ class MatchEmbed:
             else ''
         )
 
-    def _player_display(self, player: MatchPlayer, is_bold: bool = True) -> str:
+    def _player_display(self, player: match.MatchPlayer, is_bold: bool = True) -> str:
         return (
             player.agent.emoji  # type: ignore
             + self._tier_display(player)
@@ -171,7 +337,7 @@ class MatchEmbed:
             + (bold(player.display_name) if is_bold and player == self.me else player.display_name)
         )
 
-    def _acs_display(self, player: MatchPlayer, star: bool = True) -> str:
+    def _acs_display(self, player: match.MatchPlayer, star: bool = True) -> str:
         acs = str(int(player.acs))
         if star:
             acs += ' ' + self._get_mvp_star(player)
@@ -256,7 +422,7 @@ class MatchEmbed:
 
         return e
 
-    def __abilities_text(self, abilities: AbilityCasts) -> str:
+    def __abilities_text(self, abilities: match.AbilityCasts) -> str:
         return '{c_emoji} {c_casts} {q_emoji} {q_casts} {e_emoji} {e_casts} {x_emoji} {x_casts}'.format(
             c_emoji=abilities.c.emoji,  # type: ignore
             c_casts=round(abilities.c_casts / self.me.rounds_played, 1),

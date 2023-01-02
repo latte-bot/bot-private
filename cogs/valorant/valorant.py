@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import random
@@ -29,7 +30,7 @@ from utils.checks import cooldown_5s
 from utils.errors import CommandError
 from utils.formats import format_relative
 from utils.i18n import _
-from utils.views import BaseView
+from utils.views import BaseView, ViewAuthor
 
 # local
 from ._client import Client as ValorantClient, RiotAuth
@@ -1237,15 +1238,15 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             client.clear()
             # __aexit__
 
-        class Switch(ui.View):
-            def __init__(self, store_front: valorantx.StoreFront, riot_auth: RiotAuth):
-                super().__init__(timeout=None)
+        class Switch(ViewAuthor):
+            def __init__(self, interaction: Interaction, store_front: valorantx.StoreFront, riot_auth: RiotAuth):
+                super().__init__(interaction=interaction, timeout=None)
                 self.store = store_front.get_store()
                 self.nightmarket = store_front.get_nightmarket()
                 self.riot_auth = riot_auth
+                self.embeds: List[discord.Embed] = self.store_e()
                 if not self.nightmarket:
-                    self.nightmarket_button.disabled = True
-                    self.nightmarket_button.style = discord.ButtonStyle.grey
+                    self.remove_item(self.nightmarket_button)
 
             def store_e(self) -> List[discord.Embed]:
                 return store_e(self.store, self.riot_auth)
@@ -1261,20 +1262,36 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             @ui.button(label='Store', style=discord.ButtonStyle.blurple, disabled=True)
             async def store_button(self, interaction: discord.Interaction, button: discord.ui.Button):
                 self._toggle()
-                embeds = store_e(self.store, self.riot_auth)
-                await interaction.response.edit_message(embeds=embeds, view=self)
+                self.embeds = store_e(self.store, self.riot_auth)
+                await interaction.response.edit_message(embeds=self.embeds, view=self)
 
             @ui.button(label='Nightmarket', style=discord.ButtonStyle.blurple)
             async def nightmarket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
                 self._toggle()
-                embeds = nightmarket_e(self.nightmarket, self.riot_auth)
-                await interaction.response.edit_message(embeds=embeds, view=self)
+                self.embeds = nightmarket_e(self.nightmarket, self.riot_auth)
+                await interaction.response.edit_message(embeds=self.embeds, view=self)
 
-            async def start(self, interaction: Interaction):
-                await interaction.followup.send(embeds=self.store_e(), view=self, ephemeral=True)
+            @ui.button(label='Share to friends', style=discord.ButtonStyle.primary, row=1)
+            async def button_callback(self, interaction: Interaction, button: ui.Button):
+                await interaction.response.defer()
+                await interaction.channel.send(embeds=self.embeds)
 
-        view = Switch(store_front, try_auth)
-        await view.start(interaction)
+                if self.nightmarket_button.disabled and self.nightmarket is not None:
+                    self.remove_item(self.nightmarket_button)
+                else:
+                    self.remove_item(self.store_button)
+
+                if len(self.children) > 1:
+                    await self.message.edit(content='\u200b', embed=None, view=self)
+                else:
+                    with contextlib.suppress((discord.HTTPException, discord.NotFound)):
+                        await self.message.delete()
+
+            async def start(self):
+                self.message = await self.interaction.followup.send(embeds=self.embeds, view=self, ephemeral=True)
+
+        view = Switch(interaction, store_front, try_auth)
+        await view.start()
 
     # @app_commands.command(name=_T('stats'), description=_T('Show the stats of a player'))
     # @app_commands.choices(
