@@ -6,7 +6,6 @@ import logging
 import random
 import re
 from abc import ABC
-from datetime import timezone
 from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
@@ -35,7 +34,7 @@ from utils.views import BaseView, ViewAuthor
 # local
 from ._client import Client as ValorantClient, RiotAuth
 from ._database import Database, ValorantUser
-from ._embeds import Embed, nightmarket_e, store_e
+from ._embeds import Embed, agent_e, buddy_e, bundle_e, nightmarket_e, patch_notes_e, player_card_e, spray_e, store_e
 from ._enums import PointEmoji, ValorantLocale as VLocale
 from ._errors import NoAccountsLinked
 from ._views import (  # StatsView,
@@ -784,25 +783,16 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         patch_notes = await self.get_patch_notes(interaction.locale)
 
         latest = patch_notes.get_latest_patch_note()
-
-        embed = discord.Embed(
-            title=latest.title,
-            timestamp=latest.timestamp.replace(tzinfo=timezone.utc),
-            url=latest.url,
-            description=italics(latest.description),
-        )
-
-        # banner
         scraper = await self.v_client.scraper_patch_note(latest.url)
-        banner_url = scraper.banner or latest.banner
-        if banner_url is not None:
-            embed.set_image(url=banner_url)
-            color_thief = await self.bot.get_or_fetch_colors(latest.uid, banner_url, 5)
+
+        embed = patch_notes_e(latest, scraper.banner)
+
+        if embed._image.get('url'):
+            color_thief = await self.bot.get_or_fetch_colors(latest.uid, embed._image['url'], 5)
             embed.colour = random.choice(color_thief)
 
-        view = discord.ui.View()
-        view.add_item(
-            discord.ui.Button(
+        view = BaseView().add_item(
+            ui.Button(
                 label=patch_notes.see_article_title,
                 url=latest.url,
                 emoji=str(self.bot.l_emoji.link_standard),
@@ -818,37 +808,23 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
     async def agent(self, interaction: Interaction, agent: str = None) -> None:
 
         # หน้าเลือก agent role n.nextcord
-
         await interaction.response.defer()
 
-        locale = self.v_locale(interaction.locale)
+        agent_ = self.v_client.get_agent(agent)
 
-        get_agent = self.v_client.get_agent(agent)
+        if agent_ is not None:
 
-        if get_agent is not None:
-
-            embed = Embed(
-                title=get_agent.display_name,
-                description=italics(get_agent.description_localizations.from_locale(str(locale))),
-                colour=int(random.choice(get_agent.background_gradient_colors)[:-2], 16),
-            )
-            embed.set_image(url=get_agent.full_portrait)
-            embed.set_thumbnail(url=get_agent.display_icon)
-            embed.set_footer(
-                text=get_agent.role.name_localizations.from_locale(str(locale)),
-                icon_url=get_agent.role.display_icon,
-            )
+            embed = agent_e(agent_, self.v_locale(interaction.locale))
 
             # TODO: add agent abilities
 
-            buttons = (
-                ui.Button(label="Full Portrait", url=get_agent.full_portrait.url),
-                ui.Button(label="Display Icon", url=get_agent.display_icon.url),
-                ui.Button(label="Background", url=get_agent.background.url),
+            view = BaseView().add_items(
+                (
+                    ui.Button(label="Full Portrait", url=agent_.full_portrait.url),
+                    ui.Button(label="Display Icon", url=agent_.display_icon.url),
+                    ui.Button(label="Background", url=agent_.background.url),
+                )
             )
-            view = BaseView()
-            for button in buttons:
-                view.add_item(button)
 
             await interaction.followup.send(embed=embed, view=view)
         else:
@@ -872,31 +848,12 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        locale = self.v_locale(interaction.locale)
-        get_buddy = self.v_client.get_buddy_level(buddy)
+        buddy_ = self.v_client.get_buddy_level(buddy)
 
-        if get_buddy is not None:
-            embed = Embed(colour=self.bot.theme.purple)
+        if buddy_ is not None:
+            embed = buddy_e(buddy_, self.v_locale(interaction.locale))
 
-            if isinstance(get_buddy, Buddy):
-                embed.set_author(
-                    name=get_buddy.name_localizations.from_locale(str(locale)),
-                    icon_url=get_buddy.theme.display_icon if get_buddy.theme is not None else None,
-                    url=get_buddy.display_icon,
-                )
-
-            elif isinstance(get_buddy, BuddyLevel):
-                embed.set_author(
-                    name=get_buddy.get_base_buddy().name_localizations.from_locale(str(locale)),
-                    url=get_buddy.display_icon,
-                    icon_url=get_buddy.get_base_buddy().theme.display_icon
-                    if get_buddy.get_base_buddy().theme is not None
-                    else None,
-                )
-            embed.set_image(url=get_buddy.display_icon)
-
-            view = BaseView()
-            view.add_item(ui.Button(label="Display Icon", url=get_buddy.display_icon.url))
+            view = BaseView().add_item(ui.Button(label="Display Icon", url=buddy_.display_icon.url))
 
             await interaction.followup.send(embed=embed, view=view)
         else:
@@ -911,50 +868,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        locale = self.v_locale(interaction.locale)
+        bundle_ = self.v_client.get_bundle(bundle)
 
-        get_bundle = self.v_client.get_bundle(bundle)
-
-        if get_bundle is not None:
-
-            embeds = []
-
-            embed = Embed(
-                description=f"Featured Bundle: {bold(f'{get_bundle.name_localizations.from_locale(str(locale))} Collection')}\n"  # noqa: E501
-                f"{PointEmoji.valorant} {get_bundle.price}",
-                colour=self.bot.theme.purple,
-            )
-            if get_bundle.display_icon_2 is not None:
-                embed.set_image(url=get_bundle.display_icon_2)
-
-            embeds.append(embed)
-
-            for item in sorted(get_bundle.items, key=lambda i: i.price, reverse=True):
-                emoji = item.rarity.emoji if isinstance(item, Skin) else ''  # type: ignore
-                e = Embed(
-                    title=f"{emoji} {bold(item.name_localizations.from_locale(str(locale)))}",
-                    description=f"{PointEmoji.valorant} {item.price}",
-                    colour=self.bot.theme.dark,
-                )
-
-                if isinstance(item, PlayerCard):
-                    item_icon = item.large_icon
-                elif isinstance(item, Spray):
-                    item_icon = item.full_transparent_icon or item.full_icon or item.display_icon
-                else:
-                    item_icon = item.display_icon
-
-                if item_icon is not None:
-                    e.url = item_icon.url
-                    e.set_thumbnail(url=item_icon)
-
-                embeds.append(e)
-
+        if bundle_ is not None:
+            embeds = bundle_e(bundle_, self.v_locale(interaction.locale))
             await interaction.followup.send(embeds=embeds)
-
         else:
-
-            await interaction.followup.send(f"Could not find bundle with name {bold(bundle)}")
+            raise CommandError(f"Could not find bundle with name {bold(bundle)}")
 
     @app_commands.command(name=_T('spray'), description=_T('View spray info'))
     @app_commands.guild_only()
@@ -964,47 +884,29 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        locale = self.v_locale(interaction.locale)
-        get_spray = self.v_client.get_spray(spray)
+        spray_ = self.v_client.get_spray(spray)
 
-        if get_spray is not None:
-            embed = Embed(colour=self.bot.theme.purple)  # TODO: get color from spray
+        if spray_ is not None:
+
+            embed = spray_e(spray_, self.v_locale(interaction.locale))
+
             view = BaseView()
 
-            if isinstance(get_spray, Spray):
-                embed.set_author(
-                    name=get_spray.name_localizations.from_locale(str(locale)),
-                    url=get_spray.display_icon,
-                    icon_url=get_spray.theme.display_icon if get_spray.theme is not None else None,
-                )
-                embed.set_image(
-                    url=get_spray.animation_gif or get_spray.full_transparent_icon or get_spray.display_icon
-                )
-                if get_spray.animation_gif:
-                    view.add_item(ui.Button(label="Animation Gif", url=get_spray.animation_gif.url))
-                if get_spray.full_transparent_icon:
+            if isinstance(spray_, Spray):
+                if spray_.animation_gif:
+                    view.add_item(ui.Button(label="Animation Gif", url=spray_.animation_gif.url))
+                if spray_.full_transparent_icon:
                     view.add_item(
                         ui.Button(
                             label='Full Transparent Icon',
-                            url=get_spray.full_transparent_icon.url,
+                            url=spray_.full_transparent_icon.url,
                         )
                     )
-                if get_spray.display_icon:
-                    view.add_item(ui.Button(label='Display Icon', url=get_spray.display_icon.url))
+                if spray_.display_icon:
+                    view.add_item(ui.Button(label='Display Icon', url=spray_.display_icon.url))
 
-            elif isinstance(get_spray, SprayLevel):
-                base_spray = get_spray.get_base_spray()
-                embed.set_author(
-                    name=base_spray.name_localizations.from_locale(str(locale)),
-                    icon_url=base_spray.theme.display_icon if base_spray.theme is not None else None,
-                    url=get_spray.display_icon,
-                )
-                embed.set_image(
-                    url=base_spray.animation_gif
-                    or base_spray.full_transparent_icon
-                    or base_spray.display_icon
-                    or get_spray.display_icon
-                )
+            elif isinstance(spray_, SprayLevel):
+                base_spray = spray_.get_base_spray()
 
                 if base_spray.animation_gif:
                     view.add_item(ui.Button(label="Animation Gif", url=base_spray.animation_gif.url))
@@ -1031,20 +933,13 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
         await interaction.response.defer()
 
-        locale = self.v_locale(interaction.locale)
         player_card = self.v_client.get_player_card(card)
 
         if player_card is not None:
-            embed = Embed(colour=self.bot.theme.purple)
-            embed.set_author(
-                name=player_card.name_localizations.from_locale(str(locale)),
-                icon_url=player_card.theme.display_icon if player_card.theme is not None else None,
-                url=player_card.large_icon,
-            )
-            embed.set_image(url=player_card.large_icon)
-            # TODO: player card views selection
+            embed = player_card_e(player_card, self.v_locale(interaction.locale))
 
             view = BaseView()
+            # TODO: player card views selection
             if player_card.display_icon is not None:
                 view.add_item(ui.Button(label="Display Icon", url=player_card.display_icon.url))
 

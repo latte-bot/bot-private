@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import random
 from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple, Union
 
@@ -9,7 +10,7 @@ import valorantx
 # from async_lru import alru_cache
 from valorantx import GameModeType, MissionType
 
-from utils.chat_formatting import bold, strikethrough
+from utils.chat_formatting import bold, italics, strikethrough
 from utils.enums import Theme
 from utils.formats import format_relative
 from utils.i18n import _
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
 
     SkinLoadout = Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]
     SprayLoadout = Union[valorantx.SprayLoadout, valorantx.SprayLevelLoadout]
+    BundleItem = Union[valorantx.Skin, valorantx.Buddy, valorantx.Spray, valorantx.PlayerCard]
 
 
 class Embed(discord.Embed):
@@ -276,12 +278,140 @@ def spray_loadout_e(
     spray: SprayLoadout, slot: int, *, locale: valorantx.Locale = valorantx.Locale.american_english
 ) -> discord.Embed:
     spray_dn = spray.name_localizations.from_locale(str(locale))
-    embed = discord.Embed(
-        description=bold(str(slot) + '. ' + spray_dn) + (' ★' if spray.is_favorite() else '')
-    )
+    embed = discord.Embed(description=bold(str(slot) + '. ' + spray_dn) + (' ★' if spray.is_favorite() else ''))
     spray_icon = spray.animation_gif or spray.full_transparent_icon or spray.display_icon
     if spray_icon is not None:
         embed.set_thumbnail(url=spray_icon)
+    return embed
+
+
+def patch_notes_e(pn: valorantx.PatchNote, banner_url: Optional[str] = None) -> discord.Embed:
+    embed = discord.Embed(
+        title=pn.title,
+        timestamp=pn.timestamp.replace(tzinfo=datetime.timezone.utc),
+        url=pn.url,
+        description=italics(pn.description),
+    )
+    embed.set_image(url=(banner_url or pn.banner))
+    return embed
+
+
+def agent_e(agent: valorantx.Agent, *, locale: valorantx.Locale = valorantx.Locale.american_english) -> discord.Embed:
+    embed = Embed(
+        title=agent.name_localizations.from_locale(str(locale)),
+        description=italics(agent.description_localizations.from_locale(str(locale))),
+        colour=int(random.choice(agent.background_gradient_colors)[:-2], 16),
+    )
+    embed.set_image(url=agent.full_portrait)
+    embed.set_thumbnail(url=agent.display_icon)
+    embed.set_footer(
+        text=agent.role.name_localizations.from_locale(str(locale)),
+        icon_url=agent.role.display_icon,
+    )
+    return embed
+
+
+def buddy_e(
+    buddy: Union[valorantx.Buddy, valorantx.BuddyLevel], *, locale: valorantx.Locale = valorantx.Locale.american_english
+) -> discord.Embed:
+    embed = Embed(colour=Theme.purple)
+    if isinstance(buddy, valorantx.Buddy):
+        embed.set_author(
+            name=buddy.name_localizations.from_locale(str(locale)),
+            icon_url=buddy.theme.display_icon if buddy.theme is not None else None,
+            url=buddy.display_icon,
+        )
+
+    elif isinstance(buddy, valorantx.BuddyLevel):
+        embed.set_author(
+            name=buddy._base_buddy.name_localizations.from_locale(str(locale)),
+            url=buddy.display_icon,
+            icon_url=buddy._base_buddy.theme.display_icon if buddy._base_buddy.theme is not None else None,
+        )
+    embed.set_image(url=buddy.display_icon)
+
+    return embed
+
+
+def spray_e(
+    spray: Union[valorantx.Spray, valorantx.SprayLevel], *, locale: valorantx.Locale = valorantx.Locale.american_english
+) -> discord.Embed:
+    embed = Embed(colour=Theme.purple)
+
+    if isinstance(spray, valorantx.Spray):
+        embed.set_author(
+            name=spray.name_localizations.from_locale(str(locale)),
+            url=spray.display_icon,
+            icon_url=spray.theme.display_icon if spray.theme is not None else None,
+        )
+        embed.set_image(url=spray.animation_gif or spray.full_transparent_icon or spray.display_icon)
+
+    elif isinstance(spray, valorantx.SprayLevel):
+        base_spray = spray.get_base_spray()
+        embed.set_author(
+            name=base_spray.name_localizations.from_locale(str(locale)),
+            icon_url=base_spray.theme.display_icon if base_spray.theme is not None else None,
+            url=spray.display_icon,
+        )
+        embed.set_image(
+            url=base_spray.animation_gif
+            or base_spray.full_transparent_icon
+            or base_spray.display_icon
+            or spray.display_icon
+        )
+
+
+def player_card_e(
+    player_card: valorantx.PlayerCard, *, locale: valorantx.Locale = valorantx.Locale.american_english
+) -> discord.Embed:
+    embed = Embed(colour=Theme.purple)
+    embed.set_author(
+        name=player_card.name_localizations.from_locale(str(locale)),
+        icon_url=player_card.theme.display_icon if player_card.theme is not None else None,
+        url=player_card.large_icon,
+    )
+    embed.set_image(url=player_card.large_icon)
+    return embed
+
+
+def bundle_e(
+    bundle: valorantx.Bundle, *, locale: valorantx.Locale = valorantx.Locale.american_english
+) -> List[discord.Embed]:
+    embeds = []
+    embed = Embed(
+        description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale(str(locale))} Collection')}\n"  # noqa: E501
+        f"{PointEmoji.valorant} {bundle.price}",
+        colour=Theme.purple,
+    )
+    if bundle.display_icon_2 is not None:
+        embed.set_image(url=bundle.display_icon_2)
+
+    embeds.append(embed)
+
+    for item in sorted(bundle.items, key=lambda i: i.price, reverse=True):
+        embeds.append(bundle_item_e(item, locale=locale))
+
+    return embeds
+
+
+def bundle_item_e(item: BundleItem, *, locale: valorantx.Locale = valorantx.Locale.american_english) -> discord.Embed:
+    emoji = item.rarity.emoji if isinstance(item, Skin) else ''  # type: ignore
+    embed = Embed(
+        title=f"{emoji} {bold(item.name_localizations.from_locale(str(locale)))}",
+        description=f"{PointEmoji.valorant} {item.price}",
+        colour=Theme.dark,
+    )
+
+    if isinstance(item, valorantx.PlayerCard):
+        item_icon = item.large_icon
+    elif isinstance(item, valorantx.Spray):
+        item_icon = item.full_transparent_icon or item.full_icon or item.display_icon
+    else:
+        item_icon = item.display_icon
+
+    if item_icon is not None:
+        embed.url = item_icon.url
+        embed.set_thumbnail(url=item_icon)
     return embed
 
 

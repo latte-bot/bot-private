@@ -167,6 +167,11 @@ class BaseView(ui.View):
     def disable_selects(self) -> Self:
         return self.disable_items(ui.Select)
 
+    def add_items(self, *items: ui.Item) -> Self:
+        for item in items:
+            self.add_item(item)
+        return self
+
     @property
     def message(self) -> Optional[Union[Message, InteractionMessage]]:
         return self._message
