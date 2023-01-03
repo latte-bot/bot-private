@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import discord
 from discord import Interaction, app_commands
 from discord.app_commands import locale_str as _T
 from discord.ext import commands
@@ -70,4 +71,5 @@ class Testing(commands.Cog):
 
 
 async def setup(bot: LatteBot) -> None:
-    await bot.add_cog(Testing(bot))
+    if bot.support_guild_id is not None:
+        await bot.add_cog(Testing(bot=bot), guilds=[discord.Object(id=bot.support_guild_id)])

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from discord import Client
 
     from bot import LatteBot
+
     ClientBot = Union[Client, LatteBot]
     from valorantx.models import contract, match
 
@@ -210,9 +211,7 @@ def mission_e(
         if not mission.is_completed():
             all_completed = False
 
-    embed = Embed(title='{display_name} Mission:'.format(
-        display_name=riot_auth.display_name
-    ))
+    embed = Embed(title='{display_name} Mission:'.format(display_name=riot_auth.display_name))
     if all_completed:
         embed.colour = 0x77DD77
 

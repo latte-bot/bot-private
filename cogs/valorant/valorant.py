@@ -647,6 +647,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
     @app_commands.command(name=_T('mission'), description=_T('View your daily/weekly mission progress'))
     @dynamic_cooldown(cooldown_5s)
+    @app_commands.guild_only()
     async def mission(self, interaction: Interaction) -> None:
 
         await interaction.response.defer()

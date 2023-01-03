@@ -1,5 +1,39 @@
 {
     "app_commands": {
+        "fun": {
+            "latte_say": {
+                "name": "latte_say",
+                "description": "Message something you give latte to say",
+                "options": {
+                    "message": {
+                        "name": "message",
+                        "description": "Input message"
+                    },
+                    "attachment": {
+                        "name": "attachment",
+                        "description": "The attachment to send"
+                    }
+                }
+            },
+            "saybot": {
+                "name": "saybot",
+                "description": "Message something you give saybot to say",
+                "options": {
+                    "message": {
+                        "name": "message",
+                        "description": "Input message"
+                    },
+                    "attachment": {
+                        "name": "attachment",
+                        "description": "The attachment to send"
+                    },
+                    "member": {
+                        "name": "member",
+                        "description": "The member to say something to saybot"
+                    }
+                }
+            }
+        },
         "help": {
             "help": {
                 "name": "help",
@@ -23,13 +57,19 @@
                 "name": "i18n",
                 "description": "Shows the current language of the bot."
             },
-            "partnership": {
-                "name": "partnership",
-                "description": "Shows the partnership information of the bot."
+            "source": {
+                "name": "source",
+                "description": "Shows the source code of the bot.",
+                "options": {
+                    "command": {
+                        "name": "command",
+                        "description": "The command to show the source code of."
+                    }
+                }
             },
-            "donate": {
-                "name": "donate",
-                "description": "บริจาค | Donate to the bot."
+            "feedback": {
+                "name": "feedback",
+                "description": "Send feedback to the bot."
             }
         },
         "valorant": {
@@ -67,7 +107,23 @@
             },
             "battlepass": {
                 "name": "battlepass",
-                "description": "View your battlepass current tier"
+                "description": "View your battlepass current tier",
+                "options": {
+                    "season": {
+                        "name": "season",
+                        "description": "…"
+                    }
+                }
+            },
+            "eventpass": {
+                "name": "eventpass",
+                "description": "View your Eventpass current tier",
+                "options": {
+                    "event": {
+                        "name": "event",
+                        "description": "…"
+                    }
+                }
             },
             "point": {
                 "name": "point",
@@ -92,6 +148,26 @@
                     "mode": {
                         "name": "mode",
                         "description": "The queue to show your carrier for",
+                        "choices": {
+                            "unrated": "Unrated",
+                            "competitive": "Competitive",
+                            "deathmatch": "Deathmatch",
+                            "spikerush": "Spike Rush",
+                            "ggteam": "Escalation",
+                            "onefa": "Replication",
+                            "snowball": "Snowball Fight",
+                            "custom": "Custom"
+                        }
+                    }
+                }
+            },
+            "match": {
+                "name": "match",
+                "description": "Shows latest match details",
+                "options": {
+                    "mode": {
+                        "name": "mode",
+                        "description": "The queue to show your latest match for",
                         "choices": {
                             "unrated": "Unrated",
                             "competitive": "Competitive",
@@ -176,10 +252,21 @@
                         "description": "…"
                     }
                 }
+            },
+            "temp": {
+                "name": "temp",
+                "description": "This command not save your data",
+                "options": {
+                    "username": {
+                        "name": "username",
+                        "description": "username (not save)"
+                    },
+                    "password": {
+                        "name": "password",
+                        "description": "password (not save)"
+                    }
+                }
             }
         }
-    },
-    "strings": {
-        "hello_world": "สวัสดีโลก"
     }
 }

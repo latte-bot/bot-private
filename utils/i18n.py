@@ -127,7 +127,7 @@ class Translator(app_commands.Translator):
     def _get_path(self) -> str:
         return self._path or os.path.join(os.getcwd(), 'i18n')
 
-    @lru_cache(maxsize=30)
+    @lru_cache(maxsize=31)
     def _localize_file(self, locale: Locale) -> Internationalization:
         path = self._get_path()
         return self._load_file(path, locale)

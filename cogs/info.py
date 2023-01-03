@@ -4,7 +4,7 @@ import datetime
 import itertools
 import platform
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import discord
 import psutil
@@ -169,6 +169,7 @@ class About(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view)
 
     @app_commands.command(name=_T("i18n"), description=_T("Shows the current language of the bot."))
+    @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
     async def i18n(self, interaction: Interaction) -> None:
         await interaction.response.send_message('')
@@ -181,7 +182,7 @@ class About(commands.Cog):
         ...
 
     @source.autocomplete('command')
-    async def source_autocomplete(self, interaction: Interaction, current: str) -> List[Choice[str]]:
+    async def source_autocomplete(self, interaction: Interaction, current: str) -> List[app_commands.Choice[str]]:
 
         entries = []
 
@@ -194,7 +195,7 @@ class About(commands.Cog):
                 if command.qualified_name.startswith(namespace):
                     entries.append(command)
 
-        return [Choice(name=entry.qualified_name, value=entry.qualified_name) for entry in entries][:25]
+        return [app_commands.Choice(name=entry.qualified_name, value=entry.id) for entry in entries][:25]
 
     # @app_commands.command(name=_T('partnership'), description=_T('Shows the partnership information of the bot.'))
     # @dynamic_cooldown(cooldown_5s)
@@ -207,6 +208,7 @@ class About(commands.Cog):
     #     ...
 
     @app_commands.command(name=_T('feedback'), description=_T('Send feedback to the bot.'))
+    @app_commands.guild_only()
     @dynamic_cooldown(cooldown_5s)
     async def feedback(self, interaction: Interaction) -> None:
         ...
