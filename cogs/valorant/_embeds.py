@@ -21,15 +21,21 @@ if TYPE_CHECKING:
     from discord import Client
 
     from bot import LatteBot
-
-    from ._client import RiotAuth
-
     ClientBot = Union[Client, LatteBot]
     from valorantx.models import contract, match
 
+    from ._client import RiotAuth
+
     SkinLoadout = Union[valorantx.SkinLoadout, valorantx.SkinLevelLoadout, valorantx.SkinChromaLoadout]
     SprayLoadout = Union[valorantx.SprayLoadout, valorantx.SprayLevelLoadout]
-    BundleItem = Union[valorantx.Skin, valorantx.Buddy, valorantx.Spray, valorantx.PlayerCard]
+
+BundleItem = Union[valorantx.Skin, valorantx.Buddy, valorantx.Spray, valorantx.PlayerCard]
+FeaturedBundleItem = Union[
+    valorantx.SkinBundle, valorantx.SprayBundle, valorantx.BuddyBundle, valorantx.PlayerCardBundle
+]
+SkinItem = Union[valorantx.Skin, valorantx.SkinLevel, valorantx.SkinChroma]
+SprayItem = Union[valorantx.Spray, valorantx.SprayLevel]
+BuddyItem = Union[valorantx.Buddy, valorantx.BuddyLevel]
 
 
 class Embed(discord.Embed):
@@ -57,11 +63,11 @@ def skin_e(
     )
 
     if not is_nightmarket:
-        embed.description = f"{PointEmoji.valorant} {bold(skin.price)}"
+        embed.description = f'{PointEmoji.valorant} {bold(skin.price)}'
     else:
         embed.description = (
-            f"{PointEmoji.valorant} {bold(str(skin.discount_price))}\n"
-            f"{PointEmoji.valorant} {strikethrough(str(skin.price))} (-{skin.discount_percent}%)"
+            f'{PointEmoji.valorant} {bold(str(skin.discount_price))}\n'
+            f'{PointEmoji.valorant} {strikethrough(str(skin.price))} (-{skin.discount_percent}%)'
         )
 
     if skin.display_icon is not None:
@@ -82,8 +88,8 @@ def store_e(
 
     embeds = [
         Embed(
-            description=_("Daily store for {user}\n").format(user=bold(riot_auth.display_name))
-            + f"Resets {format_relative(store.reset_at)}",
+            description=_('Daily store for {user}\n').format(user=bold(riot_auth.display_name))
+            + f'Resets {format_relative(store.reset_at)}',
             colour=Theme.purple,
         )
     ]
@@ -102,8 +108,8 @@ def nightmarket_e(
 
     embeds = [
         Embed(
-            description=f"NightMarket for {bold(riot_auth.display_name)}\n"
-            f"Expires {format_relative(nightmarket.expire_at)}",
+            description=f'NightMarket for {bold(riot_auth.display_name)}\n'
+            f'Expires {format_relative(nightmarket.expire_at)}',
             colour=Theme.purple,
         )
     ]
@@ -123,11 +129,11 @@ def wallet_e(
 
     vp_name = vp.name_localizations.from_locale(str(locale))
 
-    embed = embed = Embed(title=f"{riot_auth.display_name} Point:")
+    embed = embed = Embed(title=f'{riot_auth.display_name} Point:')
 
     embed.add_field(
-        name=f"{(vp_name if vp_name != 'VP' else 'Valorant')}",
-        value=f"{vp.emoji} {wallet.valorant_points}",  # type: ignore
+        name=f'{(vp_name if vp_name != "VP" else "Valorant")}',
+        value=f'{vp.emoji} {wallet.valorant_points}',  # type: ignore
     )
     embed.add_field(
         name=f'{rad.name_localizations.from_locale(str(locale)).removesuffix(" Points")}',
@@ -204,7 +210,9 @@ def mission_e(
         if not mission.is_completed():
             all_completed = False
 
-    embed = Embed(title=f"{riot_auth.display_name} Mission:")
+    embed = Embed(title='{display_name} Mission:'.format(
+        display_name=riot_auth.display_name
+    ))
     if all_completed:
         embed.colour = 0x77DD77
 
@@ -374,45 +382,93 @@ def player_card_e(
     return embed
 
 
-def bundle_e(
-    bundle: valorantx.Bundle, *, locale: valorantx.Locale = valorantx.Locale.american_english
-) -> List[discord.Embed]:
-    embeds = []
-    embed = Embed(
-        description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale(str(locale))} Collection')}\n"  # noqa: E501
-        f"{PointEmoji.valorant} {bundle.price}",
-        colour=Theme.purple,
-    )
-    if bundle.display_icon_2 is not None:
-        embed.set_image(url=bundle.display_icon_2)
-
-    embeds.append(embed)
-
-    for item in sorted(bundle.items, key=lambda i: i.price, reverse=True):
-        embeds.append(bundle_item_e(item, locale=locale))
-
-    return embeds
-
-
-def bundle_item_e(item: BundleItem, *, locale: valorantx.Locale = valorantx.Locale.american_english) -> discord.Embed:
+def bundle_item_e(
+    item: Union[BundleItem, FeaturedBundleItem],
+    is_featured: bool = False,
+    *,
+    locale: valorantx.Locale = valorantx.Locale.american_english,
+) -> discord.Embed:
     emoji = item.rarity.emoji if isinstance(item, valorantx.Skin) else ''  # type: ignore
+
     embed = Embed(
-        title=f"{emoji} {bold(item.name_localizations.from_locale(str(locale)))}",
-        description=f"{PointEmoji.valorant} {item.price}",
+        title='{rarity} {name}'.format(rarity=emoji, name=bold(item.name_localizations.from_locale(str(locale)))),
+        description='{emoji} '.format(emoji=PointEmoji.valorant),
         colour=Theme.dark,
     )
+    if not is_featured or item.is_melee():
+        embed.description += '{free} {price}'.format(
+            free=(bold('FREE') if is_featured else ''), price=(strikethrough(item.price) if is_featured else item.price)
+        )
+    else:
+        if item.discounted_price != item.price and item.discounted_price != 0:
+            embed.description += '{discounted} {price}'.format(
+                discounted=bold(str(item.discounted_price)), price=strikethrough(str(item.price))
+            )
+        else:
+            embed.description += str(item.price)
 
     if isinstance(item, valorantx.PlayerCard):
         item_icon = item.large_icon
     elif isinstance(item, valorantx.Spray):
-        item_icon = item.full_transparent_icon or item.full_icon or item.display_icon
+        item_icon = item.animation_gif or item.full_transparent_icon or item.full_icon or item.display_icon
     else:
         item_icon = item.display_icon
 
     if item_icon is not None:
         embed.url = item_icon.url
         embed.set_thumbnail(url=item_icon)
+
     return embed
+
+
+def bundle_e(
+    bundle: Union[valorantx.Bundle, valorantx.FeaturedBundle],
+    *,
+    locale: valorantx.Locale = valorantx.Locale.american_english,
+) -> List[discord.Embed]:
+    embeds = []
+
+    embed = Embed(colour=Theme.purple)
+    if bundle.display_icon_2 is not None:
+        embed.set_image(url=bundle.display_icon_2)
+
+    if isinstance(bundle, valorantx.FeaturedBundle):
+        embed.description = 'Featured Bundle: {bundle}\n{emoji} {price} {strikethrough} {expires}'.format(
+            bundle=bold(bundle.name_localizations.from_locale(str(locale)) + ' Collection'),
+            emoji=PointEmoji.valorant,
+            price=bold(str(bundle.discount_price)),
+            strikethrough=strikethrough(str(bundle.price)),
+            expires=italics('(Expires {expires})'.format(expires=format_relative(bundle.expires_at))),
+        )
+    else:
+        embed.description = 'Bundle: {bundle}\n{emoji} {price}'.format(
+            bundle=bold(bundle.name_localizations.from_locale(str(locale)) + ' Collection'),
+            emoji=PointEmoji.valorant,
+            price=bundle.price,
+        )
+
+    embeds.append(embed)
+
+    def item_priorities(i: Union[BundleItem, FeaturedBundleItem]) -> int:
+        if i.is_melee():
+            return 0
+        elif isinstance(i, SkinItem):
+            return 1
+        elif isinstance(i, BuddyItem):
+            return 2
+        elif isinstance(i, valorantx.PlayerCard):
+            return 3
+        elif isinstance(i, SprayItem):
+            return 4
+        # elif isinstance(i, valorantx.PlayerTitle):
+        #     return 5
+        else:
+            return 5
+
+    for item in sorted(bundle.items, key=item_priorities):
+        embeds.append(bundle_item_e(item, isinstance(bundle, valorantx.FeaturedBundle), locale=locale))
+
+    return embeds
 
 
 class MatchEmbed:

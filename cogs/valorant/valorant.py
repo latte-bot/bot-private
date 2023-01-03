@@ -634,53 +634,7 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
 
             embeds_stuffs.append(s_embed)
 
-            # build embeds
-            embeds = []
-            embed = Embed(
-                description=f"Featured Bundle: {bold(f'{bundle.name_localizations.from_locale(str(locale))} Collection')}\n"  # noqa: E501
-                f"{PointEmoji.valorant} {bold(str(bundle.discount_price))} {strikethrough(str(bundle.price))} "
-                f"{italics(f'(Expires {format_relative(bundle.expires_at)})')}",
-                colour=self.bot.theme.purple,
-            )
-            if bundle.display_icon_2 is not None:
-                embed.set_image(url=bundle.display_icon_2)
-
-            embeds.append(embed)
-
-            for item in sorted(bundle.items, key=lambda i: i.price, reverse=True):
-                emoji = item.rarity.emoji if isinstance(item, Skin) else ''  # type: ignore
-
-                price_label = f"{PointEmoji.valorant} "
-
-                item_price = item.price
-                item_discounted_price = item.discounted_price
-
-                if not isinstance(item, valorantx.SkinBundle) or item.is_melee():
-                    price_label += f"{bold('FREE')} {strikethrough(str(item_price))}"
-                else:
-                    if item_discounted_price != item_price and item_discounted_price != 0:
-                        price_label += f"{bold(str(item_discounted_price))} {strikethrough(str(item_price))}"
-                    else:
-                        price_label += f"{item_price}"
-
-                e = Embed(
-                    title=f"{emoji} {bold(item.display_name)}",
-                    description=price_label,
-                    colour=self.bot.theme.dark,
-                )
-                if isinstance(item, PlayerCard):
-                    item_icon = item.large_icon
-                elif isinstance(item, Spray):
-                    item_icon = item.animation_gif or item.full_transparent_icon or item.full_icon or item.display_icon
-                else:
-                    item_icon = item.display_icon
-
-                if item_icon is not None:
-                    e.url = item_icon.url
-                    e.set_thumbnail(url=item_icon)
-                embeds.append(e)
-
-            all_embeds[bundle.uuid] = embeds
+            all_embeds[bundle.uuid] = bundle_e(bundle, locale=locale)
 
         select_view.all_embeds = all_embeds
 

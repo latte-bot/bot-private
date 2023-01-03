@@ -64,7 +64,6 @@ class LatteBot(commands.AutoShardedBot):
             intents=intents,
             description=description,
             application_id=894156599906689095,
-            # application_id=989337541389987861,
             chunk_guilds_at_startup=False,
         )
 
@@ -168,8 +167,7 @@ class LatteBot(commands.AutoShardedBot):
 
     @discord.utils.cached_property
     def traceback_log(self) -> discord.TextChannel:
-        channel = self.get_channel(1002816710593749052)
-        return channel
+        return self.get_channel(1002816710593749052)
 
     async def on_message(self, message: discord.Message, /):
         if message.author == self.user:
