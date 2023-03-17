@@ -79,15 +79,16 @@ async def create_pool() -> asyncpg.Pool:
             format='text',
         )
 
-    uri = os.getenv('POSTGRESQL', None)
+    #uri = os.getenv('POSTGRESQL', None)
+    uri = 'postgres://rcymyytv:2kF8qAwPs1JZJe1QooE9CRVS6V_KRkdq@john.db.elephantsql.com/rcymyytv'
     if uri is None:
         raise RuntimeError('POSTGRESQL environment variable is not set')
     return await asyncpg.create_pool(
         uri,
         init=init,
         command_timeout=60,
-        max_size=5,  # 20
-        min_size=5,  # 20
+        max_size=1,  # 20
+        min_size=1,  # 20
     )  # type: ignore
 
 

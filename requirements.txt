@@ -6,7 +6,7 @@ asyncpg>=0.27.0
 
 # aio-libs
 aiohttp>=3.7.4,<4
-async_lru>=1.0.3
+async_lru==1.0.3
 
 # discord
 discord.py @ git+https://github.com/Rapptz/discord.py.git

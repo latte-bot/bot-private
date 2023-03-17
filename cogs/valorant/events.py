@@ -53,7 +53,10 @@ class Events(MixinMeta):  # noqa
                     )
 
             # invalidate cache
-            self.fetch_user.invalidate(self, id=riot_auth.discord_id)  # type: ignore
+            try:
+                self.fetch_user.invalidate(self, id=riot_auth.discord_id)  # type: 
+            except Exception:
+                pass
 
     @commands.Cog.listener()
     async def on_re_authorized_failure(self, riot_auth: RiotAuth) -> None:

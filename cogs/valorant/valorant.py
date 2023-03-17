@@ -394,8 +394,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
             wait_modal.stop()
 
         except valorantx.RiotAuthenticationError as e:
+            print(e)
             raise CommandError('Invalid username or password.') from e
         except aiohttp.ClientResponseError as e:
+            print(e)
             raise CommandError('Riot server is currently unavailable.') from e
         else:
             await interaction.response.defer(ephemeral=True)
@@ -420,7 +422,10 @@ class Valorant(Admin, Notify, Events, ContextMenu, ErrorHandler, commands.Cog, m
         )
 
         # invalidate cache
-        self.fetch_user.invalidate(self, id=interaction.user.id)
+        try:
+            self.fetch_user.invalidate(self, id=interaction.user.id)
+        except:
+            pass
 
         e = Embed(description=f"Successfully logged in {bold(try_auth.display_name)}")
         await interaction.followup.send(embed=e, ephemeral=True)
