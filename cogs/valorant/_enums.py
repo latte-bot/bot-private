@@ -17,6 +17,7 @@ class AgentEmoji(str, Enum):
     chamber = '<:agent_chamber:1042813558309789716>'
     cypher = '<:agent_cypher:1042813567835050084>'
     fade = '<:agent_fade:1042813612131111063>'
+    gekko = '<:agent_gekko:1086157251565338671>'
     harbor = '<:agent_harbor:1042813576370454568>'
     jett = '<:agent_jett:1042813609312538814>'
     kay_o = '<:agent_kay_o:1042813561052876902>'
@@ -154,11 +155,11 @@ class GameModeEmoji(str, Enum):
 
 class ContentTierEmoji(str, Enum):
 
-    deluxe = '<:content_tier_deluxe:1042810257426108557>'
-    exclusive = '<:content_tier_exclusive:1042810259317735434>'
-    premium = '<:content_tier_premium:1042810261289050224>'
-    select = '<:content_tier_select:1042810263361036360>'
-    ultra = '<:content_tier_ultra:1042810265906991104>'
+    deluxe = '<:new_content_tier_deluxe:1083077781295992902>'
+    exclusive = '<:new_content_tier_exclusive:1083077759586283614>'
+    premium = '<:new_content_tier_premium:1083077743945728132>'
+    select = '<:new_content_tier_select:1083077724022788166>'
+    ultra = '<:new_content_tier_ultra:1083077703638458400>'
 
     def __str__(self) -> str:
         return str(self.value)
